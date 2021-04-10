@@ -18,6 +18,10 @@ def sample_user(email='test@gmail.com', name='Test', password='testpass',
     )
 
 
+def sample_tag(name, user):
+    return models.Tag.objects.create(name=name, user=user)
+
+
 class PrivateRecipeApiTests(TestCase):
 
     def setUp(self):
@@ -25,28 +29,31 @@ class PrivateRecipeApiTests(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)\
 
+        self.tag = sample_tag('test', self.user)
 
     def test_ingredient_str(self):
         """ test the ingredient string representation """
 
         ingredient = models.Ingredient.objects.create(name='Szpinak',
-                                                      type='V',
                                                       user=self.user)
+        ingredient.tag.add(self.tag)
         self.assertEqual(str(ingredient), ingredient.name)
 
     def test_ingredient_slug(self):
         """ test the ingredient slug """
 
         ingredient = models.Ingredient.objects.create(name='Biała czekolada',
-                                                      type='W',
                                                       user=self.user)
+        ingredient.tag.add(self.tag)
         self.assertEqual(ingredient.slug, 'biala-czekolada')
 
     def test_same_slug_different_ingredients(self):
-        ing1 = models.Ingredient.objects.create(name='Sól', type='W',
+        ing1 = models.Ingredient.objects.create(name='Sól',
                                                 user=self.user)
-        ing2 = models.Ingredient.objects.create(name='Sol', type='V',
+        ing1.tag.add(self.tag)
+        ing2 = models.Ingredient.objects.create(name='Sol',
                                                 user=self.user)
+        ing2.tag.add(self.tag)
 
         self.assertNotEqual(ing1.slug, ing2.slug)
         self.assertEqual(ing2.slug, 'sol2')

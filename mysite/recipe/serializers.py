@@ -7,7 +7,7 @@ class IngredientSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Ingredient
-        fields = ('id', 'name', 'slug', 'user', 'type')
+        fields = ('id', 'name', 'slug', 'user', 'tag')
         read_only_fields = ('id', 'user', 'slug')
 
     def validate_name(self, value):

@@ -110,8 +110,7 @@ class Ingredient(models.Model):
         ('W', "wegetariańskie"),
         ('Z', "zwierzęce"),
     ]
-    type = models.CharField(max_length=1, blank=True, choices=TYPE_CHOICE,
-                            verbose_name='Typ')
+    tag = models.ManyToManyField('Tag')
 
     def save(self, *args, **kwargs):
         """ two ingredient can have same slug eg 'sól' and 'sol' both

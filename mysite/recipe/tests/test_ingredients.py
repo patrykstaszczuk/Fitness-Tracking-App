@@ -16,8 +16,12 @@ def reverse_ingredient_detail(slug):
     return reverse('recipe:ingredient-detail', kwargs={'slug': slug})
 
 
-def sample_ingredient(name, user, type):
-    return models.Ingredient.objects.create(name=name, user=user, type=type)
+def sample_ingredient(name, user):
+    return models.Ingredient.objects.create(name=name, user=user)
+
+
+def sample_tag(name, user):
+    return models.Tag.objects.create(name=name, user=user)
 
 
 class PublicIngredientApiTests(TestCase):
@@ -44,14 +48,15 @@ class PrivateIngredientApiTest(TestCase):
             age=25,
             sex='Male'
         )
+        self.tag = sample_tag('test', self.user)
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
     def test_retrieve_ingredients(self):
         """ test retrieving ingredients tags """
 
-        sample_ingredient("czosnek", self.user, 'V')
-        sample_ingredient("szpinak", self.user, 'W')
+        sample_ingredient("czosnek", self.user)
+        sample_ingredient("szpinak", self.user)
 
         res = self.client.get(INGREDIENTS_URL)
         ingredients = models.Ingredient.objects.all().order_by('-name')
@@ -69,8 +74,8 @@ class PrivateIngredientApiTest(TestCase):
             age=25,
             sex='Male'
         )
-        ingredient = sample_ingredient('Szpinak', self.user, 'V')
-        sample_ingredient('Czosnek', user2, 'V')
+        ingredient = sample_ingredient('Szpinak', self.user)
+        sample_ingredient('Czosnek', user2)
 
         res = self.client.get(INGREDIENTS_URL)
 
@@ -82,11 +87,9 @@ class PrivateIngredientApiTest(TestCase):
         """ test creating new ingredient """
         payload = {
             'name': 'Cebula',
-            'user': self.user,
-            'type': 'V'
+            'tag': self.tag.id
         }
         self.client.post(INGREDIENTS_URL, payload)
-
         exists = models.Ingredient.objects.filter(
             user=self.user,
             name=payload['name']
@@ -103,12 +106,11 @@ class PrivateIngredientApiTest(TestCase):
 
     def test_create_ingredient_repeated_name(self):
         """ test create ingredient which already is in database """
-        sample_ingredient('Majonez', self.user, 'V')
+        sample_ingredient('Majonez', self.user)
 
         payload = {
             'name': 'Majonez',
-            'user': self.user,
-            'type': 'V'
+            'user': self.user.id,
         }
         res = self.client.post(INGREDIENTS_URL, payload)
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
@@ -122,12 +124,12 @@ class PrivateIngredientApiTest(TestCase):
             age=25,
             sex='Male'
         )
-        sample_ingredient('Majonez', user2, 'V')
+        sample_ingredient('Majonez', user2)
 
         payload = {
             'name': 'Majonez',
             'user': user2,
-            'type': 'V'
+            'tag': self.tag.id
         }
 
         res = self.client.post(INGREDIENTS_URL, payload)
@@ -140,7 +142,7 @@ class PrivateIngredientApiTest(TestCase):
 
     def test_delete_ingredient_success(self):
         """ test deleting ingredient with success """
-        ingredient = sample_ingredient('Majonez', self.user, 'V')
+        ingredient = sample_ingredient('Majonez', self.user)
         res = self.client.delete(reverse_ingredient_detail(ingredient.slug))
         ingredient = models.Ingredient.objects.filter(user=self.user). \
             filter(name=ingredient.name).exists()
@@ -150,10 +152,10 @@ class PrivateIngredientApiTest(TestCase):
 
     def test_full_update_ingredient_success(self):
         """ test update ingredient with success """
-        ingredient = sample_ingredient('Majonez', self.user, 'V')
+        ingredient = sample_ingredient('Majonez', self.user)
         payload = {
             'name': 'Mąka',
-            'type': 'W'
+            'tag': self.tag.id
         }
         res = self.client.put(reverse_ingredient_detail(ingredient.slug), payload)
         ingredient = models.Ingredient.objects.filter(id=ingredient.id)[0]
@@ -163,22 +165,25 @@ class PrivateIngredientApiTest(TestCase):
 
     def test_partial_ingredient_update_success(self):
         """ test that partial ingredient update works """
-        ingredient = sample_ingredient('Majonez', self.user, 'V')
+        ingredient = sample_ingredient('Majonez', self.user)
         payload = {
-            'type': 'W'
+            'tag': self.tag.id
         }
-        self.client.patch(reverse_ingredient_detail(ingredient.slug), payload)
+        res = self.client.patch(reverse_ingredient_detail(ingredient.slug),
+                                                           payload)
         ingredient = models.Ingredient.objects.filter(id=ingredient.id)[0]
-
-        self.assertEqual(ingredient.type, payload['type'])
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(ingredient.tag.first(), self.tag)
 
     def test_full_ingredient_update_same_name(self):
         """ test full ingredient update with the same name """
-        ingredient = sample_ingredient('Majonez', self.user, 'V')
+        ingredient = sample_ingredient('Majonez', self.user)
         payload = {
             'name': 'Majonez',
-            'type': 'W'
+            'tag': self.tag.id
         }
-        self.client.put(reverse_ingredient_detail(ingredient.slug), payload)
+        res = self.client.put(reverse_ingredient_detail(ingredient.slug), payload)
         ingredient = models.Ingredient.objects.filter(id=ingredient.id)[0]
-        self.assertEqual(ingredient.type, payload['type'])
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(ingredient.tag.first(), self.tag)
