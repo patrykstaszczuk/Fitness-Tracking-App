@@ -66,12 +66,15 @@ class PrivateRecipeApiTests(TestCase):
         )
 
         self.assertEqual(str(tag), tag.name)
-    # def test_recipe_str(self):
-    #     """ test the recipe string representation """
-    #     recipe = models.Recipe.objects.create(
-    #         name='Danie',
-    #         user=sample_user(),
-    #         type='V',
-    #         category='O'
-    #     )
-    #     self.assertEqual(str(recipe), recipe.name)
+
+    def test_recipe_str(self):
+        """ test the recipe string representation """
+        recipe = models.Recipe.objects.create(
+            name='Danie',
+            user=self.user,
+            calories=1000,
+            portions=4,
+            prepare_time=45,
+            description='To jest opis dania'
+        )
+        self.assertEqual(str(recipe), recipe.name)

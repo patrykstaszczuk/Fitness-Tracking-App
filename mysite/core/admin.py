@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import Group
 from users.models import MyUser
-from recipe.models import Ingredient
+from recipe.models import Ingredient, Tag, Recipe
 # from users.forms import CustomUserChangeForm, CustomUserCreationForm
 
 
@@ -40,4 +40,5 @@ class UserAdmin(BaseUserAdmin):
 admin.site.register(MyUser, UserAdmin)
 admin.site.unregister(Group)
 admin.site.register(Ingredient)
-#admin.site.register()
+admin.site.register(Tag)
+admin.site.register(Recipe)
