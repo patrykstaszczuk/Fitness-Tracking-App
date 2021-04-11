@@ -87,7 +87,7 @@ class PrivateIngredientApiTest(TestCase):
         """ test creating new ingredient """
         payload = {
             'name': 'Cebula',
-            'tag': self.tag.id
+            'tag': self.tag
         }
         self.client.post(INGREDIENTS_URL, payload)
         exists = models.Ingredient.objects.filter(
@@ -129,7 +129,7 @@ class PrivateIngredientApiTest(TestCase):
         payload = {
             'name': 'Majonez',
             'user': user2,
-            'tag': self.tag.id
+            'tag': self.tag
         }
 
         res = self.client.post(INGREDIENTS_URL, payload)
@@ -155,7 +155,7 @@ class PrivateIngredientApiTest(TestCase):
         ingredient = sample_ingredient('Majonez', self.user)
         payload = {
             'name': 'Mąka',
-            'tag': self.tag.id
+            'tag': self.tag
         }
         res = self.client.put(reverse_ingredient_detail(ingredient.slug), payload)
         ingredient = models.Ingredient.objects.filter(id=ingredient.id)[0]
@@ -167,7 +167,7 @@ class PrivateIngredientApiTest(TestCase):
         """ test that partial ingredient update works """
         ingredient = sample_ingredient('Majonez', self.user)
         payload = {
-            'tag': self.tag.id
+            'tag': self.tag
         }
         res = self.client.patch(reverse_ingredient_detail(ingredient.slug),
                                                            payload)
@@ -180,7 +180,7 @@ class PrivateIngredientApiTest(TestCase):
         ingredient = sample_ingredient('Majonez', self.user)
         payload = {
             'name': 'Majonez',
-            'tag': self.tag.id
+            'tag': self.tag
         }
         res = self.client.put(reverse_ingredient_detail(ingredient.slug), payload)
         ingredient = models.Ingredient.objects.filter(id=ingredient.id)[0]
