@@ -59,10 +59,11 @@ class TagSerializer(serializers.ModelSerializer):
 class RecipeSerializer(serializers.ModelSerializer):
     """ serializer for recipe objects """
 
-    # ingredient = serializers.PrimaryKeyRelatedfield(
-    #     many=True,
-    #     queryset=Ingredient.objects.all()
-    # )
+    ingredient = serializers.SlugRelatedField(
+        many=True,
+        slug_field='name',
+        queryset=Ingredient.objects.all()
+    )
 
     tag = serializers.SlugRelatedField(
         many=True,
@@ -73,7 +74,8 @@ class RecipeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
         fields = ('id', 'user', 'name', 'calories',
-                  'portions', 'prepare_time', 'tag', 'description')
+                  'portions', 'prepare_time', 'ingredient', 'tag',
+                  'description')
         read_only_fields = ('id', 'user', )
 
     def validate_name(self, value):
@@ -85,3 +87,9 @@ class RecipeSerializer(serializers.ModelSerializer):
         check_if_name_is_in_db(self.instance, queryset)
 
         return value
+
+
+class RecipeDetailSerializer(RecipeSerializer):
+    """ serializer a recipe detail """
+    ingredient = IngredientSerializer(many=True, read_only=True)
+    tag = TagSerializer(many=True, read_only=True)

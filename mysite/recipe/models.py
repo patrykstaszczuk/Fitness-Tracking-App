@@ -38,8 +38,8 @@ class Recipe(models.Model):
     #                            verbose_name='Zdjęcie 3')
 
     tag = models.ManyToManyField('Tag')
-    #ingredient = models.ManyToManyField('Ingredient',
-    #                                    through='recipe_ingredient')
+    ingredient = models.ManyToManyField('Ingredient',
+                                        through='recipe_ingredient')
 
     description = models.TextField(max_length=3000, default='',
                                    verbose_name='Przygotowanie', blank=True)
@@ -158,28 +158,14 @@ class Tag(models.Model):
 
     class Meta:
         unique_together = ('user', 'name')
-# class IngredientQuantity(models.Model):
-#
-#     recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE,
-#                                null=False, related_name='ingredient_qty')
-#     ingredient = models.ForeignKey(Ingredient, on_delete=models.PROTECT,
-#                                    null=False, related_name='ingredient',
-#                                    verbose_name='Składnik')
-#
-#     quantity = models.CharField(verbose_name='ilość', blank=True,
-#                                 max_length=25, default='')
-#
-#     UNIT_CHOICE = [
-#         ('KG', 'kg'),
-#         ('GR', 'g'),
-#         ('ML', 'ml'),
-#         ('SS', 'łyżeczki'),
-#         ('SL', 'łyżki'),
-#         ('SK', 'szklanki'),
-#         ('SZ', 'sztuk'),
-#     ]
-#     unit = models.CharField(max_length=2, blank=True, choices=UNIT_CHOICE,
-#                             verbose_name='jednostka', default='')
-#
-#     def __str__(self):
-#         return str(self.quantity) + " " + self.unit
+
+
+class Recipe_Ingredient(models.Model):
+    recipe = models.ForeignKey('Recipe', on_delete=models.CASCADE, null=False)
+    ingredient = models.ForeignKey('Ingredient', on_delete=models.CASCADE,
+                                   null=False)
+
+    quantity = models.CharField(blank=True, max_length=25, default='')
+
+    def __str__(self):
+        return self.recipe.name + '_' + self.ingredient.name
