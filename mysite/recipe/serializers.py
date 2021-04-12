@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from recipe.models import Ingredient, Tag, Recipe
+from recipe.models import Ingredient, Tag, Recipe, Recipe_Ingredient
 
 
 def raise_validation_error(instance):
@@ -56,6 +56,16 @@ class TagSerializer(serializers.ModelSerializer):
         return value
 
 
+# class RecipeIngredientSerializer(serializers.ModelSerializer):
+#     """ serializer for intermediate model for recipe and ingredient, with
+#         field quantity """
+#
+#     class Meta:
+#         model = Recipe_Ingredient
+#         fields = ('id', 'ingredient', 'quantity')
+#         read_only_fields = ('id')
+
+
 class RecipeSerializer(serializers.ModelSerializer):
     """ serializer for recipe objects """
 
@@ -71,11 +81,13 @@ class RecipeSerializer(serializers.ModelSerializer):
         queryset=Tag.objects.all()
     )
 
+    # quantity = RecipeIngredientSerializer(many=True)
+
     class Meta:
         model = Recipe
         fields = ('id', 'user', 'name', 'calories',
                   'portions', 'prepare_time', 'ingredient', 'tag',
-                  'description')
+                  'description',)
         read_only_fields = ('id', 'user', )
 
     def validate_name(self, value):
