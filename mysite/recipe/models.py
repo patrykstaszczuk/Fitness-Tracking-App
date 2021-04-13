@@ -165,7 +165,7 @@ class Recipe_Ingredient(models.Model):
     ingredient = models.ForeignKey('Ingredient', on_delete=models.CASCADE,
                                    null=False)
 
-    quantity = models.CharField(blank=True, max_length=25, default='')
+    quantity = models.CharField(max_length=25)
 
     def __str__(self):
         return self.recipe.name + '_' + self.ingredient.name

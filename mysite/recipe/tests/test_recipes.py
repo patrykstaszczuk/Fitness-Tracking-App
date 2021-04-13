@@ -157,11 +157,13 @@ class PrivateRecipeApiTests(TestCase):
 
         payload = {
             'name': 'dobry obiad',
-            'ingredient': [ingredient1, ingredient2],
-            'description': "opisa dania"
+            'ingredients': [
+                {'ingredient': ingredient1, 'quantity': '2kg'},
+            ],
+            'description': "opis dania"
         }
         res = self.client.post(RECIPE_URL, payload)
-
+        print(res.data)
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         recipe = models.Recipe.objects.get(id=res.data['id'])
         ingredients = recipe.ingredient.all()
