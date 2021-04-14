@@ -20,7 +20,8 @@ class IngredientSerializer(serializers.ModelSerializer):
     tag = serializers.SlugRelatedField(
         many=True,
         slug_field='name',
-        queryset=Tag.objects.all()
+        queryset=Tag.objects.all(),
+        required=False
     )
 
     class Meta:
@@ -60,34 +61,33 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
     """ serializer for intermediate model for recipe and ingredient, with
         field quantity """
 
-    ingredient = serializers.SlugRelatedField(
-        many=True,
-        slug_field='name',
-        queryset=Ingredient.objects.all()
+    ingredient = serializers.PrimaryKeyRelatedField(
+            queryset=Ingredient.objects.all(),
+            required=False
     )
 
     class Meta:
         model = Recipe_Ingredient
         fields = ('ingredient', 'quantity')
+        extra_kwargs = {'recipe': {'write_only': True}, 'quantity':
+                        {'required': False}}
 
 
 class RecipeSerializer(serializers.ModelSerializer):
     """ serializer for recipe objects """
 
-    tag = serializers.SlugRelatedField(
+    tags = serializers.PrimaryKeyRelatedField(
         many=True,
-        slug_field='name',
-        queryset=Tag.objects.all()
+        queryset=Tag.objects.all(),
+        required=False
     )
-
-    ingredients = RecipeIngredientSerializer(many=True, required=False)
+    ingredients = RecipeIngredientSerializer(required=False,
+                                             many=True)
 
     class Meta:
         model = Recipe
-        fields = ('id', 'user', 'name', 'calories',
-                  'portions', 'prepare_time', 'ingredients', 'tag',
-                  'description',)
-        read_only_fields = ('id', 'user', )
+        fields = '__all__'
+        read_only_fields = ('id', 'user', 'slug')
 
     def validate_name(self, value):
         """ check if recipe with provided name is not already in db """
@@ -99,23 +99,19 @@ class RecipeSerializer(serializers.ModelSerializer):
 
         return value
 
-    def validate_ingredient(self, attrs):
-        print("jestem tutaj")
-
-    def to_internal_value(self, data):
-        internal_value = super().to_internal_value(data)
-        ingredients_raw = data.get('ingredients')
-        ingredients = self.validate_ingredient(ingredients_raw)
-        internal_value.update(
-            {'ingredients': ingredients}
-        )
-        return internal_value
-
     def create(self, validated_data):
-        print(validated_data)
+        ingredients = validated_data.pop('ingredients')
+        recipe = super().create(validated_data)
+
+        for ingredient in ingredients:
+            Recipe_Ingredient.objects.create(
+                recipe=recipe,
+                **ingredient
+            )
+        return recipe
 
 
 class RecipeDetailSerializer(RecipeSerializer):
     """ serializer a recipe detail """
-    ingredient = IngredientSerializer(many=True, read_only=True)
+    ingredient = RecipeIngredientSerializer(many=True, read_only=True)
     tag = TagSerializer(many=True, read_only=True)

@@ -48,10 +48,3 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
         if self.action == 'retrieve':
             return serializers.RecipeDetailSerializer
         return self.serializer_class
-
-    # def create(self, request, *args, **kwargs):
-    #     serializer = self.get_serializer(data=request.data)
-    #     print(serializer.fields)
-    #     # print(serializer.initial_data)
-    #     # serializer.is_valid(raise_exception=True)
-    #     # print(serializer.data)

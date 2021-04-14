@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 
-from rest_framework.test import APIClient
+from rest_framework.test import APIClient, APITestCase
 from rest_framework import status
 
 from recipe import models
@@ -53,7 +53,7 @@ class PublicRecipeApiTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
-class PrivateRecipeApiTests(TestCase):
+class PrivateRecipeApiTests(APITestCase):
     """ test authenticated recipe API Aaccess """
 
     def setUp(self):
@@ -154,19 +154,27 @@ class PrivateRecipeApiTests(TestCase):
         """ test creating recipe with ingredients """
         ingredient1 = sample_ingredient(user=self.user, name='Krewetki')
         ingredient2 = sample_ingredient(user=self.user, name='Masło')
-
+        tag = sample_tag(user=self.user, name='Deser')
         payload = {
             'name': 'dobry obiad',
-            'ingredients': [
-                {'ingredient': ingredient1, 'quantity': '2kg'},
-            ],
-            'description': "opis dania"
+            'tags': [tag.id, ],
+            "ingredients": [{
+                "ingredient": ingredient1.id,
+                "quantity": "2kg"
+            }, {
+                "ingredient": ingredient2.id,
+                "quantity": "2kg"
+            }, ],
+            'description': "opis dania",
+            'test': 'cos',
+            # 'test_1': '1',
+            # 'test_2': '2',
         }
-        res = self.client.post(RECIPE_URL, payload)
-        print(res.data)
+        res = self.client.post(RECIPE_URL, payload, format='json')
+        #print(res.data)
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         recipe = models.Recipe.objects.get(id=res.data['id'])
-        ingredients = recipe.ingredient.all()
+        ingredients = recipe.ingredients.all()
 
         self.assertEqual(len(ingredients), 2)
         self.assertIn(ingredient1, ingredients)

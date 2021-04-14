@@ -37,9 +37,9 @@ class Recipe(models.Model):
     # photo3 = models.ImageField(upload_to=recipe_image_file_path, blank=True,
     #                            verbose_name='Zdjęcie 3')
 
-    tag = models.ManyToManyField('Tag')
-    ingredient = models.ManyToManyField('Ingredient',
-                                        through='recipe_ingredient')
+    tags = models.ManyToManyField('Tag')
+    ingredients = models.ManyToManyField('Ingredient',
+                                         through='recipe_ingredient')
 
     description = models.TextField(max_length=3000, default='',
                                    verbose_name='Przygotowanie', blank=True)
