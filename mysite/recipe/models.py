@@ -39,7 +39,8 @@ class Recipe(models.Model):
 
     tags = models.ManyToManyField('Tag')
     ingredients = models.ManyToManyField('Ingredient',
-                                         through='recipe_ingredient')
+                                         through='recipe_ingredient',
+                                         related_name='ingredients_quantity')
 
     description = models.TextField(max_length=3000, default='',
                                    verbose_name='Przygotowanie', blank=True)
@@ -137,7 +138,7 @@ class Ingredient(models.Model):
 class Tag(models.Model):
     user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE,
                              null=False)
-    name = models.CharField(max_length=10)
+    name = models.CharField(max_length=20)
 
     slug = models.SlugField(blank=False, unique=False)
 
@@ -161,7 +162,8 @@ class Tag(models.Model):
 
 
 class Recipe_Ingredient(models.Model):
-    recipe = models.ForeignKey('Recipe', on_delete=models.CASCADE, null=False)
+    recipe = models.ForeignKey('Recipe', on_delete=models.CASCADE, null=False,
+                               related_name='ingredients_quantity')
     ingredient = models.ForeignKey('Ingredient', on_delete=models.CASCADE,
                                    null=False)
 

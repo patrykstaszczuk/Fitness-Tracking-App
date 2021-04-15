@@ -61,8 +61,9 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
     """ serializer for intermediate model for recipe and ingredient, with
         field quantity """
 
-    ingredient = serializers.PrimaryKeyRelatedField(
+    ingredient = serializers.SlugRelatedField(
             queryset=Ingredient.objects.all(),
+            slug_field='slug',
             required=False
     )
 
@@ -70,24 +71,34 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
         model = Recipe_Ingredient
         fields = ('ingredient', 'quantity')
         extra_kwargs = {'recipe': {'write_only': True}, 'quantity':
-                        {'required': False}}
+                        {'required': False},
+                        }
 
 
 class RecipeSerializer(serializers.ModelSerializer):
     """ serializer for recipe objects """
 
-    tags = serializers.PrimaryKeyRelatedField(
+    tags = serializers.SlugRelatedField(
         many=True,
+        slug_field='slug',
         queryset=Tag.objects.all(),
-        required=False
+        required=True
     )
     ingredients = RecipeIngredientSerializer(required=False,
-                                             many=True)
+                                             many=True,
+                                             write_only=True,
+                                             source='ingredients_quantity')
 
     class Meta:
         model = Recipe
         fields = '__all__'
         read_only_fields = ('id', 'user', 'slug')
+        extra_kwargs = {
+            'calories': {'write_only': True},
+            'portions': {'write_only': True},
+            'prepare_time': {'write_only': True},
+            'description': {'write_only': True}
+        }
 
     def validate_name(self, value):
         """ check if recipe with provided name is not already in db """
@@ -99,19 +110,46 @@ class RecipeSerializer(serializers.ModelSerializer):
 
         return value
 
+    def validate_ingredients(self, value):
+        """ placeholder for nested ingredients field validation """
+        return value
+
     def create(self, validated_data):
-        ingredients = validated_data.pop('ingredients')
+        ingredients = validated_data.pop('ingredients_quantity', None)
         recipe = super().create(validated_data)
 
-        for ingredient in ingredients:
-            Recipe_Ingredient.objects.create(
-                recipe=recipe,
-                **ingredient
-            )
+        if ingredients:
+            for ingredient in ingredients:
+                Recipe_Ingredient.objects.create(
+                    recipe=recipe,
+                    **ingredient
+                )
+        return recipe
+
+    def update(self, instance, validated_data):
+        ingredients = validated_data.pop('ingredients_quantity', None)
+        recipe = super().update(instance, validated_data)
+        existing_recipe_ingredient_rows = Recipe_Ingredient.objects. \
+            filter(recipe=recipe)
+        for rows in existing_recipe_ingredient_rows:
+            rows.delete()
+        if ingredients:
+            for ingredient in ingredients:
+                ingredient.update({'recipe': recipe})
+                obj = Recipe_Ingredient.objects.create(**ingredient)
+                print(recipe.ingredients.all())
         return recipe
 
 
 class RecipeDetailSerializer(RecipeSerializer):
     """ serializer a recipe detail """
-    ingredient = RecipeIngredientSerializer(many=True, read_only=True)
-    tag = TagSerializer(many=True, read_only=True)
+
+    ingredients = RecipeIngredientSerializer(many=True, write_only=False,
+                                             source='ingredients_quantity')
+
+    tags = TagSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Recipe
+        fields = '__all__'
+        read_only_fields = ('id', 'user', 'slug')

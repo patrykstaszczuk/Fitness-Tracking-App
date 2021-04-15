@@ -107,8 +107,8 @@ class PrivateRecipeApiTests(APITestCase):
     def test_view_recipe_detail(self):
         """ test viewing a recipe detail """
         recipe = sample_recipe(user=self.user)
-        recipe.tag.add(sample_tag(self.user, 'vege'))
-        recipe.ingredient.add(sample_ingredient(self.user, 'szpinak'))
+        recipe.tags.add(sample_tag(self.user, 'vege'))
+        recipe.ingredients.add(sample_ingredient(self.user, 'szpinak'))
 
         url = detail_url(recipe.slug)
 
@@ -136,7 +136,8 @@ class PrivateRecipeApiTests(APITestCase):
         tag2 = sample_tag(user=self.user, name='Deser')
         payload = {
             'name': 'placki z czekolada',
-            'tag': [tag1, tag2],
+            'tags': [tag1.slug, tag2.slug],
+            'ingredients': [],
             'description': "opis dania"
         }
 
@@ -144,7 +145,7 @@ class PrivateRecipeApiTests(APITestCase):
 
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         recipe = models.Recipe.objects.get(id=res.data['id'])
-        tags = recipe.tag.all()
+        tags = recipe.tags.all()
 
         self.assertEqual(len(tags), 2)
         self.assertIn(tag1, tags)
@@ -157,25 +158,130 @@ class PrivateRecipeApiTests(APITestCase):
         tag = sample_tag(user=self.user, name='Deser')
         payload = {
             'name': 'dobry obiad',
-            'tags': [tag.id, ],
+            'tags': [tag.slug, ],
             "ingredients": [{
-                "ingredient": ingredient1.id,
+                "ingredient": ingredient1.slug,
                 "quantity": "2kg"
             }, {
-                "ingredient": ingredient2.id,
+                "ingredient": ingredient2.slug,
                 "quantity": "2kg"
             }, ],
             'description': "opis dania",
-            'test': 'cos',
-            # 'test_1': '1',
-            # 'test_2': '2',
         }
+
         res = self.client.post(RECIPE_URL, payload, format='json')
-        #print(res.data)
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         recipe = models.Recipe.objects.get(id=res.data['id'])
+
+        recipe_ingredient = models.Recipe_Ingredient.objects.filter(
+            recipe=recipe
+        ).count()
+        self.assertEqual(recipe_ingredient, 2)
         ingredients = recipe.ingredients.all()
 
         self.assertEqual(len(ingredients), 2)
+        self.assertEqual(len(ingredients), 2)
         self.assertIn(ingredient1, ingredients)
         self.assertIn(ingredient2, ingredients)
+
+    def test_create_multi_recipes_for_multi_users(self):
+        """ create multi recipes for multi users """
+        user2 = get_user_model().objects.create(
+                email='test2@gmail.com',
+                name='testuser2',
+                password='testpass',
+                age=25,
+                sex='Male'
+        )
+        ingredient_self_user = sample_ingredient(self.user, 'Szpinak')
+        ingredient_user2 = sample_ingredient(user2, 'Czonsek')
+
+        tag_self_user = sample_tag(self.user, 'Vege')
+        tag_user2 = sample_tag(user2, 'Vegetarian')
+
+        recipe = sample_recipe(user2, **{
+            'name': 'Danie user2',
+        })
+        recipe.tags.add(tag_user2)
+        recipe.ingredients.add(ingredient_user2)
+        payload = {
+            'name': 'dobry self.user',
+            'tags': [tag_self_user.slug, ],
+            "ingredients": [{
+                "ingredient": ingredient_self_user.slug,
+                "quantity": "2kg"
+            }, ],
+            'description': "opis dania",
+        }
+
+        res = self.client.post(RECIPE_URL, payload, format='json')
+
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+
+        recipe_self_user = models.Recipe.objects.filter(user=self.user)
+        self.assertEqual(len(recipe_self_user), 1)
+        recipe_user2 = models.Recipe.objects.filter(user=user2)
+        self.assertEqual(len(recipe_user2), 1)
+
+        rec_ing_self_user = models.Recipe_Ingredient.objects.\
+            filter(recipe=recipe_self_user[0])
+        self.assertEqual(len(rec_ing_self_user), 1)
+
+        rec_ing_user2 = models.Recipe_Ingredient.objects.\
+            filter(recipe=recipe_user2[0])
+        self.assertEqual(len(rec_ing_user2), 1)
+
+    def test_partial_recipe_update(self):
+        """ test updating a recipe with PATCH """
+        recipe = sample_recipe(user=self.user)
+        recipe.tags.add(sample_tag(user=self.user, name='Vege'))
+        recipe.ingredients.add(sample_ingredient(self.user, 'Cukinia'))
+
+        new_tag = sample_tag(user=self.user, name='Curry')
+
+        payload = {
+            'name': 'Nowe danie testowe',
+            'tags': [new_tag.slug, ]
+        }
+        url = detail_url(recipe.slug)
+        self.client.patch(url, payload)
+
+        recipe.refresh_from_db()
+        self.assertEqual(recipe.name, payload['name'])
+        tags = recipe.tags.all()
+        self.assertEqual(len(tags), 1)
+        self.assertIn(new_tag, tags)
+
+    def test_full_recipe_update(self):
+        """ test updating a recipe with put """
+        recipe = sample_recipe(user=self.user)
+        recipe.tags.add(sample_tag(self.user, name='Vege'))
+        recipe.ingredients.add(sample_ingredient(self.user, 'Cukinia'))
+
+        new_ing = models.Ingredient.objects.create(
+            user=self.user,
+            name='Czosnek'
+        )
+        new_tag = models.Tag.objects.create(
+            name='Wegetarianski',
+            user=self.user
+        )
+        payload = {
+            'name': 'nowa nazwa dla dania',
+            'tags': [new_tag.slug, ],
+            "ingredients": [{
+                "ingredient": new_ing.slug,
+                "quantity": "10 łyżek"
+            }, ],
+            'description': "opis dania 2",
+        }
+        url = detail_url(recipe.slug)
+        self.client.put(url, payload, format='json')
+        recipe.refresh_from_db()
+        self.assertEqual(recipe.name, payload['name'])
+        self.assertEqual(recipe.description, payload['description'])
+
+        tags = recipe.tags.all()
+        self.assertEqual(tags[0], new_tag)
+        ingredients = recipe.ingredients.all()
+        self.assertEqual(ingredients[0], new_ing)
