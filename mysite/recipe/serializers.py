@@ -136,7 +136,10 @@ class RecipeSerializer(serializers.ModelSerializer):
         if ingredients:
             for ingredient in ingredients:
                 ingredient.update({'recipe': recipe})
-                obj = Recipe_Ingredient.objects.create(**ingredient)
+                recipe.ingredients.add(ingredient['ingredient'],
+                                       through_defaults={'quantity':
+                                       ingredient['quantity']})
+                # obj = Recipe_Ingredient.objects.create(**ingredient)
                 print(recipe.ingredients.all())
         return recipe
 
