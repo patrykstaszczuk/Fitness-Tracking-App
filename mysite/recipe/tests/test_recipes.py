@@ -76,7 +76,6 @@ class PrivateRecipeApiTests(APITestCase):
         sample_recipe(self.user, **params)
 
         res = self.client.get(RECIPE_URL)
-
         recipes = models.Recipe.objects.all().order_by('-id')
         serializer = RecipeSerializer(recipes, many=True)
 
@@ -231,6 +230,30 @@ class PrivateRecipeApiTests(APITestCase):
             filter(recipe=recipe_user2[0])
         self.assertEqual(len(rec_ing_user2), 1)
 
+    def test_create_recipe_with_ingredients_created_by_other_user_failed(self):
+        """ creating recipe with ingredient created by unauthenticated user
+         should failed """
+
+        user2 = get_user_model().objects.create(
+             email='2@gmail.com',
+             password='testpasswod',
+             age=25,
+             sex='Male'
+         )
+        ingerdient_user2 = sample_ingredient(user2, 'Skladnik uzytkownika 2')
+        sample_ingredient(self.user, 'Poprawny skladnik')
+        tag = sample_tag(self.user, 'Vege')
+
+        payload = {
+             'name': 'Nowe danie',
+             'tags': [tag.slug, ],
+             'ingredients': [
+                 {'ingredient': ingerdient_user2.slug, 'quantity': '2kg'},
+             ]
+         }
+        res = self.client.post(RECIPE_URL, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_partial_recipe_update(self):
         """ test updating a recipe with PATCH """
         recipe = sample_recipe(user=self.user)
@@ -285,3 +308,110 @@ class PrivateRecipeApiTests(APITestCase):
         self.assertEqual(tags[0], new_tag)
         ingredients = recipe.ingredients.all()
         self.assertEqual(ingredients[0], new_ing)
+
+    def test_full_update_with_invalid_ingredient_failed(self):
+        """ test updating recipe with invalid ingredient instance """
+        user2 = get_user_model().objects.create(
+            email='2@gmail.com',
+            password='testpasswod',
+            age=25,
+            sex='Male'
+        )
+        ingredeint = sample_ingredient(user2, 'Czosnek')
+        recipe = sample_recipe(self.user)
+        tag = sample_tag(self.user, 'Vege')
+
+        payload = {
+            'name': 'nowa nazwa dla dania',
+            'tags': [tag.slug, ],
+            "ingredients": [{
+                "ingredient": ingredeint.slug,
+                "quantity": "10 łyżek"
+            }, ],
+            'description': "opis dania 2",
+        }
+        url = detail_url(recipe.slug)
+        res = self.client.put(url, payload, format='json')
+
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_full_update_with_invalid_tag_failed(self):
+        """ test updating recipe with invalid tag instance """
+        user2 = get_user_model().objects.create(
+            email='2@gmail.com',
+            password='testpasswod',
+            age=25,
+            sex='Male'
+        )
+        tag = sample_tag(user2, 'Vege')
+        recipe = sample_recipe(self.user)
+
+        payload = {
+            'name': 'nowa nazwa dla dania',
+            'tags': [tag.slug, ],
+            'description': "opis dania 2",
+        }
+        url = detail_url(recipe.slug)
+        res = self.client.put(url, payload, format='json')
+
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_recipe_with_invalid_ingredient_instance(self):
+        """ creating recipe with invalid ingredient instance """
+
+        sample_ingredient(self.user, 'Czosnek')
+        payload = {
+            'name': 'Nowe danie',
+            'ingredients': [
+                {"ingredient": "Tekst zamiast instancji",
+                    "quantity": "2 kilo tekstu"}
+            ]
+        }
+
+        res = self.client.post(RECIPE_URL, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_recipe_with_invalid_tags_instance(self):
+        """ creating recipe with invalid tags instance """
+        payload = {
+            'name': 'Now danie',
+            'tags': ['tekst zamiast instancji', ]
+        }
+        res = self.client.post(RECIPE_URL, payload)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_recipe_with_invalid_tags_and_ingredients(self):
+        """ creating recipe with invalid tags and ingredients at the
+        same time """
+        payload = {
+            'name': 'Nowe danie',
+            'tags': ['tekst zamiast instancji'],
+            'ingredeint': [{'ingredient': 'tekst', 'quantity': '2kg'}]
+        }
+        res = self.client.post(RECIPE_URL, payload)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_recipe_with_tag_created_by_other_user_failed(self):
+        """ creating recipe with tag created by unauthenticated user
+         should failed"""
+        user2 = get_user_model().objects.create(
+            email='2@gmail.com',
+            password='testpasswod',
+            age=25,
+            sex='Male'
+        )
+        tag_user2 = sample_tag(user2, 'Tag uzytkownika 2')
+        sample_tag(self.user, 'Poprawny Tag')
+        ingredient = sample_ingredient(self.user, 'Czosnek')
+
+        payload = {
+            'name': 'Nowe danie',
+            'tags': [tag_user2.slug, ],
+            'ingredient': [
+                {'ingredient': ingredient.slug, 'quantity': '2kg'},
+            ]
+        }
+        res = self.client.post(RECIPE_URL, payload)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    

@@ -138,7 +138,7 @@ class Ingredient(models.Model):
 class Tag(models.Model):
     user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE,
                              null=False)
-    name = models.CharField(max_length=20)
+    name = models.CharField(max_length=25)
 
     slug = models.SlugField(blank=False, unique=False)
 
