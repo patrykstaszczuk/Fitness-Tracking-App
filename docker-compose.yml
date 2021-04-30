@@ -1,0 +1,33 @@
+version: "3"
+
+services:
+  db:
+    container_name: postgres
+    image: postgres:13-alpine
+    env_file:
+      - ./.env.db
+    volumes:
+      - ./db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $$POSTGRES_DB -U $$POSTGRES_USER"]
+      interval: 10s
+      timeout: 5s
+      retries: 4
+  recipe:
+    container_name: recipes
+    build:
+      context: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./mysite:/app
+    # command: >
+    #     sh -c "tail -F anything"
+    command: >
+      sh -c "python manage.py migrate &&
+          python manage.py runserver 0.0.0.0:8000"
+    env_file:
+      - ./.env
+    depends_on:
+      db:
+        condition: service_healthy
