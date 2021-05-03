@@ -1,6 +1,5 @@
 .env
 .env.db
-.env.db.postgres
 media/
+mysql/
 #mysite/mysite/settings.py
-db
