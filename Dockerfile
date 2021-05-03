@@ -10,6 +10,7 @@ COPY ./mysite .
 RUN mkdir -p /vol/web/media
 RUN mkdir -p /vol/web/static
 RUN adduser --disabled-password user
+RUN chown -R user:user /usr/src/mysite
 RUN chown -R user:user /vol/
 RUN chown -R 755 /vol/web
 USER user

@@ -143,7 +143,7 @@ class Tag(models.Model):
     slug = models.SlugField(blank=False, unique=False)
 
     def save(self, *args, **kwargs):
-        """ two ingredient can have same slug eg 'sól' and 'sol' both
+        """ two tags can have same slug eg 'sól' and 'sol' both
             have slug 'sol' """
         self.slug = slugify(unidecode(self.name))
         if self.check_if_slug_exists(self.slug) and not self.id:

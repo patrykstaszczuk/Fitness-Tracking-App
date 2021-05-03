@@ -1,0 +1,6 @@
+.env
+.env.db
+.env.db.postgres
+media/
+#mysite/mysite/settings.py
+db
