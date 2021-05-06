@@ -18,6 +18,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
+      - ./media:/vol/web/media
       - ./mysite:/usr/src/mysite
     # command: >
     #     sh -c "tail -F anything"

@@ -62,7 +62,7 @@ class Recipe(models.Model):
 
     def save(self, *args, **kwargs):
         """ check if there is existing slug for different recipe """
-        self.slug = slugify(self.name)
+        self.slug = slugify(unidecode(self.name))
         if self.check_if_slug_exists(self.slug) and not self.id:
             self.slug = self.slug + "2"
 
@@ -74,7 +74,6 @@ class Recipe(models.Model):
                     path = old.path
                     if os.path.exists(path):
                         os.remove(path)
-                # self.delete_photo_from_media_folder(False, old)
 
         super().save(*args, **kwargs)
 
@@ -92,25 +91,6 @@ class Recipe(models.Model):
             print(f"No such filepath {path}")
         super().delete(*args, **kwargs)
 
-    # def delete_photos_from_media_folder(self, all=False, *args):
-    #     """ delete photo or all photos related to reicpe from media folder """
-    #     if not all:
-    #         for item in args:
-    #             item = str(item)
-    #             path = str(settings.MEDIA_DIR) + "/" + item
-    #             if os.path.exists(path):
-    #                 os.remove(path)
-    #             else:
-    #                 print(f"No such filepath{path}")
-    # else:
-    #     path = str(settings.MEDIA_DIR) + \
-    #         "/recipes/" + self.user.name + "/" + self.slug
-    #     if os.path.exists(path):
-    #         print(path)
-    #         shutil.rmtree(path)
-    #     else:
-    #         print(f"No such filepath {path}")
-
     class Meta:
         unique_together = ('user', 'slug')
 
@@ -123,11 +103,6 @@ class Ingredient(models.Model):
                              null=False, related_name='user')
 
     slug = models.SlugField(blank=False, unique=False)
-    TYPE_CHOICE = [
-        ('V', "wegańskie"),
-        ('W', "wegetariańskie"),
-        ('Z', "zwierzęce"),
-    ]
     tag = models.ManyToManyField('Tag')
 
     def save(self, *args, **kwargs):
