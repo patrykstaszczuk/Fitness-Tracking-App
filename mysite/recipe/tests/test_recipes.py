@@ -413,5 +413,3 @@ class PrivateRecipeApiTests(APITestCase):
         }
         res = self.client.post(RECIPE_URL, payload)
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
-
-    

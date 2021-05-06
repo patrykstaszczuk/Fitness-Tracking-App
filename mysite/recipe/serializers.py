@@ -113,7 +113,7 @@ class RecipeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
         fields = '__all__'
-        read_only_fields = ('id', 'user', 'slug')
+        read_only_fields = ('id', 'user', 'slug', 'photo1', 'photo2', 'photo3')
         extra_kwargs = {
             'calories': {'write_only': True},
             'portions': {'write_only': True},
@@ -176,4 +176,13 @@ class RecipeDetailSerializer(RecipeSerializer):
     class Meta:
         model = Recipe
         fields = '__all__'
-        read_only_fields = ('id', 'user', 'slug')
+        read_only_fields = ('id', 'user', 'slug', 'photo1', 'photo2', 'photo3')
+
+
+class RecipeImageSerializer(serializers.ModelSerializer):
+    """ Serializer for uploading images to recipes """
+
+    class Meta:
+        model = Recipe
+        fields = ('slug', 'photo1', 'photo2', 'photo3')
+        read_only_fields = ('slug', )

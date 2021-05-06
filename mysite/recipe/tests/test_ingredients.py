@@ -128,7 +128,7 @@ class PrivateIngredientApiTest(TestCase):
 
         payload = {
             'name': 'Majonez',
-            'user': user2,
+            'user': self.user,
             'tag': self.tag
         }
 

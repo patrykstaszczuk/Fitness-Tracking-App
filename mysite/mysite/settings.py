@@ -15,8 +15,8 @@ import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE_DIR = Path(BASE_DIR) / 'templates'
-STATIC_DIR = Path(BASE_DIR) / 'static'
-MEDIA_DIR = Path(BASE_DIR) / 'media'
+# STATIC_DIR = Path(BASE_DIR) / 'static'
+# MEDIA_DIR = Path(BASE_DIR) / 'media'
 LOGIN_URL = "/konto/logowanie/"
 LOGOUT_REDIRECT_URL = '/'
 
@@ -157,8 +157,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/3.1/howto/static-files/
 
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [STATIC_DIR, ]
+STATICFILES_DIRS = ['vol/web/static', ]
 
-MEDIA_ROOT = MEDIA_DIR
+MEDIA_ROOT = '/vol/web/media'
 MEDIA_URL = '/media/'
 DEFAULT_PHOTO = '/recipes/default.jpeg/'
