@@ -84,7 +84,7 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
 
     ingredient = IngredientSlugRelatedField(
             slug_field='slug',
-            required=False
+            required=True
     )
 
     class Meta:
@@ -121,6 +121,16 @@ class RecipeSerializer(serializers.ModelSerializer):
             'description': {'write_only': True}
         }
 
+    def to_internal_value(self, data):
+        if data.get('ingredients', None) is not None:
+            ingredients = data.get('ingredients')
+            for list_item in ingredients:
+                obj, created = Ingredient.objects.get_or_create(user=self.user,
+                                                                name=list_item['ingredient'])
+                if created:
+                    list_item.update({'ingredient': obj.slug})
+        return super().to_internal_value(data)
+
     def validate_name(self, value):
         """ check if recipe with provided name is not already in db """
 
@@ -133,10 +143,8 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         """ Overrided for neasted serializers handling """
-
         ingredients = validated_data.pop('ingredients_quantity', None)
         recipe = super().create(validated_data)
-
         if ingredients:
             for ingredient in ingredients:
                 Recipe_Ingredient.objects.create(
@@ -162,6 +170,11 @@ class RecipeSerializer(serializers.ModelSerializer):
                                        ingredient['quantity']})
                 # obj = Recipe_Ingredient.objects.create(**ingredient)
         return recipe
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.context.get('request'):
+            self.user = self.context['request'].user
 
 
 class RecipeDetailSerializer(RecipeSerializer):
