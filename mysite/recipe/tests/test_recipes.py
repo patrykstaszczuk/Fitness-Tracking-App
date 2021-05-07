@@ -264,6 +264,10 @@ class PrivateRecipeApiTests(APITestCase):
             user=self.user,
             name='Czosnek'
         )
+        new_ing2 = models.Ingredient.objects.create(
+            user=self.user,
+            name='Czosnek2'
+        )
         new_tag = models.Tag.objects.create(
             name='Wegetarianski',
             user=self.user
@@ -274,7 +278,11 @@ class PrivateRecipeApiTests(APITestCase):
             "ingredients": [{
                 "ingredient": new_ing.slug,
                 "quantity": "10 łyżek"
-            }, ],
+            }, {
+                "ingredient": new_ing2.slug,
+                "quantity": "10 łyżek"
+            },
+            ],
             'description': "opis dania 2",
         }
         url = detail_url(recipe.slug)

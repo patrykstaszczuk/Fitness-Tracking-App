@@ -134,19 +134,17 @@ class RecipeSerializer(serializers.ModelSerializer):
     def validate_name(self, value):
         """ check if recipe with provided name is not already in db """
 
-        user = self.context['request'].user
-
-        queryset = Recipe.objects.filter(user=user).filter(name=value)
+        queryset = Recipe.objects.filter(user=self.user).filter(name=value)
         check_if_name_is_in_db(self.instance, queryset)
 
         return value
 
     def create(self, validated_data):
         """ Overrided for neasted serializers handling """
-        ingredients = validated_data.pop('ingredients_quantity', None)
+        validated_ingredients = validated_data.pop('ingredients_quantity', None)
         recipe = super().create(validated_data)
-        if ingredients:
-            for ingredient in ingredients:
+        if validated_ingredients:
+            for ingredient in validated_ingredients:
                 Recipe_Ingredient.objects.create(
                     recipe=recipe,
                     **ingredient
@@ -156,19 +154,21 @@ class RecipeSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         """ Overrided for neasted serializers handling """
 
-        ingredients = validated_data.pop('ingredients_quantity', None)
+        validated_ingredients = validated_data.pop('ingredients_quantity', None)
         recipe = super().update(instance, validated_data)
-        existing_recipe_ingredient_rows = Recipe_Ingredient.objects. \
+
+        existing_through_table_rows = Recipe_Ingredient.objects. \
             filter(recipe=recipe)
-        for rows in existing_recipe_ingredient_rows:
+        for rows in existing_through_table_rows:
             rows.delete()
-        if ingredients:
-            for ingredient in ingredients:
+
+        if validated_ingredients:
+            recipe_ingredients = []
+            for ingredient in validated_ingredients:
                 ingredient.update({'recipe': recipe})
                 recipe.ingredients.add(ingredient['ingredient'],
                                        through_defaults={'quantity':
                                        ingredient['quantity']})
-                # obj = Recipe_Ingredient.objects.create(**ingredient)
         return recipe
 
     def __init__(self, *args, **kwargs):
