@@ -163,7 +163,6 @@ class RecipeSerializer(serializers.ModelSerializer):
             rows.delete()
 
         if validated_ingredients:
-            recipe_ingredients = []
             for ingredient in validated_ingredients:
                 ingredient.update({'recipe': recipe})
                 recipe.ingredients.add(ingredient['ingredient'],

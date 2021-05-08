@@ -72,6 +72,8 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
             return serializers.RecipeDetailSerializer
         elif self.action == 'upload_image':
             return serializers.RecipeImageSerializer
+        elif self.action == 'send_ingredients':
+            return serializers.SengIngredientSerializer
         return self.serializer_class
 
     @action(methods=['POST', 'GET'], detail=True, url_path='dodaj-zdjecie')
@@ -94,3 +96,10 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
             serializer.errors,
             status=status.HTTP_400_BAD_REQUEST
         )
+
+    @action(methods=['POST', 'GET'], detail=True,
+            url_path='dodaj-do-listy-zakupow')
+    def send_ingredients(self, request, slug=None):
+        """ send chosen ingredients to shopping list in nozbe """
+        print("HEJ")
+        serializer = self.get_serializer(data=request.data)

@@ -9,6 +9,7 @@ from recipe import models
 from recipe.serializers import RecipeSerializer, RecipeDetailSerializer, \
                                 IngredientSerializer
 
+import os
 
 RECIPE_URL = reverse('recipe:recipe-list')
 
@@ -474,3 +475,32 @@ class PrivateRecipeApiTests(APITestCase):
     #     self.assertIn(serializer1.data, res.data)
     #     self.assertIn(serializer2.data, res.data)
     #     self.assertNotIn(serializer3.data, res.data)
+
+    def test_sending_chosen_ingredients_to_nozbe(self):
+        """ test sending chosen ingredients as shopping list in nozbe
+        project """
+        recipe = sample_recipe(self.user)
+
+        ingredients_list = {
+            'ingredients': [
+                {'ingredient': sample_ingredient(self.user, 'Testowy 1').slug},
+                {'ingredient': sample_ingredient(self.user, 'Testowy 2').slug},
+                {'ingredient': sample_ingredient(self.user, 'Testowy 3').slug},
+            ],
+        }
+
+        url = reverse('recipe:recipe-send-ingredients', args=[recipe.slug])
+
+        res = self.client.post(url, ingredients_list, format='json')
+
+        self.assertTrue(res.status_code, status.HTTP_200_OK)
+
+        nozbe_shopping_list_response = \
+            self.client.get('https://api.nozbe.com:3000/tasks',
+                            data={'type': 'project',
+                                  'id': os.environ['NOZBE_PROJECT_ID'],
+                                  'client_id': os.environ['NOZBE_CLIENT_ID']},
+                            headers={'Authorization':
+                                     os.environ['NOZBE_SECRET']})
+        print(nozbe_shopping_list_response.json())
+        self.assertIn(ingredients_list[0], nozbe_shopping_list_response.json())
