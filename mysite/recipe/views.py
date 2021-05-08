@@ -45,6 +45,27 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
     serializer_class = serializers.RecipeSerializer
     queryset = Recipe.objects.all()
 
+    def get_queryset(self):
+        """ Retrieve the recipes for authenticated user with filtering if
+        applied """
+
+        filter_tags = self.request.query_params.get('tags')
+        filter_ingredients = self.request.query_params.get('ingredients')
+
+        if filter_tags:
+            filter_tags = filter_tags.split(',')
+            return self.queryset.filter(user=self.request.user). \
+                filter(tags__slug__in=filter_tags).order_by('-name')
+
+        # if filter_ingredients:
+        #     filter_ingredients = filter_ingredients.split(',')
+        #     return self.queryset.filter(user=self.request.user). \
+        #         filter(ingredients__slug__in=filter_ingredients) \
+        #         .order_by('-name')
+
+        return self.queryset.filter(user=self.request.user). \
+            order_by('-name')
+
     def get_serializer_class(self):
         """ return appropriate serializer class """
         if self.action == 'retrieve':

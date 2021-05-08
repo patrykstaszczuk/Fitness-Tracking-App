@@ -425,3 +425,52 @@ class PrivateRecipeApiTests(APITestCase):
     #     ingredients_from_db = models.Ingredient.objects.filter(user=self.user)
     #     self.assertEqual(len(ingredients_from_db), 2)
     #     self.assertEqual(ingredients_from_db[1].slug, 'sol2')
+
+    def test_filter_recipe_by_tags(self):
+        """ Returning recipe with specific tags """
+
+        recipe1 = sample_recipe(user=self.user, name='Pierwsza potrawa')
+        recipe2 = sample_recipe(user=self.user, name='Druga potrawa')
+
+        tag1 = sample_tag(self.user, 'Wegańskie')
+        tag2 = sample_tag(self.user, 'Wegetariańskie')
+
+        recipe1.tags.add(tag1)
+        recipe2.tags.add(tag2)
+
+        recipe3 = sample_recipe(self.user, name='Trzecia potrawa')
+
+        res = self.client.get(RECIPE_URL, {'tags': f'{tag1.slug},{tag2.slug}'})
+
+        serializer1 = RecipeSerializer(recipe1)
+        serializer2 = RecipeSerializer(recipe2)
+        serializer3 = RecipeSerializer(recipe3)
+
+        self.assertIn(serializer1.data, res.data)
+        self.assertIn(serializer2.data, res.data)
+        self.assertNotIn(serializer3.data, res.data)
+
+    # def test_filter_recipe_by_ingredients(self):
+    #     """ returning recipe with specific ingredients """
+    #
+    #     recipe1 = sample_recipe(self.user, name='Pierwsza potrawa')
+    #     recipe2 = sample_recipe(self.user, name='Druga potrawa')
+    #
+    #     ingredient1 = sample_ingredient(self.user, name='Skaldnik pierwszy')
+    #     ingredient2 = sample_ingredient(self.user, name='Skaldnik drugi')
+    #
+    #     recipe1.ingredients.add(ingredient1)
+    #     recipe2.ingredients.add(ingredient2)
+    #
+    #     recipe3 = sample_recipe(self.user, name='Trzecia potrawa')
+    #
+    #     res = self.client.get(RECIPE_URL,
+    #                           {'ingredients':
+    #                            f'{ingredient1.slug},{ingredient2.slug}'})
+    #     serializer1 = RecipeSerializer(recipe1)
+    #     serializer2 = RecipeSerializer(recipe2)
+    #     serializer3 = RecipeSerializer(recipe3)
+    #
+    #     self.assertIn(serializer1.data, res.data)
+    #     self.assertIn(serializer2.data, res.data)
+    #     self.assertNotIn(serializer3.data, res.data)
