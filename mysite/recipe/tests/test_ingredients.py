@@ -37,7 +37,7 @@ class PublicIngredientApiTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
-class PrivateIngredientApiTest(TestCase):
+class PrivateIngredientApiTests(TestCase):
     """ test the private ingredient API"""
 
     def setUp(self):
@@ -187,3 +187,14 @@ class PrivateIngredientApiTest(TestCase):
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(ingredient.tag.first(), self.tag)
+
+    # @patch('uuid.uuid4')
+    # def test_recipe_file_name_uuid(self, mock_uuid):
+    #     """ test that image is saved in the correct location """
+    #     uuid = 'test-uuid'
+    #     mock_uuid.return_value = uuid
+    #     file_path = models.recipe_image_file_path(self.sample_recipe,
+    #                                               'myimage.jpg')
+    #
+    #     exp_path = f'recipes/{self.user.name}/{self.sample_recipe.slug}/{uuid}.jpg'
+    #     self.assertEqual(file_path, exp_path)

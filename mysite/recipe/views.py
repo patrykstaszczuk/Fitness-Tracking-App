@@ -1,11 +1,13 @@
 from rest_framework.decorators import action
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, mixins
 from rest_framework.response import Response
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
-
+from rest_framework.decorators import api_view
 from recipe.models import Ingredient, Tag, Recipe
 from recipe import serializers
+
+from django.core.exceptions import ValidationError
 
 
 class BaseRecipeAttrViewSet(viewsets.ModelViewSet):
@@ -73,8 +75,27 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
         elif self.action == 'upload_image':
             return serializers.RecipeImageSerializer
         elif self.action == 'send_ingredients':
-            return serializers.SengIngredientSerializer
+            return serializers.SendIngredientSerializer
         return self.serializer_class
+
+    def _validate_ingredients(self, ingredients):
+        """ validate that passed ingredient slug's can be mapped to models
+         object"""
+
+        ingredient_queryset = Ingredient.objects.filter(slug__in=ingredients)
+        if ingredient_queryset.count() == len(ingredients):
+            return ingredient_queryset
+        return Response(status.HTTP_400_BAD_REQUEST)
+
+    @action(methods=['PUT'], detail=True, url_path='dodaj-do-nozbe')
+    def send_to_nozbe(self, request, slug=None):
+
+        ingredients = self._validate_ingredients(request.data)
+
+        for ingredient in ingredients:
+            ingredient.send_to_nozbe()
+        serializer = serializers.IngredientSerializer(ingredients, many=True)
+        return Response(serializer.data)
 
     @action(methods=['POST', 'GET'], detail=True, url_path='dodaj-zdjecie')
     def upload_image(self, request, slug=None):
@@ -96,10 +117,3 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
             serializer.errors,
             status=status.HTTP_400_BAD_REQUEST
         )
-
-    @action(methods=['POST', 'GET'], detail=True,
-            url_path='dodaj-do-listy-zakupow')
-    def send_ingredients(self, request, slug=None):
-        """ send chosen ingredients to shopping list in nozbe """
-        print("HEJ")
-        serializer = self.get_serializer(data=request.data)

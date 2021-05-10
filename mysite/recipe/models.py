@@ -8,6 +8,9 @@ import os
 import shutil
 from django.conf import settings
 
+import requests
+from rest_framework import status
+
 
 def recipe_image_file_path(instance, filename):
     """ generate file path for new recipe image """
@@ -104,11 +107,31 @@ class Ingredient(models.Model):
 
     slug = models.SlugField(blank=False, unique=False)
     tag = models.ManyToManyField('Tag')
+    _usage_counter = models.PositiveIntegerField(default=0, null=False)
+
+    @property
+    def usage_counter(self):
+        return self._usage_counter
+
+    @usage_counter.setter
+    def usage_counter(self, value):
+        self._usage_counter = self._usage_counter + value
+
+    def send_to_nozbe(self):
+        """ send ingredient instance to nozbe """
+
+        res = requests.post('https://api.nozbe.com:3000/task',
+                            headers={'Authorization':
+                                     os.environ['NOZBE_SECRET']},
+                            data={'name': self.name, 'project_id':
+                                  os.environ['NOZBE_PROJECT_ID'],
+                                  'client_id': os.environ['NOZBE_CLIENT_ID']})
+        if res.status_code == status.HTTP_200_OK:
+            self.usage_counter += 1
 
     def save(self, *args, **kwargs):
         """ two ingredient can have same slug eg 'sól' and 'sol' both
             have slug 'sol' """
-
         self.slug = slugify(unidecode(self.name))
         if self.check_if_slug_exists(self.slug) and not self.id:
             self.slug = self.slug + "2"

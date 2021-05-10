@@ -9,7 +9,7 @@ from recipe import models
 from recipe.serializers import RecipeSerializer, RecipeDetailSerializer, \
                                 IngredientSerializer
 
-import os
+from unittest.mock import patch
 
 RECIPE_URL = reverse('recipe:recipe-list')
 
@@ -476,31 +476,24 @@ class PrivateRecipeApiTests(APITestCase):
     #     self.assertIn(serializer2.data, res.data)
     #     self.assertNotIn(serializer3.data, res.data)
 
-    def test_sending_chosen_ingredients_to_nozbe(self):
+    @patch('recipe.models.Ingredient.send_to_nozbe')
+    def test_sending_chosen_ingredients_to_nozbe(self, mock_send_to_nozbe):
         """ test sending chosen ingredients as shopping list in nozbe
         project """
+
         recipe = sample_recipe(self.user)
 
-        ingredients_list = {
-            'ingredients': [
-                {'ingredient': sample_ingredient(self.user, 'Testowy 1').slug},
-                {'ingredient': sample_ingredient(self.user, 'Testowy 2').slug},
-                {'ingredient': sample_ingredient(self.user, 'Testowy 3').slug},
-            ],
-        }
+        ing1 = sample_ingredient(user=self.user, name='Testowy 1')
+        ing2 = sample_ingredient(user=self.user, name='Testowy 2')
+        ing3 = sample_ingredient(user=self.user, name='Testowy 3')
 
-        url = reverse('recipe:recipe-send-ingredients', args=[recipe.slug])
+        recipe.ingredients.add(ing1, ing2, ing3)
 
-        res = self.client.post(url, ingredients_list, format='json')
+        ingredients_list = [ing1.slug, ing2.slug]
 
-        self.assertTrue(res.status_code, status.HTTP_200_OK)
+        url = reverse('recipe:recipe-send-to-nozbe', args=[recipe.slug])
 
-        nozbe_shopping_list_response = \
-            self.client.get('https://api.nozbe.com:3000/tasks',
-                            data={'type': 'project',
-                                  'id': os.environ['NOZBE_PROJECT_ID'],
-                                  'client_id': os.environ['NOZBE_CLIENT_ID']},
-                            headers={'Authorization':
-                                     os.environ['NOZBE_SECRET']})
-        print(nozbe_shopping_list_response.json())
-        self.assertIn(ingredients_list[0], nozbe_shopping_list_response.json())
+        res = self.client.put(url, ingredients_list, format='json')
+        serializer = IngredientSerializer([ing1, ing2], many=True)
+        self.assertEqual(res.data, serializer.data)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
