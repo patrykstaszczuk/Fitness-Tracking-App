@@ -1,5 +1,6 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
+from users import models
 
 
 class ModelTest(TestCase):
@@ -49,3 +50,16 @@ class ModelTest(TestCase):
         )
 
         self.assertTrue(user.is_superuser, True)
+
+    def test_string_representation_of_group(self):
+        """ test the print group name method """
+        user = get_user_model().objects.create_user(
+            email='test@gmail.com',
+            name='Patryk',
+            password='test',
+            age=25,
+            sex='Male'
+        )
+        group = models.Group.objects.create(founder=user)
+        group_str = group.founder.name + 's group'
+        self.assertEqual(str(group), group_str)

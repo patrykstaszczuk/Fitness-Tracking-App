@@ -5,11 +5,16 @@ from django.urls import reverse
 from rest_framework.test import APIClient
 from rest_framework import status
 
+from users import serializers
+from users import models
+
 
 CREATE_USER_URL = reverse('users:create')
 TOKEN_URL = reverse('users:token')
 ME_URL = reverse('users:profile')
 PASSWORD_URL = reverse('users:password_change')
+
+GROUP_URL = reverse('users:group-list')
 
 
 def create_user(**params):
@@ -198,4 +203,83 @@ class PrivateUserApiTests(TestCase):
         }
         res = self.client.patch(PASSWORD_URL, payload)
         self.user.refresh_from_db()
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_new_group_success(self):
+        """ test creating new group by user """
+        res = self.client.post(GROUP_URL, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+
+        group = models.Group.objects.get(id=res.data['id'])
+
+        self.assertEqual(group.founder, self.user)
+        self.assertEqual(group.members.count(), 1)
+
+    def test_retrieve_group_when_group_does_not_exists(self):
+        """ test retrieving group, when user did not create own group
+        and does not belong to any group """
+        res = self.client.get(GROUP_URL)
+        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_retrieve_group_success(self):
+        """ test retrieving group created by user """
+
+        models.Group.objects.create(founder=self.user)
+        user_groups = self.user.membership.all()
+        serializer = serializers.GroupSerializer(user_groups, many=True)
+        res = self.client.get(GROUP_URL)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data, serializer.data)
+
+    def test_retrieve_groups_success(self):
+        """ test retrieving group created by user and groups he belongs to """
+        user2 = get_user_model().objects.create_user(
+            email='test2@gmail.com',
+            password='testpassword',
+            name='test',
+            age=25,
+            sex='Male'
+        )
+        guest_group = models.Group.objects.create(founder=user2)
+        group = models.Group.objects.create(founder=self.user)
+        self.user.membership.add(guest_group)
+        res = self.client.get(GROUP_URL)
+
+        serializer1 = serializers.GroupSerializer(guest_group)
+        serializer2 = serializers.GroupSerializer(group)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn(serializer1.data, res.data)
+        self.assertIn(serializer2.data, res.data)
+        self.assertEqual(self.user.membership.all().count(), 2)
+
+    def test_retrieve_and_create_group_unauthenticated_user_failed(self):
+        """ check if premissions works as expected """
+
+        client2 = APIClient()
+        res = client2.get(GROUP_URL)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        res = client2.post(GROUP_URL, format='json')
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_retrieve_only_groups_belongs_to_specific_user(self):
+        """ test retrieving groups only created by self.user """
+        user2 = get_user_model().objects.create_user(
+            email='test2@gmail.com',
+            password='testpassword',
+            name='test',
+            age=25,
+            sex='Male'
+        )
+
+        models.Group.objects.create(founder=user2)
+        res = self.client.get(GROUP_URL)
+        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_create_another_group_failed(self):
+        """ test creating new group by user failed, if he has one already """
+
+        models.Group.objects.create(founder=self.user)
+
+        res = self.client.post(GROUP_URL)
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)

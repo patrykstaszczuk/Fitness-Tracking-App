@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework import serializers
+from users.models import Group
 
 
 class DynamicFieldsModelSerializer(serializers.ModelSerializer):
@@ -81,3 +82,31 @@ class AuthTokenSerializer(serializers.Serializer):
 
         attrs['user'] = user
         return attrs
+
+
+class MembershipSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = get_user_model()
+        fields = ('membership', )
+        read_only_fields = ('membership', )
+
+
+class GroupSerializer(serializers.ModelSerializer):
+    """ Serializer for group object """
+
+    class Meta:
+        model = Group
+        fields = ('id', 'name', 'founder',)
+        read_only_fields = ('id', 'name', 'founder',)
+
+    def save(self, **kwargs):
+        """ check if user have already own gorup, if yes raise error """
+        founder = kwargs.get('founder')
+
+        exist = Group.objects.filter(founder=founder)
+
+        if exist:
+            raise serializers.ValidationError('Możesz założyć tylko \
+                                              jedną grupę')
+        return super().save(**kwargs)
