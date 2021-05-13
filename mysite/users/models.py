@@ -71,18 +71,26 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
         return reverse('users:profile')
 
 
+class GroupManager(models.Manager):
+    """ set the name of group, and add founder to members """
+
+    def create(self, *args, **kwargs):
+        instance = super().create(*args, **kwargs)
+        instance.name = instance.founder.name + 's group'
+        instance.members.add(instance.founder)
+        instance.save()
+        return instance
+
+
 class Group(models.Model):
 
-    name = models.CharField(max_length=100, null=True)
+    name = models.CharField(max_length=100, blank=False)
     founder = models.ForeignKey(get_user_model(), on_delete=models.CASCADE,
                                 null=False, blank=False)
     members = models.ManyToManyField('MyUser', related_name='membership')
+    pending_membership = models.ManyToManyField('MyUser', related_name=
+                                                'pending_membership')
+    objects = GroupManager()
 
     def __str__(self):
         return self.founder.name + 's group'
-
-    def save(self, *args, **kwargs):
-        """ add founder as a member to group and set name """
-        super().save(*args, **kwargs)
-        self.name = self.founder.name + 's group'
-        self.members.add(self.founder)

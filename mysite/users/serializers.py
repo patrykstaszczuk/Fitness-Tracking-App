@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework import serializers
 from users.models import Group
+from django.core.validators import ValidationError
 
 
 class DynamicFieldsModelSerializer(serializers.ModelSerializer):
@@ -110,3 +111,63 @@ class GroupSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Możesz założyć tylko \
                                               jedną grupę')
         return super().save(**kwargs)
+
+    def create(self, validated_data):
+        """ override create to provide value's for name and members """
+        instance = super().create(validated_data)
+        instance.name = instance.founder.name + 's group'
+        instance.members.add(instance.founder)
+        instance.save()
+        return instance
+
+
+class SendInvitationSerializer(serializers.Serializer):
+    """ serializer for sending invitation to other users """
+
+    pending_membership = serializers.CharField(max_length=100)
+
+    def update(self, instance, validated_data):
+        """ update Group pending_membership field """
+
+        user = validated_data.get('pending_membership')
+
+        try:
+            user = get_user_model().objects.get(email=user)
+        except ValidationError:
+            self.errors.update({'user': 'Taki użytkownik nie istnieje!'})
+            raise ValidationError(self.errors)
+
+        instance.pending_membership.add(user)
+        return instance
+
+
+class ManageInvitationSerializer(serializers.ModelSerializer):
+    """ serializer for managing groups invitation and request acceptance """
+
+    class Meta:
+        model = get_user_model()
+        fields = ('pending_membership', )
+
+    def validate_pending_membership(self, groups):
+        """ validating that requested group is in pending membership
+        relation """
+
+        for group in groups:
+            try:
+                get_user_model().objects.filter(pending_membership=group.id)
+            except ValidationError:
+                raise ValidationError("Taka grupa nie istnieje!")
+        return groups
+
+    def save(self, **kwargs):
+        """ update pending_membership and membership fields """
+
+        user = self.instance
+        groups = self.validated_data.get('pending_membership')
+
+        groups_ids = [group.id for group in groups]
+
+        user.membership.add(*groups_ids)
+        user.pending_membership.remove(*groups_ids)
+
+        return self.instance

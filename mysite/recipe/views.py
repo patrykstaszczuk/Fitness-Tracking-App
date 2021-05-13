@@ -3,11 +3,8 @@ from rest_framework import viewsets, status, mixins
 from rest_framework.response import Response
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.decorators import api_view
 from recipe.models import Ingredient, Tag, Recipe
 from recipe import serializers
-
-from django.core.exceptions import ValidationError
 
 
 class BaseRecipeAttrViewSet(viewsets.ModelViewSet):
@@ -74,8 +71,6 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
             return serializers.RecipeDetailSerializer
         elif self.action == 'upload_image':
             return serializers.RecipeImageSerializer
-        elif self.action == 'send_ingredients':
-            return serializers.SendIngredientSerializer
         return self.serializer_class
 
     def _validate_ingredients(self, ingredients):

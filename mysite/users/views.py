@@ -8,7 +8,7 @@ from users import models
 from users import serializers
 from users.serializers import UserSerializer, AuthTokenSerializer, \
                              UserChangePasswordSerializer
-from django.contrib.auth import get_user_model
+from rest_framework.decorators import action
 
 
 class CreateUserView(generics.CreateAPIView):
@@ -61,6 +61,15 @@ class GroupViewSet(ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(founder=self.request.user)
 
+    def get_serializer_class(self):
+        """ get specific serializer for specific action """
+
+        if self.action == 'send_invitation':
+            return serializers.SendInvitationSerializer
+        elif self.action == 'manage_invitation':
+            return serializers.ManageInvitationSerializer
+        return self.serializer_class
+
     def list(self, request, *args, **kwargs):
         """ get the user's group name or return status 204, check if users
          belong to specyfic group or has own group
@@ -72,16 +81,33 @@ class GroupViewSet(ModelViewSet):
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-        # try:
-        #     user_groups = self.request.user.membership.all()
-        #     print(user_groups)
-        #     serializer = self.get_serializer(user_groups)
-        #     return Response(serializer.data, status=status.HTTP_200_OK)
-        # except models.User.EmptyResultSet:
-        #     return Response(status=status.HTTP_204_NO_CONTENT)
-        # try:
-        #     obj = models.Group.objects.get(founder=self.request.user)
-        #     serializer = self.get_serializer(obj)
-        #     return Response(data=serializer.data, status=status.HTTP_200_OK)
-        # except models.Group.DoesNotExist:
-        #     return Response(status=status.HTTP_204_NO_CONTENT)
+    @action(methods=['POST'], detail=True,
+            url_path='wyslij-zaproszenie-do-grupy')
+    def send_invitation(self, request, pk):
+        """ send group invitation to other users """
+
+        group = self.get_object()
+        request.data['pending_membership'] = request.data.pop('user')
+        serializer = self.get_serializer(group, request.data)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(data=serializer.data, status=status.HTTP_200_OK)
+        return Response(data=serializer.data,
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    @action(methods=['GET', 'POST'], detail=False, url_path='zaproszenia')
+    def manage_invitation(self, request):
+        """ show invitation and accept pending memberships """
+
+        if not request.data:
+            serializer = self.get_serializer(instance=request.user)
+            return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+        serializer = self.get_serializer(instance=request.user,
+                                         data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(data=serializer.data, status=status.HTTP_200_OK)
+        return Response(data=serializer.errors,
+                        status=status.HTTP_400_BAD_REQUEST)

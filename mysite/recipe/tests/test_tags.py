@@ -63,7 +63,7 @@ class PrivateTagTestsApi(TestCase):
 
         user2 = get_user_model().objects.create_user(
             email='test2@gmail.com',
-            name='test',
+            name='test2',
             password='testpass',
             age=25,
             sex='Male'
