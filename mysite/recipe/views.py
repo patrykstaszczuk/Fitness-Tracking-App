@@ -5,7 +5,7 @@ from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 from recipe.models import Ingredient, Tag, Recipe
 from recipe import serializers
-
+from django.db.models import Q
 
 class BaseRecipeAttrViewSet(viewsets.ModelViewSet):
     """ Base viewset for user owned recipe atributes """
@@ -44,6 +44,21 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
     serializer_class = serializers.RecipeSerializer
     queryset = Recipe.objects.all()
 
+    def _return_users_from_common_groups(self, user):
+        """ return all users belongs to groups where requested user is
+        member """
+
+        users_instances = []
+
+        request_user_groups = user.membership.all()
+        users_instances_in_groups = [group.members.all() for group
+                                     in request_user_groups]
+        for group_members in users_instances_in_groups:
+            for user in group_members:
+                users_instances.append(user)
+        return list(set(users_instances))
+
+
     def get_queryset(self):
         """ Retrieve the recipes for authenticated user with filtering if
         applied """
@@ -62,8 +77,10 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
         #         filter(ingredients__slug__in=filter_ingredients) \
         #         .order_by('-name')
 
-        return self.queryset.filter(user=self.request.user). \
-            order_by('-name')
+        users_in_groups = self._return_users_from_common_groups(self.request.user)
+
+        return self.queryset.filter(Q(user=self.request.user) |
+                                    Q(user__in=users_in_groups))
 
     def get_serializer_class(self):
         """ return appropriate serializer class """

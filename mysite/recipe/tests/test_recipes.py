@@ -11,6 +11,8 @@ from recipe.serializers import RecipeSerializer, RecipeDetailSerializer, \
 
 from unittest.mock import patch
 
+from users import models as user_models
+
 RECIPE_URL = reverse('recipe:recipe-list')
 
 
@@ -41,6 +43,16 @@ def sample_tag(user, name):
 def sample_ingredient(user, name):
     """ create sample ingredeint """
     return models.Ingredient.objects.create(user=user, name=name)
+
+
+def sample_user(email='user2@gmail.com', name='testusername'):
+    return get_user_model().objects.create_user(
+        email=email,
+        name=name,
+        password='testpass',
+        age=25,
+        sex='Male'
+    )
 
 
 class PublicRecipeApiTests(TestCase):
@@ -106,6 +118,44 @@ class PrivateRecipeApiTests(APITestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(len(res.data), 1)
         self.assertEqual(res.data, serializer.data)
+
+    def test_view_group_recipes(self):
+        """ test retrieving recipes created by user and other users in the
+        same group """
+
+        user2 = sample_user()
+        user2_recipe = sample_recipe(user2)
+        params = {
+            'name': 'recipeuser2'
+        }
+        user3 = sample_user(email='test3@gmail.com', name='test3name')
+        user3_recipe = sample_recipe(user3)
+
+        user4 = sample_user(email='test4@gmail.com', name='test4name')
+        user4_recipe = sample_recipe(user4)
+
+        user2_recipe.tags.add(sample_tag(user2, 'vege'))
+        user2_recipe.ingredients.add(sample_ingredient(user2, 'cukinia'))
+        user3_recipe.tags.add(sample_tag(user3, 'vege'))
+        user3_recipe.ingredients.add(sample_ingredient(user3, 'cukinia'))
+
+        group_user2 = user_models.Group.objects.create(founder=user2)
+        group_user3 = user_models.Group.objects.create(founder=user3)
+        group_user4 = user_models.Group.objects.create(founder=user4)
+
+        self.user.membership.add(group_user2, group_user3)
+
+        recipe = sample_recipe(self.user, **params)
+        res = self.client.get(RECIPE_URL)
+        user2_recipe = models.Recipe.objects.get(user=user2)
+        user3_recipe = models.Recipe.objects.get(user=user3)
+        serializer_recipes = RecipeSerializer([user2_recipe, user3_recipe],
+                                              many=True)
+        serializer_recipe_user4 = RecipeSerializer([user4_recipe, ], many=True)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn(serializer_recipes.data[0], res.data)
+        self.assertNotIn(serializer_recipe_user4.data, res.data)
 
     def test_view_recipe_detail(self):
         """ test viewing a recipe detail """
