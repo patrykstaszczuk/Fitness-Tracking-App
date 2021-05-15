@@ -122,6 +122,8 @@ class RecipeSerializer(serializers.ModelSerializer):
         }
 
     def to_internal_value(self, data):
+        """ create ingredient if does not exists in database """
+        
         if data.get('ingredients', None) is not None:
             ingredients = data.get('ingredients')
             for list_item in ingredients:

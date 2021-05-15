@@ -17,19 +17,19 @@ PASSWORD_URL = reverse('users:password_change')
 GROUP_URL = reverse('users:group-list')
 
 
-def send_invitation_url(group_id):
-    return reverse('users:group-send-invitation', args=[group_id])
+def send_invitation_url():
+    return reverse('users:group-send-invitation')
 
 
 def manage_invitation_url():
     return reverse('users:group-manage-invitation')
 
 
-def sample_user():
+def sample_user(email='test2@gmail.com', name='testname2'):
     return get_user_model().objects.create_user(
-        email='test2@gmail.com',
+        email=email,
         password='testpass',
-        name='testname2',
+        name=name,
         age=25,
         sex='Male'
     )
@@ -305,13 +305,56 @@ class PrivateUserApiTests(TestCase):
         user2 = sample_user()
         group = models.Group.objects.create(founder=self.user)
 
-        res = self.client.post(send_invitation_url(group.id),
-                               {'user': user2.email}, format='json')
+        payload = {
+            'pending_membership': [user2.id, ],
+        }
+        res = self.client.post(send_invitation_url(), payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         user2.refresh_from_db()
 
         self.assertEqual(str(user2.pending_membership.all()[0]),
                          str(group.name))
+
+    def test_sending_invitation_to_multi_users(self):
+        """ test sending invitation to more than one user """
+
+        user2 = sample_user()
+        user3 = sample_user(email='test3@gmail.com', name='test3name')
+
+        group = models.Group.objects.create(founder=self.user)
+
+        payload = {
+            "pending_membership": [user2.id, user3.id],
+        }
+        res = self.client.post(send_invitation_url(), payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        group.refresh_from_db()
+
+        self.assertEqual(group.pending_membership.all().count(), 2)
+
+    def test_sending_invitation_to_yourself_failed(self):
+
+        models.Group.objects.create(founder=self.user)
+        payload = {
+            'pending_membership': [self.user.id, ]
+        }
+        res = self.client.post(send_invitation_url(), payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_sending_invitation_to_wrong_user_failed(self):
+        """ test sening invitation to non existing user """
+
+        models.Group.objects.create(founder=self.user)
+
+        payload = {
+            'pending_membership': [3, ]
+        }
+        res = self.client.post(send_invitation_url(), payload,
+                               format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('Taki użytkownik nie istnieje!',
+                      res.data['pending_membership'])
 
     def test_show_group_invitation(self):
         """ test listing group ivitation send by other users """
@@ -323,18 +366,21 @@ class PrivateUserApiTests(TestCase):
         serializer = serializers.GroupSerializer(group)
         res = self.client.get(manage_invitation_url())
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(res.data, serializer.data)
+        self.assertEqual(res.data['pending_membership'][0],
+                         serializer.data['id'])
 
     def test_accept_group_invitation(self):
         """ test accepting group invitation send by other users """
 
         user2 = sample_user()
         group = models.Group.objects.create(founder=user2)
-        test = models.Group.objects.get(id=group.id)
         self.user.pending_membership.add(group)
         serializer = serializers.GroupSerializer([group, ], many=True)
-        res = self.client.post(manage_invitation_url(), {'pending_membership':
-                                                         [group.id, ]},
+        payload = {
+            'pending_membership': [group.id, ],
+            'action': 1
+        }
+        res = self.client.post(manage_invitation_url(), payload,
                                format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
 
@@ -345,3 +391,19 @@ class PrivateUserApiTests(TestCase):
 
         pending_invitations = self.user.pending_membership.all()
         self.assertFalse(pending_invitations)
+
+    def test_denying_group_invitation(self):
+        """ test denying group invitation """
+
+        user2 = sample_user()
+        group = models.Group.objects.create(founder=user2)
+        self.user.pending_membership.add(group)
+
+        payload = {
+            'pending_membership': [group.id, ],
+            'action': 0,
+        }
+        res = self.client.post(manage_invitation_url(), payload)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.pending_membership.all().exists())

@@ -70,6 +70,10 @@ class GroupViewSet(ModelViewSet):
             return serializers.ManageInvitationSerializer
         return self.serializer_class
 
+    def get_object(self):
+        """ get group for requested user """
+        return models.Group.objects.get(founder=self.request.user)
+
     def list(self, request, *args, **kwargs):
         """ get the user's group name or return status 204, check if users
          belong to specyfic group or has own group
@@ -81,19 +85,18 @@ class GroupViewSet(ModelViewSet):
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @action(methods=['POST'], detail=True,
+    @action(methods=['POST'], detail=False,
             url_path='wyslij-zaproszenie-do-grupy')
-    def send_invitation(self, request, pk):
+    def send_invitation(self, request):
         """ send group invitation to other users """
 
         group = self.get_object()
-        request.data['pending_membership'] = request.data.pop('user')
         serializer = self.get_serializer(group, request.data)
 
         if serializer.is_valid():
             serializer.save()
             return Response(data=serializer.data, status=status.HTTP_200_OK)
-        return Response(data=serializer.data,
+        return Response(data=serializer.errors,
                         status=status.HTTP_400_BAD_REQUEST)
 
     @action(methods=['GET', 'POST'], detail=False, url_path='zaproszenia')

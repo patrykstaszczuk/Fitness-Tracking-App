@@ -121,32 +121,63 @@ class GroupSerializer(serializers.ModelSerializer):
         return instance
 
 
-class SendInvitationSerializer(serializers.Serializer):
+# class ListSendInvitationSerializer(serializers.ListSerializer):
+#     """ list serializer for sening invitations """
+#
+#     def update(self, instance, validated_data):
+#         """ update Group pending_membership field """
+#         for item in validated_data:
+#             user = item['pending_membership']
+#             instance.pending_membership.add(user)
+#         return instance
+#
+#     def validate(self, users):
+#         """ validate if user exists """
+#         for item in users:
+#             email = item.get('pending_membership')
+#             try:
+#                 item['pending_membership'] = \
+#                     get_user_model().objects.get(email=email)
+#             except get_user_model().DoesNotExist:
+#                 raise serializers.ValidationError('Taki użytkownik \
+#                                                   nie istnieje!')
+#         return users
+
+
+class SendInvitationSerializer(serializers.ModelSerializer):
     """ serializer for sending invitation to other users """
 
-    pending_membership = serializers.CharField(max_length=100)
+    class Meta:
+        model = Group
+        fields = ('pending_membership', )
+        extra_kwargs = {'pending_membership': {'error_messages':
+                        {'does_not_exist': 'Taki użytkownik nie istnieje!'}}}
 
-    def update(self, instance, validated_data):
-        """ update Group pending_membership field """
+    def validate_pending_membership(self, users):
+        """ check if there is not requested user id """
 
-        user = validated_data.get('pending_membership')
-
-        try:
-            user = get_user_model().objects.get(email=user)
-        except ValidationError:
-            self.errors.update({'user': 'Taki użytkownik nie istnieje!'})
-            raise ValidationError(self.errors)
-
-        instance.pending_membership.add(user)
-        return instance
+        for user in users:
+            if user == self.context['request'].user:
+                raise serializers.ValidationError("Nie możesz zaprosić \
+                                              samego siebie!")
+        return users
 
 
 class ManageInvitationSerializer(serializers.ModelSerializer):
     """ serializer for managing groups invitation and request acceptance """
 
+    action = serializers.IntegerField()
+
     class Meta:
         model = get_user_model()
-        fields = ('pending_membership', )
+        fields = ('pending_membership', 'action')
+
+    def validate_action(self, action):
+        """ validate action value """
+        if action not in range(2):
+            raise ValidationError('Niepoprawna wartość')
+        self.fields.pop('action')
+        return action
 
     def validate_pending_membership(self, groups):
         """ validating that requested group is in pending membership
@@ -164,10 +195,21 @@ class ManageInvitationSerializer(serializers.ModelSerializer):
 
         user = self.instance
         groups = self.validated_data.get('pending_membership')
+        action = self.validated_data.pop('action')
 
         groups_ids = [group.id for group in groups]
 
-        user.membership.add(*groups_ids)
-        user.pending_membership.remove(*groups_ids)
+        if action:
+            user.membership.add(*groups_ids)
+            user.pending_membership.remove(*groups_ids)
+        else:
+            user.pending_membership.remove(*groups_ids)
 
         return self.instance
+
+    def __init__(self, *args, **kwargs):
+        """ pop 'action' from fields if request is get """
+        request = kwargs['context'].get('request')
+        if request.method == 'GET':
+            self.fields.pop('action')
+        super().__init__(*args, **kwargs)
