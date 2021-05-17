@@ -6,6 +6,9 @@ from rest_framework.permissions import IsAuthenticated
 from recipe.models import Ingredient, Tag, Recipe
 from recipe import serializers
 from django.db.models import Q
+from recipe import models
+from django.shortcuts import get_object_or_404
+
 
 class BaseRecipeAttrViewSet(viewsets.ModelViewSet):
     """ Base viewset for user owned recipe atributes """
@@ -43,6 +46,7 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
     """ Manage recipe in the database """
     serializer_class = serializers.RecipeSerializer
     queryset = Recipe.objects.all()
+    lookup_field = 'slug'
 
     def _return_users_from_common_groups(self, user):
         """ return all users belongs to groups where requested user is
@@ -58,18 +62,24 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
                 users_instances.append(user)
         return list(set(users_instances))
 
+    def get_object(self):
+        return Recipe.objects.get(slug=self.kwargs.get('slug'))
 
     def get_queryset(self):
         """ Retrieve the recipes for authenticated user with filtering if
         applied """
 
+        users_in_groups = self._return_users_from_common_groups(self.request.user)
+
         filter_tags = self.request.query_params.get('tags')
-        filter_ingredients = self.request.query_params.get('ingredients')
+        # filter_ingredients = self.request.query_params.get('ingredients')
 
         if filter_tags:
             filter_tags = filter_tags.split(',')
-            return self.queryset.filter(user=self.request.user). \
+            return self.queryset.filter(Q(user=self.request.user) |
+                                        Q(user__in=users_in_groups)). \
                 filter(tags__slug__in=filter_tags).order_by('-name')
+
 
         # if filter_ingredients:
         #     filter_ingredients = filter_ingredients.split(',')
@@ -77,10 +87,9 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
         #         filter(ingredients__slug__in=filter_ingredients) \
         #         .order_by('-name')
 
-        users_in_groups = self._return_users_from_common_groups(self.request.user)
-
         return self.queryset.filter(Q(user=self.request.user) |
-                                    Q(user__in=users_in_groups))
+                                    Q(user__in=users_in_groups)).\
+            order_by('-name')
 
     def get_serializer_class(self):
         """ return appropriate serializer class """
@@ -129,3 +138,20 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
             serializer.errors,
             status=status.HTTP_400_BAD_REQUEST
         )
+
+
+class RecipeDetailViewSet(viewsets.GenericViewSet, mixins.RetrieveModelMixin):
+    """ Detail View for handling group recipes detail """
+
+    authentication_classes = (TokenAuthentication, )
+    permission_classes = (IsAuthenticated, )
+    serializer_class = serializers.RecipeDetailSerializer
+    queryset = Recipe.objects.all()
+
+    def get_object(self):
+        """ retrieve object based on pk and slug. Recipes in groups can have
+        same name """
+        user_id = self.kwargs.get('pk')
+        slug = self.kwargs.get('slug')
+        instance = get_object_or_404(Recipe, user=user_id, slug=slug)
+        return instance

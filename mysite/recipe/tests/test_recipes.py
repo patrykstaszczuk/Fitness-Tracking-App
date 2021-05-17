@@ -18,7 +18,13 @@ RECIPE_URL = reverse('recipe:recipe-list')
 
 def detail_url(recipe_slug):
     """ return recile detail URL """
-    return reverse('recipe:recipe-detail', args=[recipe_slug])
+    return reverse('recipe:recipe-detail', kwargs={'slug': recipe_slug})
+
+
+def detail_group_url(recipe_slug, user_id):
+    """ return recile detail URL """
+    return reverse('recipe:recipe-group-detail', kwargs={'pk': user_id,
+                                                         'slug': recipe_slug})
 
 
 def sample_recipe(user, **params):
@@ -92,9 +98,8 @@ class PrivateRecipeApiTests(APITestCase):
         sample_recipe(self.user, **params)
 
         res = self.client.get(RECIPE_URL)
-        recipes = models.Recipe.objects.all().order_by('-id')
+        recipes = models.Recipe.objects.all().order_by('-name')
         serializer = RecipeSerializer(recipes, many=True)
-
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
 
@@ -121,7 +126,9 @@ class PrivateRecipeApiTests(APITestCase):
 
     def test_view_group_recipes(self):
         """ test retrieving recipes created by user and other users in the
-        same group """
+        same group/s. Here we have 4 users. User1 (Self.user) is in group of
+        user 2 and 3, so he should be able to see their recieps. User 4
+        recipes should not be vivislbe"""
 
         user2 = sample_user()
         user2_recipe = sample_recipe(user2)
@@ -168,6 +175,37 @@ class PrivateRecipeApiTests(APITestCase):
         res = self.client.get(url)
         serializer = RecipeDetailSerializer(recipe)
 
+        self.assertEqual(res.data, serializer.data)
+
+    def test_view_group_recipe_detail(self):
+        """ test retrieving detail of recipes created by other use in the
+        group """
+
+        user2 = sample_user()
+        recipe = sample_recipe(user2)
+        group = user_models.Group.objects.create(founder=user2)
+        self.user.membership.add(group)
+        url = detail_group_url(recipe.slug, user2.id)
+        res = self.client.get(url)
+        serializer = RecipeDetailSerializer(recipe)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data, serializer.data)
+
+    def test_view_group_recipe_detail_with_the_same_name(self):
+        """ test retrieving group recipe which has same name as self.user
+        recipe """
+
+        user2 = sample_user()
+        group = user_models.Group.objects.create(founder=user2)
+        self.user.membership.add(group)
+
+        recipe_user1 = sample_recipe(self.user)
+        recipe_user2 = sample_recipe(user2)
+
+        url = detail_group_url(recipe_user2.slug, user2.id)
+        res = self.client.get(url)
+        serializer = RecipeDetailSerializer(recipe_user2)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
 
     def test_create_basic_recipe(self):
