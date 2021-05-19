@@ -219,26 +219,9 @@ class PrivateUserApiTests(TestCase):
         self.user.refresh_from_db()
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_create_new_group_success(self):
-        """ test creating new group by user """
-        res = self.client.post(GROUP_URL, format='json')
-        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-
-        group = models.Group.objects.get(id=res.data['id'])
-
-        self.assertEqual(group.founder, self.user)
-        self.assertEqual(group.members.count(), 1)
-
-    def test_retrieve_group_when_group_does_not_exists(self):
-        """ test retrieving group, when user did not create own group
-        and does not belong to any group """
-        res = self.client.get(GROUP_URL)
-        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
-
     def test_retrieve_group_success(self):
         """ test retrieving group created by user """
 
-        models.Group.objects.create(founder=self.user)
         user_groups = self.user.membership.all()
         serializer = serializers.GroupSerializer(user_groups, many=True)
         res = self.client.get(GROUP_URL)
@@ -254,8 +237,7 @@ class PrivateUserApiTests(TestCase):
             age=25,
             sex='Male'
         )
-        g1 = models.Group.objects.create(founder=user2)
-        models.Group.objects.create(founder=self.user)
+        g1 = models.Group.objects.get(founder=user2)
 
         self.user.membership.add(g1)
         res = self.client.get(GROUP_URL)
@@ -279,7 +261,8 @@ class PrivateUserApiTests(TestCase):
 
     def test_retrieve_only_groups_belongs_to_specific_user(self):
         """ test retrieving groups only created by self.user """
-        user2 = get_user_model().objects.create_user(
+
+        get_user_model().objects.create_user(
             email='test2@gmail.com',
             password='testpassword',
             name='test',
@@ -287,23 +270,17 @@ class PrivateUserApiTests(TestCase):
             sex='Male'
         )
 
-        models.Group.objects.create(founder=user2)
         res = self.client.get(GROUP_URL)
-        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
 
-    def test_create_another_group_failed(self):
-        """ test creating new group by user failed, if he has one already """
-
-        models.Group.objects.create(founder=self.user)
-
-        res = self.client.post(GROUP_URL)
-        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        user_group = self.user.membership.all()
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(user_group), 1)
 
     def test_sending_invitation_to_other_user(self):
         """ test sending invitation to other user """
 
         user2 = sample_user()
-        group = models.Group.objects.create(founder=self.user)
+        group = models.Group.objects.get(founder=self.user)
 
         payload = {
             'pending_membership': [user2.id, ],
@@ -321,7 +298,7 @@ class PrivateUserApiTests(TestCase):
         user2 = sample_user()
         user3 = sample_user(email='test3@gmail.com', name='test3name')
 
-        group = models.Group.objects.create(founder=self.user)
+        group = models.Group.objects.get(founder=self.user)
 
         payload = {
             "pending_membership": [user2.id, user3.id],
@@ -335,7 +312,6 @@ class PrivateUserApiTests(TestCase):
 
     def test_sending_invitation_to_yourself_failed(self):
 
-        models.Group.objects.create(founder=self.user)
         payload = {
             'pending_membership': [self.user.id, ]
         }
@@ -344,8 +320,6 @@ class PrivateUserApiTests(TestCase):
 
     def test_sending_invitation_to_wrong_user_failed(self):
         """ test sening invitation to non existing user """
-
-        models.Group.objects.create(founder=self.user)
 
         payload = {
             'pending_membership': [3, ]
@@ -360,7 +334,7 @@ class PrivateUserApiTests(TestCase):
         """ test listing group ivitation send by other users """
 
         user2 = sample_user()
-        group = models.Group.objects.create(founder=user2)
+        group = models.Group.objects.get(founder=user2)
         self.user.pending_membership.add(group)
 
         serializer = serializers.GroupSerializer(group)
@@ -373,9 +347,9 @@ class PrivateUserApiTests(TestCase):
         """ test accepting group invitation send by other users """
 
         user2 = sample_user()
-        group = models.Group.objects.create(founder=user2)
+        group = models.Group.objects.get(founder=user2)
         self.user.pending_membership.add(group)
-        serializer = serializers.GroupSerializer([group, ], many=True)
+        serializer = serializers.GroupSerializer(group)
         payload = {
             'pending_membership': [group.id, ],
             'action': 1
@@ -385,9 +359,8 @@ class PrivateUserApiTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
 
         res = self.client.get(GROUP_URL)
-
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(res.data, serializer.data)
+        self.assertIn(serializer.data, res.data)
 
         pending_invitations = self.user.pending_membership.all()
         self.assertFalse(pending_invitations)
@@ -396,7 +369,7 @@ class PrivateUserApiTests(TestCase):
         """ test denying group invitation """
 
         user2 = sample_user()
-        group = models.Group.objects.create(founder=user2)
+        group = models.Group.objects.get(founder=user2)
         self.user.pending_membership.add(group)
 
         payload = {

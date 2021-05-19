@@ -25,7 +25,7 @@ class PrivateTestCases(TestCase):
 
     def setUp(self):
         self.client = APIClient()
-        self.user = get_user_model().objects.create(
+        self.user = get_user_model().objects.create_user(
             email='test@gmail.com',
             password='testpassword',
             name='test',
@@ -68,7 +68,6 @@ class PrivateTestCases(TestCase):
             ntf.seek(0)
 
             res = self.client.post(url, {'photo1': ntf}, format='multipart')
-
         self.sample_recipe.refresh_from_db()
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertIn('photo1', res.data)

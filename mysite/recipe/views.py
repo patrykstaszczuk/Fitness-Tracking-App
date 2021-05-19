@@ -8,6 +8,7 @@ from recipe import serializers
 from django.db.models import Q
 from recipe import models
 from django.shortcuts import get_object_or_404
+from django.contrib.auth import get_user_model
 
 
 class BaseRecipeAttrViewSet(viewsets.ModelViewSet):
@@ -48,48 +49,53 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
     queryset = Recipe.objects.all()
     lookup_field = 'slug'
 
-    def _return_users_from_common_groups(self, user):
-        """ return all users belongs to groups where requested user is
-        member """
+    def _return_users_from_common_groups(self, user, groups):
+        """ return all users belongs to filtered groups """
 
         users_instances = []
+        if groups is not None:
+            groups = groups.split(',')
+            request_user_groups = user.membership.all().filter(id__in=groups)
+        else:
+            request_user_groups = user.membership.all()
 
-        request_user_groups = user.membership.all()
         users_instances_in_groups = [group.members.all() for group
                                      in request_user_groups]
+
         for group_members in users_instances_in_groups:
             for user in group_members:
                 users_instances.append(user)
         return list(set(users_instances))
 
-    def get_object(self):
-        return Recipe.objects.get(slug=self.kwargs.get('slug'))
+    def _map_slug_to_instances(self, list):
+        """ map provided filtering slugs into instances """
+        instances_list = []
+        for item in list:
+            instances_list.append(get_object_or_404(Tag, slug=item))
+        return instances_list
+
+    def _get_filtering(self, request):
+        """ check if there is any filter applied and return queryset if so """
+        allowed_filters = ['tags', ]
+
+        groups_filter = request.query_params.get('groups')
+        users_in_groups = self._return_users_from_common_groups(self.request.user, groups_filter)
+        queryset = Recipe.objects.all().filter(user__in=users_in_groups).\
+            order_by('-name')
+
+        for filter in request.query_params:
+            if filter in allowed_filters:
+                filter_values = request.query_params[filter].split(',')
+                filter_instances = self._map_slug_to_instances(filter_values)
+                query = filter + '__in'
+                queryset = queryset.filter(**{query: filter_instances})
+        return queryset
 
     def get_queryset(self):
         """ Retrieve the recipes for authenticated user with filtering if
         applied """
 
-        users_in_groups = self._return_users_from_common_groups(self.request.user)
-
-        filter_tags = self.request.query_params.get('tags')
-        # filter_ingredients = self.request.query_params.get('ingredients')
-
-        if filter_tags:
-            filter_tags = filter_tags.split(',')
-            return self.queryset.filter(Q(user=self.request.user) |
-                                        Q(user__in=users_in_groups)). \
-                filter(tags__slug__in=filter_tags).order_by('-name')
-
-
-        # if filter_ingredients:
-        #     filter_ingredients = filter_ingredients.split(',')
-        #     return self.queryset.filter(user=self.request.user). \
-        #         filter(ingredients__slug__in=filter_ingredients) \
-        #         .order_by('-name')
-
-        return self.queryset.filter(Q(user=self.request.user) |
-                                    Q(user__in=users_in_groups)).\
-            order_by('-name')
+        return self._get_filtering(self.request)
 
     def get_serializer_class(self):
         """ return appropriate serializer class """
@@ -141,7 +147,11 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
 
 
 class RecipeDetailViewSet(viewsets.GenericViewSet, mixins.RetrieveModelMixin):
-    """ Detail View for handling group recipes detail """
+    """ Detail View for handling group recipes detail. Only GET is allowed,
+    becouse user is not allowed to modify other users recipe. If user wants
+    to modify his own recipe he must go to standard detail recipe url
+    provided by router
+    """
 
     authentication_classes = (TokenAuthentication, )
     permission_classes = (IsAuthenticated, )

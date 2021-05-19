@@ -51,7 +51,9 @@ class ChangeUserPasswordView(generics.RetrieveUpdateAPIView):
         return self.request.user
 
 
-class GroupViewSet(ModelViewSet):
+class GroupViewSet(GenericViewSet, mixins.RetrieveModelMixin,
+                   mixins.UpdateModelMixin, mixins.DestroyModelMixin,
+                   mixins.ListModelMixin):
     """ Manage Group in database """
     queryset = models.Group.objects.all()
     serializer_class = serializers.GroupSerializer

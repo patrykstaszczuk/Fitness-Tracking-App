@@ -60,6 +60,6 @@ class ModelTest(TestCase):
             age=25,
             sex='Male'
         )
-        group = models.Group.objects.create(founder=user)
+        group = models.Group.objects.get(founder=user)
         group_str = group.founder.name + 's group'
         self.assertEqual(str(group), group_str)

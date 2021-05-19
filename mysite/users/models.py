@@ -17,6 +17,9 @@ class MyManager(BaseUserManager):
         )
         user.set_password(password)
         user.save(using=self.db)
+
+        Group.objects.create(founder=user)
+
         return user
 
     def create_superuser(self, email, password=None, **extra_fields):
@@ -86,7 +89,7 @@ class Group(models.Model):
 
     name = models.CharField(max_length=100, blank=False)
     founder = models.ForeignKey(get_user_model(), on_delete=models.CASCADE,
-                                null=False, blank=False)
+                                unique=True, null=False, blank=False)
     members = models.ManyToManyField('MyUser', related_name='membership')
     pending_membership = models.ManyToManyField('MyUser', related_name=
                                                 'pending_membership')

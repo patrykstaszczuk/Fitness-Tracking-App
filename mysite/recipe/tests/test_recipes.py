@@ -146,13 +146,12 @@ class PrivateRecipeApiTests(APITestCase):
         user3_recipe.tags.add(sample_tag(user3, 'vege'))
         user3_recipe.ingredients.add(sample_ingredient(user3, 'cukinia'))
 
-        group_user2 = user_models.Group.objects.create(founder=user2)
-        group_user3 = user_models.Group.objects.create(founder=user3)
-        group_user4 = user_models.Group.objects.create(founder=user4)
+        group_user2 = user_models.Group.objects.get(founder=user2)
+        group_user3 = user_models.Group.objects.get(founder=user3)
 
         self.user.membership.add(group_user2, group_user3)
 
-        recipe = sample_recipe(self.user, **params)
+        sample_recipe(self.user, **params)
         res = self.client.get(RECIPE_URL)
         user2_recipe = models.Recipe.objects.get(user=user2)
         user3_recipe = models.Recipe.objects.get(user=user3)
@@ -183,7 +182,7 @@ class PrivateRecipeApiTests(APITestCase):
 
         user2 = sample_user()
         recipe = sample_recipe(user2)
-        group = user_models.Group.objects.create(founder=user2)
+        group = user_models.Group.objects.get(founder=user2)
         self.user.membership.add(group)
         url = detail_group_url(recipe.slug, user2.id)
         res = self.client.get(url)
@@ -196,7 +195,7 @@ class PrivateRecipeApiTests(APITestCase):
         recipe """
 
         user2 = sample_user()
-        group = user_models.Group.objects.create(founder=user2)
+        group = user_models.Group.objects.get(founder=user2)
         self.user.membership.add(group)
 
         recipe_user1 = sample_recipe(self.user)
@@ -426,6 +425,42 @@ class PrivateRecipeApiTests(APITestCase):
 
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_update_other_user_recipe_failed(self):
+        """ test updating group recipe attempt failed, because only owner of
+        recipe can PUT, PATCH, DELETE recipe in default detail view"""
+
+        user2 = sample_user()
+        recipe = sample_recipe(user2)
+
+        group = user_models.Group.objects.get(founder=user2)
+        self.user.membership.add(group)
+
+        serializer = RecipeDetailSerializer(recipe)
+        res = self.client.get(detail_group_url(recipe.slug, user2.id))
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data, serializer.data)
+
+        res = self.client.put(detail_group_url(recipe.slug, user2.id))
+        self.assertEqual(res.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_delete_other_user_recipe_failed(self):
+        """ test deleting group recipe attempt failed, because only owner
+        can do it in default detail view"""
+
+        user2 = sample_user()
+        recipe = sample_recipe(user2)
+
+        group = user_models.Group.objects.get(founder=user2)
+        self.user.membership.add(group)
+
+        serializer = RecipeDetailSerializer(recipe)
+        res = self.client.get(detail_group_url(recipe.slug, user2.id))
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data, serializer.data)
+
+        res = self.client.delete(detail_group_url(recipe.slug, user2.id))
+        self.assertEqual(res.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
     def test_create_recipe_with_invalid_tags_instance(self):
         """ creating recipe with invalid tags instance """
         payload = {
@@ -481,7 +516,7 @@ class PrivateRecipeApiTests(APITestCase):
 
     def test_create_recipe_with_doubled_ingredient_success(self):
         """ test creating recipe with passing new ingredient name which is
-        already used. Test should pass """
+        already used. Test should pass, becouse slug will be modify """
 
         sample_ingredient(self.user, 'Test')
         new_ingredient_name = 'Test'
@@ -496,7 +531,39 @@ class PrivateRecipeApiTests(APITestCase):
 
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
 
-    # def test_create_recipe_with_new_ingredient_which_has_same_slug_success(self):
+    def test_deleting_recipe(self):
+        """ test deleting recipe by authenticated user """
+
+        recipe = sample_recipe(self.user)
+
+        res = self.client.delete(detail_url(recipe.slug))
+
+        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
+
+        recipe = models.Recipe.objects.filter(slug=recipe.slug)
+
+        self.assertEqual(len(recipe), 0)
+
+    def test_deleting_recipe_belong_to_spcific_user(self):
+        """ test if deleting recipe will not affect other users recipes """
+
+        user2 = sample_user()
+
+        recipe_user1 = sample_recipe(self.user)
+        recipe_user2 = sample_recipe(user2)
+
+        res = self.client.delete(detail_url(recipe_user1.slug))
+
+        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
+
+        recipe = models.Recipe.objects.filter(user=user2). \
+            filter(slug=recipe_user2.slug)
+
+        self.assertEqual(len(recipe), 1)
+
+    #  FEAUTRE WORKING BUT TEST NOT PASSED BECOUSE ENV PROBLEM. NO DIFFERENCE
+    #  BETWEEN SÓL AND SOL DURING QUERING
+    #  def test_create_recipe_with_new_ingredient_which_has_same_slug_success(self):
     #     """ test creating recipe with new ignredient with different
     #     name but same slug eg. Sól and Sol"""
     #
@@ -538,6 +605,34 @@ class PrivateRecipeApiTests(APITestCase):
         self.assertIn(serializer1.data, res.data)
         self.assertIn(serializer2.data, res.data)
         self.assertNotIn(serializer3.data, res.data)
+
+    def test_filter_recipe_by_groups(self):
+        """ test filtering recipe by groups """
+
+        user2 = sample_user()
+        user3 = sample_user(email='test3@gmail.com', name='test3name')
+        sample_recipe(self.user, name='Danie 1')
+        sample_recipe(self.user, name='Danie 2')
+        sample_recipe(user2)
+        sample_recipe(user3)
+
+        group = user_models.Group.objects.get(founder=user2)
+        group2 = user_models.Group.objects.get(founder=user3)
+        self.user.membership.add(group, group2)
+
+        self_user_recipes = models.Recipe.objects.filter(user=self.user)
+        user2_recipe = models.Recipe.objects.get(user=user2)
+        user3_recipe = models.Recipe.objects.get(user=user3)
+
+        serializer_self_user = RecipeSerializer(self_user_recipes, many=True)
+        serializer_user2 = RecipeSerializer(user2_recipe)
+        serializer_user3 = RecipeSerializer(user3_recipe)
+        res = self.client.get(RECIPE_URL, {'groups': f'{group.id}'},
+                                           format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn(serializer_user2.data, res.data)
+        self.assertNotIn(serializer_user3.data, res.data)
+
 
     # def test_filter_recipe_by_ingredients(self):
     #     """ returning recipe with specific ingredients """
