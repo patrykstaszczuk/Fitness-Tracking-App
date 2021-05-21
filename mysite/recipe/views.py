@@ -4,11 +4,11 @@ from rest_framework.response import Response
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 from recipe.models import Ingredient, Tag, Recipe
+from users.models import Group
 from recipe import serializers
-from django.db.models import Q
-from recipe import models
 from django.shortcuts import get_object_or_404
-from django.contrib.auth import get_user_model
+from django.http import Http404
+from django.core.exceptions import ValidationError
 
 
 class BaseRecipeAttrViewSet(viewsets.ModelViewSet):
@@ -49,44 +49,59 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
     queryset = Recipe.objects.all()
     lookup_field = 'slug'
 
-    def _return_users_from_common_groups(self, user, groups):
+    def _return_users_from_filtered_groups(self, user, groups):
         """ return all users belongs to filtered groups """
 
         users_instances = []
+
         if groups is not None:
             groups = groups.split(',')
-            request_user_groups = user.membership.all().filter(id__in=groups)
+            groups = self._map_raw_data_to_instances(Group, user, 'id', groups)
         else:
-            request_user_groups = user.membership.all()
+            groups = user.membership.all()
 
-        users_instances_in_groups = [group.members.all() for group
-                                     in request_user_groups]
+        users_instances_in_groups = [group.members.all() for group in groups]
 
         for group_members in users_instances_in_groups:
             for user in group_members:
                 users_instances.append(user)
         return list(set(users_instances))
 
-    def _map_slug_to_instances(self, list):
-        """ map provided filtering slugs into instances """
+    def _map_raw_data_to_instances(self, instance, user, lookup_key, data):
+        """ map provided filtering data to instances """
+
         instances_list = []
-        for item in list:
-            instances_list.append(get_object_or_404(Tag, slug=item))
+        for item in data:
+            try:
+                if instance == Group:
+                    objs = user.membership.all()
+                else:
+                    objs = instance.objects.filter(user=user)
+                obj = objs.get(**{lookup_key: item})
+                instances_list.append(obj)
+            except instance.DoesNotExist:
+                pass
         return instances_list
 
     def _get_filtering(self, request):
         """ check if there is any filter applied and return queryset if so """
-        allowed_filters = ['tags', ]
 
-        groups_filter = request.query_params.get('groups')
-        users_in_groups = self._return_users_from_common_groups(self.request.user, groups_filter)
-        queryset = Recipe.objects.all().filter(user__in=users_in_groups).\
-            order_by('-name')
+        allowed_filters = ['tags', 'groups']
+        user = self.request.user
+        filtered_groups = request.query_params.get('groups')
+        allowed_filters.pop()
+
+        users_in_filtered_groups = \
+            self._return_users_from_filtered_groups(user, filtered_groups)
+        queryset = Recipe.objects.all().filter(user__in=
+                                               users_in_filtered_groups).order_by('-name')
 
         for filter in request.query_params:
             if filter in allowed_filters:
                 filter_values = request.query_params[filter].split(',')
-                filter_instances = self._map_slug_to_instances(filter_values)
+                filter_instances = self._map_raw_data_to_instances(Tag, user,
+                                                                   'slug',
+                                                                   filter_values)
                 query = filter + '__in'
                 queryset = queryset.filter(**{query: filter_instances})
         return queryset
@@ -163,5 +178,11 @@ class RecipeDetailViewSet(viewsets.GenericViewSet, mixins.RetrieveModelMixin):
         same name """
         user_id = self.kwargs.get('pk')
         slug = self.kwargs.get('slug')
+
+        try:
+            user_id = int(user_id)
+        except TypeError:
+            raise Http404('Identyfikator użytkownika musi być liczbą!')
+
         instance = get_object_or_404(Recipe, user=user_id, slug=slug)
         return instance

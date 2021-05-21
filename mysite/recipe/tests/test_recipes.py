@@ -606,6 +606,17 @@ class PrivateRecipeApiTests(APITestCase):
         self.assertIn(serializer2.data, res.data)
         self.assertNotIn(serializer3.data, res.data)
 
+    def test_filter_recipes_by_non_existing_tag(self):
+        """ test filtering recipes with wrong tag slug """
+
+        recipe = sample_recipe(self.user)
+        tag = sample_tag(self.user, name='tag')
+        recipe.tags.add(tag)
+
+        res = self.client.get(RECIPE_URL, {'tags': f'slug1, slug2'})
+
+        self.assertEqual(res.data, [])
+
     def test_filter_recipe_by_groups(self):
         """ test filtering recipe by groups """
 
@@ -628,12 +639,33 @@ class PrivateRecipeApiTests(APITestCase):
         serializer_user2 = RecipeSerializer(user2_recipe)
         serializer_user3 = RecipeSerializer(user3_recipe)
         res = self.client.get(RECIPE_URL, {'groups': f'{group.id}'},
-                                           format='json')
+                              format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertIn(serializer_user2.data, res.data)
         self.assertNotIn(serializer_user3.data, res.data)
 
+    def test_filter_recipes_by_non_existing_group_failed(self):
+        """ test filter recipes with wrong group id """
 
+        recipe = sample_recipe(self.user)
+
+        res = self.client.get(RECIPE_URL, {'groups': '10'})
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data, [])
+
+    def test_filter_recipes_by_not_joined_groups(self):
+        """ test filtering reicpes by groups where user is not a member """
+
+        user2 = sample_user()
+        recipe_user2 = sample_recipe(user2)
+        user2_group = user_models.Group.objects.get(founder=user2)
+        recipe_self_user = sample_recipe(self.user)
+
+        res = self.client.get(RECIPE_URL, {'groups': f'{user2_group.id}'})
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data, [])
     # def test_filter_recipe_by_ingredients(self):
     #     """ returning recipe with specific ingredients """
     #
