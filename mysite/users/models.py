@@ -51,6 +51,8 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
 
     sex = models.CharField(max_length=5, choices=SEX_CHOICE, default=MALE)
     age = models.IntegerField()
+    height = models.PositiveSmallIntegerField()
+    weight = models.PositiveSmallIntegerField()
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
 
@@ -59,6 +61,10 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
     REQUIRED_FIELDS = ['name', 'sex', 'age']
 
     objects = MyManager()
+
+    def get_bmi(self):
+        """ return calculated bmi """
+        return round(self.weight/(self.height)**2, 1)
 
     def get_memberships(self):
         return self.membership.all()
