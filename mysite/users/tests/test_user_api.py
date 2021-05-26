@@ -63,22 +63,21 @@ class PublicUserApiTests(TestCase):
 
         self.assertNotIn('password', res.data)
 
-    # def test_create_user_invalid_field_values(self):
-    #     """ test creating user with invalid values in fields """
-    #
-    #     payload = {
-    #         'email': 'test@gmail.com',
-    #         'password': 'test',
-    #         'name': 'tes',
-    #         'age': 0,
-    #         'height': 3000,
-    #         'weight': 500
-    #
-    #     }
-    #
-    #     res = self.client.post(CREATE_USER_URL, payload)
-    #     print(res.data)
-    #     self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+    def test_create_user_invalid_field_values(self):
+        """ test creating user with invalid values in fields """
+
+        payload = {
+            'email': 'test@gmail.com',
+            'password': 'test',
+            'name': 'tes',
+            'age': 0,
+            'height': 3000,
+            'weight': 800
+
+        }
+
+        res = self.client.post(CREATE_USER_URL, payload)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_exists(self):
         """ test creating user that already exsists fails """

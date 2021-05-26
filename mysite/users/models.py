@@ -37,8 +37,10 @@ class MyManager(BaseUserManager):
 
 class MyUser(AbstractBaseUser, PermissionsMixin):
     """ Custom user model """
-    email = models.EmailField(unique=True, max_length=255)
-    name = models.CharField(blank=False, max_length=255, unique=True)
+    email = models.EmailField(unique=True, max_length=255,
+                              error_messages={'unique': 'Podany adres email jest zajęty'})
+    name = models.CharField(blank=False, max_length=255, unique=True,
+                            error_messages={'unique': 'Podana nazwa jest zajęta'})
     password = models.CharField(blank=False, max_length=255)
 
     MALE = 'Male'

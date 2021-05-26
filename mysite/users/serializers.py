@@ -31,6 +31,40 @@ class UserSerializer(DynamicFieldsModelSerializer):
         """ create a new user with encrypted password and return it """
         return get_user_model().objects.create_user(**validated_data)
 
+    def validate_password(self, password):
+        """ validate password length """
+
+        if len(password) < 5:
+            raise serializers.ValidationError('Hasło jest za krótkie!')
+        return password
+
+    def validate_name(self, name):
+        """ validate name length """
+        if len(name) < 3:
+            raise serializers.ValidationError('Za krótka nazwa użytkownika')
+        return name
+
+    def validate_age(self, age):
+        """ validate age """
+
+        if not 0 < age <= 150:
+            raise serializers.ValidationError('Niepoprawny wiek')
+        return age
+
+    def validate_height(self, height):
+        """ validate height """
+
+        if not 40 < height <= 300:
+            raise serializers.ValidationError('Niepoprawny wzrost')
+        return height
+
+    def validate_weight(self, weight):
+        """ validate weight """
+
+        if not 5 < weight <= 600:
+            raise serializers.ValidationError('Niepoprawna waga')
+        return weight
+
 
 class UserChangePasswordSerializer(serializers.Serializer):
     """ update user password """
