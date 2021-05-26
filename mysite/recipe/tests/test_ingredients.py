@@ -24,6 +24,18 @@ def sample_tag(name, user):
     return models.Tag.objects.create(name=name, user=user)
 
 
+def sample_user(email='user2@gmail.com', name='test2'):
+    return get_user_model().objects.create_user(
+        email=email,
+        name=name,
+        password='testpass',
+        age=25,
+        weight=88,
+        height=188,
+        sex='Male'
+    )
+
+
 class PublicIngredientApiTests(TestCase):
     """ test the publicly available ingredients API """
 
@@ -46,6 +58,8 @@ class PrivateIngredientApiTests(TestCase):
             password='testpass',
             name='Test',
             age=25,
+            weight=88,
+            height=188,
             sex='Male'
         )
         self.tag = sample_tag('test', self.user)
@@ -67,13 +81,7 @@ class PrivateIngredientApiTests(TestCase):
 
     def test_ingredient_limited_to_user(self):
         """ test that ingredients returned are for specific user """
-        user2 = get_user_model().objects.create_user(
-            email='test2@gmail.com',
-            password='testpass',
-            name='Test2',
-            age=25,
-            sex='Male'
-        )
+        user2 = sample_user()
         ingredient = sample_ingredient('Szpinak', self.user)
         sample_ingredient('Czosnek', user2)
 
@@ -117,13 +125,7 @@ class PrivateIngredientApiTests(TestCase):
 
     def test_create_ingredient_success_different_user(self):
         """ test create ingredient success with same name but different user"""
-        user2 = get_user_model().objects.create_user(
-            email='Test3@gmail.com',
-            password='password2',
-            name='test2',
-            age=25,
-            sex='Male'
-        )
+        user2 = sample_user()
         sample_ingredient('Majonez', user2)
 
         payload = {

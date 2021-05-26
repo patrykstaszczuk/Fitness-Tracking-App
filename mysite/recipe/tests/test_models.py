@@ -14,6 +14,8 @@ def sample_user(email='test@gmail.com', name='Test', password='testpass',
         name=name,
         password=password,
         age=age,
+        weight=88,
+        height=188,
         sex=sex
     )
 

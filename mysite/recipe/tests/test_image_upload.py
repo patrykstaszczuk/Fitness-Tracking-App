@@ -30,6 +30,8 @@ class PrivateTestCases(TestCase):
             password='testpassword',
             name='test',
             age=25,
+            height=188,
+            weight=88,
             sex='Male'
         )
         self.client.force_authenticate(user=self.user)

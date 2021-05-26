@@ -57,6 +57,8 @@ def sample_user(email='user2@gmail.com', name='testusername'):
         name=name,
         password='testpass',
         age=25,
+        weight=88,
+        height=188,
         sex='Male'
     )
 
@@ -83,6 +85,8 @@ class PrivateRecipeApiTests(APITestCase):
             name='testuser',
             password='testpass',
             age=25,
+            weight=88,
+            height=188,
             sex='Male'
         )
         self.client.force_authenticate(self.user)
@@ -105,13 +109,7 @@ class PrivateRecipeApiTests(APITestCase):
 
     def test_recipes_limited_to_user(self):
         """ test retrieving recipes for user """
-        user2 = get_user_model().objects.create_user(
-            email='test2@gmail.com',
-            name='nazwa',
-            password='testpass',
-            age=25,
-            sex='Male'
-        )
+        user2 = sample_user()
         sample_recipe(user2)
         sample_recipe(self.user)
 
@@ -276,13 +274,7 @@ class PrivateRecipeApiTests(APITestCase):
 
     def test_create_multi_recipes_for_multi_users(self):
         """ create multi recipes for multi users """
-        user2 = get_user_model().objects.create(
-                email='test2@gmail.com',
-                name='testuser2',
-                password='testpass',
-                age=25,
-                sex='Male'
-        )
+        user2 = sample_user()
         ingredient_self_user = sample_ingredient(self.user, 'Szpinak')
         ingredient_user2 = sample_ingredient(user2, 'Czonsek')
 
@@ -406,12 +398,7 @@ class PrivateRecipeApiTests(APITestCase):
 
     def test_full_update_with_invalid_tag_failed(self):
         """ test updating recipe with invalid tag instance """
-        user2 = get_user_model().objects.create(
-            email='2@gmail.com',
-            password='testpasswod',
-            age=25,
-            sex='Male'
-        )
+        user2 = sample_user()
         tag = sample_tag(user2, 'Vege')
         recipe = sample_recipe(self.user)
 
@@ -473,12 +460,7 @@ class PrivateRecipeApiTests(APITestCase):
     def test_create_recipe_with_tag_created_by_other_user_failed(self):
         """ creating recipe with tag created by unauthenticated user
          should failed"""
-        user2 = get_user_model().objects.create(
-            email='2@gmail.com',
-            password='testpasswod',
-            age=25,
-            sex='Male'
-        )
+        user2 = sample_user()
         tag_user2 = sample_tag(user2, 'Tag uzytkownika 2')
         sample_tag(self.user, 'Poprawny Tag')
         ingredient = sample_ingredient(self.user, 'Czosnek')

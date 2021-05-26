@@ -12,6 +12,8 @@ class AdminSiteTests(TestCase):
             password='testpass',
             name='admin',
             age=25,
+            height=188,
+            weight=88,
             sex='Male'
         )
         self.client.force_login(self.admin_user)
@@ -20,6 +22,8 @@ class AdminSiteTests(TestCase):
             password='testpass',
             name='user',
             age=25,
+            height=188,
+            weight=88,
             sex='Male'
         )
 

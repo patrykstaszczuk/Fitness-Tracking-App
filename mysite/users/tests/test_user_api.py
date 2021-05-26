@@ -12,7 +12,7 @@ from users import models
 CREATE_USER_URL = reverse('users:create')
 TOKEN_URL = reverse('users:token')
 ME_URL = reverse('users:profile')
-PASSWORD_URL = reverse('users:password_change')
+PASSWORD_URL = reverse('users:password-change')
 
 GROUP_URL = reverse('users:group-list')
 
@@ -30,6 +30,8 @@ def sample_user(email='test2@gmail.com', name='testname2'):
         email=email,
         password='testpass',
         name=name,
+        height=188,
+        weight=85,
         age=25,
         sex='Male'
     )
@@ -47,17 +49,36 @@ class PublicUserApiTests(TestCase):
             'email': 'test@gmail.com',
             'password': 'testpass',
             'name': 'testname',
-            'age': 25,
+            'height': '185',
+            'weight': '85',
+            'age': '25',
             'sex': 'Male'
         }
 
-        res = self.client.post(CREATE_USER_URL, payload)
+        res = self.client.post(CREATE_USER_URL, payload, foramt='json')
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
 
         user = get_user_model().objects.get(**res.data)
         self.assertTrue(user.check_password(payload['password']))
 
         self.assertNotIn('password', res.data)
+
+    # def test_create_user_invalid_field_values(self):
+    #     """ test creating user with invalid values in fields """
+    #
+    #     payload = {
+    #         'email': 'test@gmail.com',
+    #         'password': 'test',
+    #         'name': 'tes',
+    #         'age': 0,
+    #         'height': 3000,
+    #         'weight': 500
+    #
+    #     }
+    #
+    #     res = self.client.post(CREATE_USER_URL, payload)
+    #     print(res.data)
+    #     self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_exists(self):
         """ test creating user that already exsists fails """
@@ -66,6 +87,8 @@ class PublicUserApiTests(TestCase):
             'password': 'testpass',
             'name': 'testname',
             'age': 25,
+            'height': 188,
+            'weight': 88,
             'sex': 'Male'
         }
         get_user_model().objects.create_user(**payload)
@@ -80,6 +103,8 @@ class PublicUserApiTests(TestCase):
             'password': 'testpass',
             'name': 'testname',
             'age': 25,
+            'height': 188,
+            'weight': 55,
             'sex': 'Male'
         }
         get_user_model().objects.create_user(**payload)
@@ -96,6 +121,8 @@ class PublicUserApiTests(TestCase):
             'password': 'testpass',
             'name': 'testname',
             'age': 25,
+            'height': 188,
+            'weight': 55,
             'sex': 'Male'
         }
         get_user_model().objects.create_user(**payload)
@@ -136,6 +163,8 @@ class PrivateUserApiTests(TestCase):
             'password': 'testpass',
             'name': 'testname',
             'age': 25,
+            'height': 188,
+            'weight': 88,
             'sex': 'Male'
         }
         self.user = get_user_model().objects.create_user(**payload)
@@ -151,6 +180,8 @@ class PrivateUserApiTests(TestCase):
             'email': self.user.email,
             'name': self.user.name,
             'age': self.user.age,
+            'height': self.user.height,
+            'weight': self.user.weight,
             'sex': self.user.sex
         })
 
@@ -230,13 +261,7 @@ class PrivateUserApiTests(TestCase):
 
     def test_retrieve_groups_success(self):
         """ test retrieving group created by user and groups he belongs to """
-        user2 = get_user_model().objects.create_user(
-            email='test2@gmail.com',
-            password='testpassword',
-            name='test',
-            age=25,
-            sex='Male'
-        )
+        user2 = sample_user()
         g1 = models.Group.objects.get(founder=user2)
 
         self.user.membership.add(g1)
@@ -262,14 +287,7 @@ class PrivateUserApiTests(TestCase):
     def test_retrieve_only_groups_belongs_to_specific_user(self):
         """ test retrieving groups only created by self.user """
 
-        get_user_model().objects.create_user(
-            email='test2@gmail.com',
-            password='testpassword',
-            name='test',
-            age=25,
-            sex='Male'
-        )
-
+        sample_user()
         res = self.client.get(GROUP_URL)
 
         user_group = self.user.membership.all()

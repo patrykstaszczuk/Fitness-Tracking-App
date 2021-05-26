@@ -17,6 +17,18 @@ def reverse_tag_detail(slug):
     return reverse('recipe:tag-detail', kwargs={'slug': slug})
 
 
+def sample_user(email='user2@gmail.com', name='test2'):
+    return get_user_model().objects.create_user(
+        email=email,
+        name=name,
+        password='testpass',
+        age=25,
+        weight=88,
+        height=188,
+        sex='Male'
+    )
+
+
 class PublicTagTestsApi(TestCase):
     """ test tags for unauthenticated user """
 
@@ -40,6 +52,8 @@ class PrivateTagTestsApi(TestCase):
             name='test',
             password='testpass',
             age=25,
+            weight=88,
+            height=188,
             sex='Male'
         )
         self.client.force_authenticate(user=self.user)
@@ -61,13 +75,7 @@ class PrivateTagTestsApi(TestCase):
         """ test retrieve tags which are created by specific user """
         tag = models.Tag.objects.create(name='Zupa', user=self.user)
 
-        user2 = get_user_model().objects.create_user(
-            email='test2@gmail.com',
-            name='test2',
-            password='testpass',
-            age=25,
-            sex='Male'
-        )
+        user2 = sample_user()
         models.Tag.objects.create(name='Obiad', user=user2)
 
         res = self.client.get(TAG_URL)
@@ -137,17 +145,10 @@ class PrivateTagTestsApi(TestCase):
         res = self.client.put(reverse_tag_detail(tag.slug), payload)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
 
-
     def test_create_tag_for_different_user_success(self):
         """ test update tag with name which is already used but created
             by different user"""
-        user2 = get_user_model().objects.create_user(
-            email='user2@gmail.com',
-            name='user2',
-            password='testpass',
-            age=25,
-            sex='Male'
-        )
+        user2 = sample_user()
         models.Tag.objects.create(name='nazwa', user=user2)
 
         res = self.client.post(TAG_URL, {'name': 'nazwa'})
@@ -169,13 +170,7 @@ class PrivateTagTestsApi(TestCase):
 
     def test_delete_tag_only_for_requested_user(self):
         """ test that only tag for requested user is deleted """
-        user2 = get_user_model().objects.create_user(
-            email='user2@gmail.com',
-            name='user2',
-            password='testpass',
-            age=25,
-            sex='Male'
-        )
+        user2 = sample_user()
         tag = models.Tag.objects.create(name='tag', user=self.user)
         models.Tag.objects.create(name='tag', user=user2)
 

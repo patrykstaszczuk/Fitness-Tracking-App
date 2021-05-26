@@ -34,7 +34,7 @@ class ManageUserView(generics.RetrieveUpdateAPIView):
 
     def get_serializer(self, *args, **kwargs):
         serializer_class = self.get_serializer_class()
-        fields = ('email', 'name', 'age', 'sex')
+        fields = ('email', 'name', 'age', 'sex', 'height', 'weight')
         kwargs['context'] = self.get_serializer_context()
         kwargs['fields'] = fields
         return serializer_class(*args, **kwargs)

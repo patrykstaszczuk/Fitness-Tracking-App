@@ -13,11 +13,15 @@ class ModelTest(TestCase):
         password = "testpass123"
         age = 25
         sex = 'MALE'
+        weight = 30
+        height = 188
         user = get_user_model().objects.create_user(
             email=email,
             password=password,
             age=age,
-            sex=sex
+            sex=sex,
+            weight=weight,
+            height=height
         )
 
         self.assertEqual(user.email, email)
@@ -29,9 +33,13 @@ class ModelTest(TestCase):
         password = 'testpass'
         age = 25
         sex = 'MALE'
+        weight = 25
+        height = 188
         user = get_user_model().objects.create_user(email=email,
                                                     password=password,
-                                                    age=age, sex=sex)
+                                                    age=age, sex=sex,
+                                                    weight=weight,
+                                                    height=height)
         self.assertEqual(user.email, email.lower())
 
     def test_new_user_invalid_email(self):
@@ -40,13 +48,16 @@ class ModelTest(TestCase):
         with self.assertRaises(ValueError):
             get_user_model().objects.create_user(email=None,
                                                  password="dada",
-                                                 age=25, sex='Male')
+                                                 age=25, sex='Male',
+                                                 weight=88, height=188)
 
     def test_create_new_superuser(self):
         user = get_user_model().objects.create_superuser(
             email='test@gmail.com',
             password='teste',
             age=25,
+            weight=88,
+            height=188,
             sex='Male'
         )
 
@@ -59,6 +70,8 @@ class ModelTest(TestCase):
             name='Patryk',
             password='test',
             age=25,
+            weight=88,
+            height=188,
             sex='Male'
         )
         group = models.Group.objects.get(founder=user)
