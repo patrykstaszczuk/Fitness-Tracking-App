@@ -17,12 +17,12 @@ class HealthDiarySerializer(serializers.ModelSerializer):
 
         user = kwargs.get('user')
         now = datetime.date.today()
-
+        
         try:
             self.instance = models.HealthDiary.objects. \
                 filter(user=user).get(date=now)
         except models.HealthDiary.DoesNotExist:
-            self.instance = None
+            pass
         super().save(**kwargs)
 
     def validate_weight(self, value):
@@ -67,14 +67,5 @@ class HealthRaportSerializer(serializers.ModelSerializer):
 
     class Meta:
         exclude = ('daily_thoughts', )
-        read_only_fields = ('id', 'user', 'date', 'slug')
-        model = models.HealthDiary
-
-
-class HealtRaportDetailSerializer(serializers.ModelSerializer):
-    """ serialzier for health statistics raport detail """
-
-    class Meta:
-        fields = '__all__'
         read_only_fields = ('id', 'user', 'date', 'slug')
         model = models.HealthDiary

@@ -55,13 +55,19 @@ class HealthRaport(viewsets.GenericViewSet, mixins.RetrieveModelMixin,
     queryset = models.HealthDiary.objects.all()
     lookup_field = 'slug'
 
+    def perform_update(self, serializer):
+        """ set instance user to requested user """
+        serializer.save(user=self.request.user)
+
     def get_serializer_class(self):
         """ return appropriate serializer according to action """
 
-        if self.action == 'retrieve':
-            return serializers.HealtRaportDetailSerializer
+        if self.action in ['retrieve', 'update']:
+            return serializers.HealthDiarySerializer
         return self.serializer_class
 
     def get_queryset(self):
         """ filter queryset to requsted user only """
-        return self.queryset.filter(user=self.request.user)
+        today = datetime.date.today()
+        if self.action != 'list':
+            return self.queryset.filter(user=self.request.user).exclude(date=today)

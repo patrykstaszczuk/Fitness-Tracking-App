@@ -192,7 +192,6 @@ class PrivateHealthApiTests(TestCase):
         self.assertEqual(res.data, serializer.data)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
 
-
     def test_creating_user_daily_health_statistics_with_invalid_values(self):
         """ test updating failed due to invalid values """
 
@@ -276,6 +275,20 @@ class PrivateHealthApiTests(TestCase):
         self.assertNotIn(u2_serializer, res.data)
         self.assertEqual(res.data, serializer.data)
 
+    def test_exclude_today_statistics_from_history(self):
+        """ test excluding today's statistic from history """
+
+        history = []
+        history.append(models.HealthDiary.objects.create(user=self.user,
+                                                         date='2021-05-25'))
+        history.append(models.HealthDiary.objects.create(user=self.user,
+                                                         date='2021-05-26'))
+        today = models.HealthDiary.objects.create(user=self.user)
+        res = self.client.get(USER_HEALTH_STATISTIC_RAPORT)
+
+        serializer = health_serializers.HealthRaportSerializer(today)
+        self.assertNotIn(serializer.data, res.data)
+
     def test_post_not_allowed_on_health_history_site(self):
         """ test method POST not allowed on health history site """
 
@@ -293,7 +306,7 @@ class PrivateHealthApiTests(TestCase):
 
         res = self.client.get(user_healh_statistic_raport_detail(diary.slug))
 
-        serializer = health_serializers.HealtRaportDetailSerializer(diary)
+        serializer = health_serializers.HealthDiarySerializer(diary)
 
         self.assertEqual(res.data, serializer.data)
 
@@ -308,6 +321,47 @@ class PrivateHealthApiTests(TestCase):
 
         res = self.client.get(user_healh_statistic_raport_detail(diary.slug))
 
-        serializer = health_serializers.HealtRaportDetailSerializer(diary)
+        serializer = health_serializers.HealthDiarySerializer(diary)
 
         self.assertEqual(res.data, serializer.data)
+
+    def test_delete_health_statistic_not_allowed(self):
+        """ test method DELETE not allowed in healt statistic detail """
+
+        diary = models.HealthDiary.objects.create(user=self.user)
+
+        res = self.client.delete(user_healh_statistic_raport_detail(
+            diary.slug))
+
+        self.assertEqual(res.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_update_history_statistic_success(self):
+        """ test updating history statistics """
+
+        diary = models.HealthDiary.objects.create(user=self.user,
+                                                  calories=1000,
+                                                  date='2021-05-12')
+        payload = {
+            'weight': '74',
+            'rest_heart_rate': None,
+            'sleep_length': '5'
+        }
+        res = self.client.put(user_healh_statistic_raport_detail(diary.slug),
+                              payload, format='json')
+        diary.refresh_from_db()
+        serializer = health_serializers.HealthDiarySerializer(diary)
+
+        self.assertEqual(res.data, serializer.data)
+
+    def test_updating_other_user_statistics_failed(self):
+        """ test user separation feature """
+
+        user2 = sample_user()
+
+        user2_diary = models.HealthDiary.objects.create(user=user2,
+                                                        date='2021-05-20')
+
+        res = self.client.put(user_healh_statistic_raport_detail(
+                user2_diary.slug))
+
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
