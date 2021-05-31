@@ -12,8 +12,14 @@ from health import serializers as health_serializers
 import datetime
 
 USER_DAILY_HEALTH_DASHBOARD = reverse('health:health-diary')
+USER_HEALTH_STATISTIC_RAPORT = reverse('health:health-list')
 
 NOW = datetime.date.today()
+
+
+def user_healh_statistic_raport_detail(slug):
+    """ reverse for user health statistic detail """
+    return reverse('health:health-detail', kwargs={'slug': slug})
 
 
 def sample_user(email='test2@gmail.com', name='test2'):
@@ -211,3 +217,96 @@ class PrivateHealthApiTests(TestCase):
         res = self.client.post(USER_DAILY_HEALTH_DASHBOARD, payload,
                                format='json')
         self.assertNotEqual(res.json()['date'], payload['date'])
+
+    def test_updating_user_weight_with_null(self):
+        """ test setting weight to blank value """
+
+        diary = models.HealthDiary.objects.create(user=self.user, weight=74)
+
+        payload = {
+            'weight': None,
+            'sleep_length': '7',
+            'daily_thoughts': ''
+            }
+        res = self.client.put(USER_DAILY_HEALTH_DASHBOARD, payload,
+                              format='json')
+        diary.refresh_from_db()
+        serializer = health_serializers.HealthDiarySerializer(diary)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data, serializer.data)
+
+    def test_retrieving_health_statistics_raport(self):
+        """ test retrieving health statistics history list"""
+
+        diaries_list = []
+        diaries_list.append(models.HealthDiary.objects.create(user=self.user,
+                            date='2021-05-27', weight=73.2))
+        diaries_list.append(models.HealthDiary.objects.create(user=self.user,
+                            date='2021-05-26', weight=73.2))
+        diaries_list.append(models.HealthDiary.objects.create(user=self.user,
+                            date='2021-05-25', weight=73.2))
+        diaries_list.append(models.HealthDiary.objects.create(user=self.user,
+                            date='2021-05-24', weight=73.2))
+
+        res = self.client.get(USER_HEALTH_STATISTIC_RAPORT)
+        serializer = health_serializers.HealthRaportSerializer(diaries_list,
+                                                               many=True)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data, serializer.data)
+
+    def test_retrieving_health_statistics_raport_users_separation(self):
+        """ test users separation during retrieving health history """
+
+        user2 = sample_user()
+        diaries = []
+        user2_diary = models.HealthDiary.objects.create(user=user2,
+                                                        date='2021-05-22')
+        diaries.append(models.HealthDiary.objects.create(user=self.user,
+                                                         date='2021-05-22'))
+        diaries.append(models.HealthDiary.objects.create(user=self.user,
+                                                         date='2021-05-23'))
+
+        res = self.client.get(USER_HEALTH_STATISTIC_RAPORT)
+
+        u2_serializer = health_serializers.HealthRaportSerializer(user2_diary)
+        serializer = health_serializers.HealthRaportSerializer(diaries,
+                                                               many=True)
+        self.assertNotIn(u2_serializer, res.data)
+        self.assertEqual(res.data, serializer.data)
+
+    def test_post_not_allowed_on_health_history_site(self):
+        """ test method POST not allowed on health history site """
+
+        res = self.client.post(USER_HEALTH_STATISTIC_RAPORT, {'data': 'data'})
+
+        self.assertEqual(res.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_retrieving_health_statistic_detail(self):
+        """ test retrieving health statistic history detail """
+
+        models.HealthDiary.objects.create(user=self.user, date='2021-03-22')
+        models.HealthDiary.objects.create(user=self.user)
+        diary = models.HealthDiary.objects.create(user=self.user,
+                                                  date='2021-05-22', weight=65)
+
+        res = self.client.get(user_healh_statistic_raport_detail(diary.slug))
+
+        serializer = health_serializers.HealtRaportDetailSerializer(diary)
+
+        self.assertEqual(res.data, serializer.data)
+
+    def test_retrieving_health_statistic_detail_users_separation(self):
+        """ test users separation when retrieving health statistics detail """
+
+        user2 = sample_user()
+
+        models.HealthDiary.objects.create(user=user2, date='2021-05-30')
+        diary = models.HealthDiary.objects.create(user=self.user,
+                                                  date='2021-05-30')
+
+        res = self.client.get(user_healh_statistic_raport_detail(diary.slug))
+
+        serializer = health_serializers.HealtRaportDetailSerializer(diary)
+
+        self.assertEqual(res.data, serializer.data)

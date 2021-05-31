@@ -43,3 +43,25 @@ class HealthDiary(viewsets.GenericViewSet, mixins.RetrieveModelMixin,
                 get(date=now)
         except models.HealthDiary.DoesNotExist:
             return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class HealthRaport(viewsets.GenericViewSet, mixins.RetrieveModelMixin,
+                   mixins.UpdateModelMixin, mixins.ListModelMixin):
+    """ viewset for managing user health statistic history """
+
+    authentication_classes = (authentication.TokenAuthentication, )
+    permission_classes = (permissions.IsAuthenticated, )
+    serializer_class = serializers.HealthRaportSerializer
+    queryset = models.HealthDiary.objects.all()
+    lookup_field = 'slug'
+
+    def get_serializer_class(self):
+        """ return appropriate serializer according to action """
+
+        if self.action == 'retrieve':
+            return serializers.HealtRaportDetailSerializer
+        return self.serializer_class
+
+    def get_queryset(self):
+        """ filter queryset to requsted user only """
+        return self.queryset.filter(user=self.request.user)

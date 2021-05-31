@@ -1,7 +1,11 @@
-from django.urls import path
+from django.urls import path, include
 from health import views
+
+from rest_framework.routers import DefaultRouter
 # from rest_framework import routers
 
+router = DefaultRouter()
+router.register('historia', views.HealthRaport, basename='health')
 app_name = 'health'
 
 urlpatterns = [
@@ -10,5 +14,6 @@ urlpatterns = [
                                                'post': 'create',
                                                 'put': 'update',
                                                 'patch': 'update'}),
-         name='health-diary')
+         name='health-diary'),
+    path('raporty/', include(router.urls)),
 ]

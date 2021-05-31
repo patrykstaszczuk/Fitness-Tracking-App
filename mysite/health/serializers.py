@@ -9,7 +9,7 @@ class HealthDiarySerializer(serializers.ModelSerializer):
     class Meta:
         model = models.HealthDiary
         fields = '__all__'
-        read_only_fields = ('user', 'date')
+        read_only_fields = ('id', 'user', 'date')
 
     def save(self, **kwargs):
         """ if requested user already have health diary for today, update it
@@ -25,38 +25,56 @@ class HealthDiarySerializer(serializers.ModelSerializer):
             self.instance = None
         super().save(**kwargs)
 
-    def validate_weight(self, weight):
+    def validate_weight(self, value):
         """ validate weight """
 
-        if not 5 < weight <= 600:
+        if value is not None and not 5 < value <= 600:
             raise serializers.ValidationError('Niepoprawna waga')
-        return weight
+        return value
 
-    def validate_sleep_length(self, sleep_length):
+    def validate_sleep_length(self, value):
         """ validate sleep_length """
 
-        if not 0 < sleep_length <= 24:
+        if value is not None and not 0 < value <= 24:
             raise serializers.ValidationError('Niepoprawna długość snu!')
-        return sleep_length
+        return value
 
-    def validate_rest_heart_rate(self, rest_heart_rate):
+    def validate_rest_heart_rate(self, value):
         """ validate rest_heart_rate """
 
-        if not 0 < rest_heart_rate < 200:
+        if value is not None and not 0 < value < 200:
             raise serializers.ValidationError('Nieporawna wartość tętna \
                                               spoczynkowego')
-        return rest_heart_rate
+        return value
 
-    def validate_calories(self, calories):
+    def validate_calories(self, value):
         """ validate calories """
 
-        if not 0 < calories < 20000:
+        if value is not None and not 0 < value < 20000:
             raise serializers.ValidationError('Nieporawna liczba kalorii')
-        return calories
+        return value
 
-    def validate_daily_thoughts(self, daily_thoughts):
+    def validate_daily_thoughts(self, value):
         """ validated length of daily_thoughts """
 
-        if len(daily_thoughts) > 2000:
+        if len(value) > 2000:
             raise serializers.ValidationError('Maksymalna liczba znaków: 2000')
-        return daily_thoughts
+        return value
+
+
+class HealthRaportSerializer(serializers.ModelSerializer):
+    """ serializer for health statistics raports and history list """
+
+    class Meta:
+        exclude = ('daily_thoughts', )
+        read_only_fields = ('id', 'user', 'date', 'slug')
+        model = models.HealthDiary
+
+
+class HealtRaportDetailSerializer(serializers.ModelSerializer):
+    """ serialzier for health statistics raport detail """
+
+    class Meta:
+        fields = '__all__'
+        read_only_fields = ('id', 'user', 'date', 'slug')
+        model = models.HealthDiary
