@@ -134,8 +134,8 @@ class PrivateHealthApiTests(TestCase):
             get(date=datetime.date.today())
         serializer = health_serializers.HealthDiarySerializer(daily_data)
 
-        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         self.assertEqual(res.data, serializer.data)
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
 
     def test_update_user_daily_health_statistics_with_put(self):
         """ test updating user health statistics """
@@ -154,8 +154,8 @@ class PrivateHealthApiTests(TestCase):
         daily_data.refresh_from_db()
         serializer = health_serializers.HealthDiarySerializer(daily_data)
 
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
 
     def test_update_user_diary_if_already_exists(self):
         """ test updating diary insted of creating new one, reagrdless POST
@@ -189,8 +189,9 @@ class PrivateHealthApiTests(TestCase):
                                 format='json')
         diary.refresh_from_db()
         serializer = health_serializers.HealthDiarySerializer(diary)
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
 
     def test_creating_user_daily_health_statistics_with_invalid_values(self):
         """ test updating failed due to invalid values """

@@ -9,7 +9,7 @@ class HealthDiarySerializer(serializers.ModelSerializer):
     class Meta:
         model = models.HealthDiary
         fields = '__all__'
-        read_only_fields = ('id', 'user', 'date')
+        read_only_fields = ('id', 'user', 'date', 'slug')
 
     def save(self, **kwargs):
         """ if requested user already have health diary for today, update it
