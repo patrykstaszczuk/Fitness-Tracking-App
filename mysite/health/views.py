@@ -69,5 +69,6 @@ class HealthRaport(viewsets.GenericViewSet, mixins.RetrieveModelMixin,
     def get_queryset(self):
         """ filter queryset to requsted user only """
         today = datetime.date.today()
-        if self.action != 'list':
+        if self.action == 'list':
             return self.queryset.filter(user=self.request.user).exclude(date=today)
+        return self.queryset.filter(user=self.request.user)
