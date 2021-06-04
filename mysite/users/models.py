@@ -3,6 +3,8 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, \
                                 PermissionsMixin
 from django.urls import reverse
 from django.contrib.auth import get_user_model
+from health.models import HealthDiary
+import datetime
 
 
 class MyManager(BaseUserManager):
@@ -70,6 +72,38 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
 
     def get_memberships(self):
         return self.membership.all()
+
+    def get_weekly_avg_stats(self):
+        """ get weekly avg weight """
+        week_ago = datetime.date.today() - datetime.timedelta(days=7)
+        queryset = HealthDiary.objects.filter(user=self.id) \
+            .filter(date__gte=week_ago)
+
+        if queryset:
+            fields_avg_values = {}
+            fields_value_counter = {}
+            for instance in queryset:
+                for field in instance._meta.get_fields():
+                    allowed_fields = (models.FloatField,
+                                      models.PositiveIntegerField,
+                                      models.SmallIntegerField)
+                    if isinstance(field, allowed_fields):
+                        current_value = fields_avg_values.get(field.name, 0)
+                        current_counter = fields_value_counter.get(field.name,
+                                                                   0)
+                        getattr_value = getattr(instance, field.name, None)
+                        if getattr_value is not None:
+                            fields_avg_values.update(
+                                    {field.name: current_value +
+                                     getattr_value})
+                            fields_value_counter.update({field.name:
+                                                        current_counter + 1})
+
+            for key, value in fields_avg_values.items():
+                value = value/fields_value_counter[key]
+                fields_avg_values.update({key: value})
+
+        return fields_avg_values
 
     def has_perms(self, perm_list, obj=None):
         return all(self.has_perm(perm, obj) for perm in perm_list)

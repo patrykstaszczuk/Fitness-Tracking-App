@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth import get_user_model
 import datetime
 from django.utils.text import slugify
+from django.conf import settings
 # Create your models here.
 
 
@@ -9,7 +10,7 @@ class HealthDiary(models.Model):
 
     date = models.DateField(default=datetime.date.today)
     slug = models.SlugField(blank=False)
-    user = models.ForeignKey(get_user_model(), on_delete=models.PROTECT)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     weight = models.FloatField(null=True, blank=True, default=None)
     sleep_length = models.FloatField(null=True, blank=True, default=None)
     rest_heart_rate = models.PositiveSmallIntegerField(null=True, blank=True,

@@ -13,6 +13,7 @@ import datetime
 
 USER_DAILY_HEALTH_DASHBOARD = reverse('health:health-diary')
 USER_HEALTH_STATISTIC_RAPORT = reverse('health:health-list')
+USER_HEALTH_STATISTIC_WEEKLY_SUMMARY = reverse('health:health-weekly-summary')
 
 NOW = datetime.date.today()
 
@@ -365,3 +366,19 @@ class PrivateHealthApiTests(TestCase):
                 user2_diary.slug))
 
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_retrieving_weekly_average_health_stats_for_user(self):
+        """ test retrieving average stats for user """
+
+        avg_weight = 0
+        for i in range(1, 8):
+            diary = models.HealthDiary.objects.create(
+                user=self.user,
+                weight=70+i,
+                date=datetime.date.today() - datetime.timedelta(days=i)
+            )
+            avg_weight += diary.weight
+        avg_weight = avg_weight/7
+
+        res = self.client.get(USER_HEALTH_STATISTIC_WEEKLY_SUMMARY)
+        self.assertEqual(res.data['weight'], avg_weight)

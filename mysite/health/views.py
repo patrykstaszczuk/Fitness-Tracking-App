@@ -1,4 +1,5 @@
 from rest_framework import viewsets, mixins, status
+from rest_framework.decorators import action
 from rest_framework import authentication, permissions
 from rest_framework.response import Response
 from health import serializers
@@ -61,7 +62,6 @@ class HealthRaport(viewsets.GenericViewSet, mixins.RetrieveModelMixin,
 
     def get_serializer_class(self):
         """ return appropriate serializer according to action """
-
         if self.action in ['retrieve', 'update']:
             return serializers.HealthDiarySerializer
         return self.serializer_class
@@ -72,3 +72,11 @@ class HealthRaport(viewsets.GenericViewSet, mixins.RetrieveModelMixin,
         if self.action == 'list':
             return self.queryset.filter(user=self.request.user).exclude(date=today)
         return self.queryset.filter(user=self.request.user)
+
+    @action(methods=['GET'], detail=False, url_path='podsumowanie-tygodnia')
+    def weekly_summary(self, request):
+        """ retrievie weekly summary of user health statistics """
+
+        health_statistics_summary = self.request.user.get_weekly_avg_stats()
+        return Response(data=health_statistics_summary,
+                        status=status.HTTP_200_OK)
