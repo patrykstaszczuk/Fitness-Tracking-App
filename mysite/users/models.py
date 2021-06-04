@@ -79,8 +79,8 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
         queryset = HealthDiary.objects.filter(user=self.id) \
             .filter(date__gte=week_ago)
 
+        fields_avg_values = {}
         if queryset:
-            fields_avg_values = {}
             fields_value_counter = {}
             for instance in queryset:
                 for field in instance._meta.get_fields():

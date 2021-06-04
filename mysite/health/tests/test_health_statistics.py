@@ -13,9 +13,13 @@ import datetime
 
 USER_DAILY_HEALTH_DASHBOARD = reverse('health:health-diary')
 USER_HEALTH_STATISTIC_RAPORT = reverse('health:health-list')
-USER_HEALTH_STATISTIC_WEEKLY_SUMMARY = reverse('health:health-weekly-summary')
+USER_HEALTH_STATISTIC_WEEKLY_SUMMARY = reverse('health:weekly-summary')
 
 NOW = datetime.date.today()
+
+
+def user_health_specific_stat_raport(slug):
+    return reverse('health:health-statistic', kwargs={'slug': slug})
 
 
 def user_healh_statistic_raport_detail(slug):
@@ -382,3 +386,85 @@ class PrivateHealthApiTests(TestCase):
 
         res = self.client.get(USER_HEALTH_STATISTIC_WEEKLY_SUMMARY)
         self.assertEqual(res.data['weight'], avg_weight)
+
+    def test_retrieving_weigth_history(self):
+        """ test getting all weight entries """
+
+        for i in range(1, 6):
+            models.HealthDiary.objects.create(
+                user=self.user,
+                date=f'2021-05-{i}',
+                weight=70+i
+            )
+        res = self.client.get(user_health_specific_stat_raport('waga'),
+                              format='json')
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 5)
+
+    def test_retrieving_sleep_length_history(self):
+        """ test retrieving all sleep length entries """
+
+        for i in range(1, 6):
+            models.HealthDiary.objects.create(
+                user=self.user,
+                date=f'2021-05-{i}',
+                sleep_length=7
+            )
+
+        res = self.client.get(user_health_specific_stat_raport('sleep_length'),
+                              format='json')
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 5)
+
+    def test_retrieving_invalid_field_history(self):
+        """ test retrieving forbidden field name """
+
+        for i in range(1, 6):
+            models.HealthDiary.objects.create(
+                user=self.user,
+                date=f'2021-05-{i}',
+                sleep_length=7
+            )
+
+        res = self.client.get(user_health_specific_stat_raport('user'))
+
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_method_post_not_allowed_in_stat_history(self):
+        """ test post request failed """
+
+        res = self.client.post(user_health_specific_stat_raport('waga'))
+
+        self.assertEqual(res.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_retrieving_non_existing_field(self):
+        """ test retrieving non existing field """
+
+        for i in range(1, 6):
+            models.HealthDiary.objects.create(
+                user=self.user,
+                date=f'2021-05-{i}',
+                sleep_length=7
+            )
+
+        res = self.client.get(user_health_specific_stat_raport('nonexisting'))
+
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_retrieving_no_content(self):
+        """ test retrieving 204 status if no content is returned """
+
+        res = self.client.get(user_health_specific_stat_raport('weight'))
+
+        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_retrieving_statistic_by_non_authenticated_user_failed(self):
+        """ test authentication feature """
+
+        self.user2 = APIClient()
+
+        res = self.user2.get(user_health_specific_stat_raport('weight'))
+
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)

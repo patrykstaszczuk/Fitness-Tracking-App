@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from health import models
 import datetime
+from users.serializers import DynamicFieldsModelSerializer
+from django.contrib.auth import get_user_model
 
 
 class HealthDiarySerializer(serializers.ModelSerializer):
@@ -17,7 +19,7 @@ class HealthDiarySerializer(serializers.ModelSerializer):
 
         user = kwargs.get('user')
         now = datetime.date.today()
-        
+
         try:
             self.instance = models.HealthDiary.objects. \
                 filter(user=user).get(date=now)
@@ -69,3 +71,11 @@ class HealthRaportSerializer(serializers.ModelSerializer):
         exclude = ('daily_thoughts', )
         read_only_fields = ('id', 'user', 'date', 'slug')
         model = models.HealthDiary
+
+
+class HealthStatisticHistorySerializer(DynamicFieldsModelSerializer):
+    """ serializer for specific statistic history """
+
+    class Meta:
+        model = models.HealthDiary
+        exclude = ('id', 'slug', 'user', 'date', 'daily_thoughts')

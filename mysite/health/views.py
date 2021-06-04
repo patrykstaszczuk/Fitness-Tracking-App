@@ -1,9 +1,12 @@
 from rest_framework import viewsets, mixins, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, \
+    authentication_classes, permission_classes
+
 from rest_framework import authentication, permissions
 from rest_framework.response import Response
 from health import serializers
 from health import models
+from health.models import get_health_model_usable_fields
 import datetime
 
 
@@ -73,10 +76,44 @@ class HealthRaport(viewsets.GenericViewSet, mixins.RetrieveModelMixin,
             return self.queryset.filter(user=self.request.user).exclude(date=today)
         return self.queryset.filter(user=self.request.user)
 
-    @action(methods=['GET'], detail=False, url_path='podsumowanie-tygodnia')
-    def weekly_summary(self, request):
-        """ retrievie weekly summary of user health statistics """
+    def _map_slug_to_model_field(self, field_name):
+        """ map verbose name of field to model field name """
+        approved_fields = get_health_model_usable_fields()
+        for field in approved_fields:
+            if field_name in [field.name, field.verbose_name]:
+                return field.name
+        return None
 
-        health_statistics_summary = self.request.user.get_weekly_avg_stats()
-        return Response(data=health_statistics_summary,
-                        status=status.HTTP_200_OK)
+    @action(methods=['GET'], detail=True, url_path='historia')
+    def statistic(self, request, slug=None):
+        """ retrieve specific statistic history """
+
+        field = self._map_slug_to_model_field(self.kwargs.get('slug'))
+
+        if field:
+            statistic = self.queryset.filter(user=self.request.user).\
+                values(field)
+
+            if statistic:
+                serializer = serializers.HealthStatisticHistorySerializer(
+                    statistic,
+                    many=True,
+                    fields=(field, )
+                    )
+                return Response(data=serializer.data,
+                                status=status.HTTP_200_OK)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view()
+@authentication_classes([authentication.TokenAuthentication, ])
+@permission_classes([permissions.IsAuthenticated, ])
+def HealthWeeklySummary(request):
+    """ viewset for retrieving weekly summary """
+
+    weekly_summary = request.user.get_weekly_avg_stats()
+    if weekly_summary == {}:
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    return Response(data=weekly_summary,
+                    status=status.HTTP_200_OK)
