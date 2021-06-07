@@ -8,6 +8,7 @@ from meals_tracker import serializers
 
 import datetime
 
+
 class MealsTrackerViewSet(viewsets.ModelViewSet):
     """ ViewSets for managing meals """
 
@@ -15,6 +16,10 @@ class MealsTrackerViewSet(viewsets.ModelViewSet):
     permission_classes = (IsAuthenticated, )
     serializer_class = serializers.MealsTrackerSerializer
     queryset = models.Meal.objects.all()
+
+    def perform_create(self, serializer):
+        """ create a new object """
+        serializer.save(user=self.request.user)
 
     def get_queryset(self):
         """ return meals only for requested user """

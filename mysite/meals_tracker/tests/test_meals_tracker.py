@@ -13,6 +13,16 @@ from meals_tracker.serializers import MealsTrackerSerializer
 DAILY_MEALS_TRACKER = reverse('meals_tracker:meal-list')
 
 
+def sample_recipe(user, name='test', calories=0):
+    """ create sample recipe """
+    return Recipe.objects.create(user=user, name=name, calories=calories)
+
+
+def sample_category(name='Breakfast'):
+    """ create sample category """
+    return models.MealCategory.objects.create(name=name)
+
+
 class PrivateMealsTrackerApiTests(TestCase):
     """ test features available for authenticated users """
 
@@ -27,6 +37,7 @@ class PrivateMealsTrackerApiTests(TestCase):
             age=25,
             sex='Male'
         )
+        self.category = sample_category()
         self.client = APIClient()
         self.client.force_authenticate(self.user)
 
@@ -54,6 +65,25 @@ class PrivateMealsTrackerApiTests(TestCase):
         old_meal_serializer = MealsTrackerSerializer(old_meal)
 
         res = self.client.get(DAILY_MEALS_TRACKER, format='json')
+        print(res.data)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertNotIn(old_meal_serializer.data, res.data)
         self.assertEqual(res.data[0], serializer.data)
+
+    def test_create_meal(self):
+        """ test create meal from recipe """
+
+        recipe = sample_recipe(user=self.user, calories=1000)
+
+        payload = {
+            'category': self.category.id,
+            'recipe': recipe.id,
+            'quantity': 1
+        }
+        res = self.client.post(DAILY_MEALS_TRACKER, payload, format='json')
+
+        meal = models.Meal.objects.filter(user=self.user) \
+            .get(category=self.category)
+        serializer = MealsTrackerSerializer(meal)
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(res.data, serializer.data)
