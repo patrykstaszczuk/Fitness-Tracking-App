@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from meals_tracker import models
 from meals_tracker import serializers
 
+import datetime
 
 class MealsTrackerViewSet(viewsets.ModelViewSet):
     """ ViewSets for managing meals """
@@ -17,4 +18,5 @@ class MealsTrackerViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """ return meals only for requested user """
-        return self.queryset.filter(user=self.request.user)
+        today = datetime.date.today()
+        return self.queryset.filter(user=self.request.user).filter(date=today)

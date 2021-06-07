@@ -30,7 +30,7 @@ class PrivateMealsTrackerApiTests(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(self.user)
 
-    def test_retrieve_daily_meals_summary(self):
+    def test_retrieve_meals_summary(self):
         """ test retrieving meals consumed in given day """
 
         recipe = Recipe.objects.create(user=self.user, name='test',
@@ -39,4 +39,21 @@ class PrivateMealsTrackerApiTests(TestCase):
         serializer = MealsTrackerSerializer(meal)
         res = self.client.get(DAILY_MEALS_TRACKER, format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data[0], serializer.data)
+
+    def test_retrieve_meals_summary_only_for_today(self):
+        """ test retreving meals only for a given day """
+
+        recipe = Recipe.objects.create(user=self.user, name='test',
+                                       calories=500)
+        meal = models.Meal.objects.create(user=self.user, recipe=recipe)
+        old_meal = models.Meal.objects.create(user=self.user, recipe=recipe,
+                                              date='2021-06-06')
+
+        serializer = MealsTrackerSerializer(meal)
+        old_meal_serializer = MealsTrackerSerializer(old_meal)
+
+        res = self.client.get(DAILY_MEALS_TRACKER, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertNotIn(old_meal_serializer.data, res.data)
         self.assertEqual(res.data[0], serializer.data)

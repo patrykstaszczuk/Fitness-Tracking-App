@@ -44,3 +44,18 @@ class MealModelTestCase(TestCase):
         meal = models.Meal.objects.create(user=self.user,
                                           recipe=recipe)
         self.assertEqual(recipe.calories, meal.calories)
+
+    def test_meal_category_str(self):
+        """ test string representation of meal category """
+
+        category = models.MealCategory.objects.create(name='Breakfast')
+
+        self.assertEqual(str(category), category.name)
+
+    def test_retrieve_category_of_meal(self):
+        """ test retreving category from field """
+
+        breakfast = models.MealCategory.objects.create(name='Breakfast')
+        meal = models.Meal.objects.create(user=self.user, category=breakfast)
+
+        self.assertEqual(breakfast, meal.category)

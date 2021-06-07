@@ -13,6 +13,8 @@ class Meal(models.Model):
     # name = models.CharField(max_length=50, blank=False)
     calories = models.PositiveSmallIntegerField(null=False, blank=True,
                                                 default=0)
+    category = models.ForeignKey('MealCategory', on_delete=models.PROTECT,
+                                 null=True)
     recipe = models.ForeignKey(Recipe, on_delete=models.SET_NULL, null=True)
 
     def __str__(self):
@@ -29,3 +31,12 @@ class Meal(models.Model):
         if self.recipe:
             self.calories = self.calories + self.recipe.calories
         super().save(*args, **kwargs)
+
+
+class MealCategory(models.Model):
+
+    name = models.CharField(max_length=20, null=False)
+
+    def __str__(self):
+        """ string representation """
+        return self.name
