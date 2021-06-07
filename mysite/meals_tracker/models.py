@@ -10,11 +10,22 @@ class Meal(models.Model):
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     date = models.DateField(default=datetime.date.today)
-    name = models.CharField(max_length=50, blank=False)
+    # name = models.CharField(max_length=50, blank=False)
     calories = models.PositiveSmallIntegerField(null=False, blank=True,
-                                                default=None)
-    recipes = models.ForeignKey(Recipe, on_delete=models.SET_NULL, null=True)
+                                                default=0)
+    recipe = models.ForeignKey(Recipe, on_delete=models.SET_NULL, null=True)
 
     def __str__(self):
         """ string representation """
-        return f'{self.user} + {self.date} + {self.name}'
+        return f'{self.user} + {self.date}'
+
+    def save(self, *args, **kwargs):
+        """ set calories based on provided recipe, ingredients or ready
+        meals """
+
+        if self.calories is None:
+            self.calories = 0
+
+        if self.recipe:
+            self.calories = self.calories + self.recipe.calories
+        super().save(*args, **kwargs)
