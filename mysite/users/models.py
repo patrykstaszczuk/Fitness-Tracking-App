@@ -46,11 +46,11 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
     password = models.CharField(blank=False, max_length=255)
 
     MALE = 'Male'
-    WOMAN = 'WOMAN'
+    FEMALE = 'Female'
 
     SEX_CHOICE = (
         (MALE, 'Mężczyzna'),
-        (WOMAN, 'Kobieta'),
+        (FEMALE, 'Kobieta'),
     )
 
     sex = models.CharField(max_length=5, choices=SEX_CHOICE, default=MALE)
