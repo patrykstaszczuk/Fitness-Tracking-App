@@ -65,12 +65,22 @@ class PrivateMealsTrackerApiTests(TestCase):
         old_meal_serializer = MealsTrackerSerializer(old_meal)
 
         res = self.client.get(DAILY_MEALS_TRACKER, format='json')
-        print(res.data)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertNotIn(old_meal_serializer.data, res.data)
         self.assertEqual(res.data[0], serializer.data)
 
-    def test_create_meal(self):
+    def test_retrevig_recipe_detail_from_meals_summary_response(self):
+        """ test retrieving all information about recipe added to meal """
+
+        recipe = sample_recipe(user=self.user, name='Golabki', calories=1000)
+
+        models.Meal.objects.create(user=self.user, recipe=recipe)
+        res = self.client.get(DAILY_MEALS_TRACKER)
+        print(res.json())
+        self.assertIn(recipe.name, res.json()[0]['recipe_detail'])
+        self.assertIn(recipe.calories, res.json()[0]['recipe_Detail'])
+
+    def test_create_meal_from_one_recipe(self):
         """ test create meal from recipe """
 
         recipe = sample_recipe(user=self.user, calories=1000)
@@ -81,9 +91,10 @@ class PrivateMealsTrackerApiTests(TestCase):
             'quantity': 1
         }
         res = self.client.post(DAILY_MEALS_TRACKER, payload, format='json')
-
         meal = models.Meal.objects.filter(user=self.user) \
             .get(category=self.category)
         serializer = MealsTrackerSerializer(meal)
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         self.assertEqual(res.data, serializer.data)
+
+    # def test_create_meal_from_more_then_one_recipe(self):

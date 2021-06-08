@@ -14,7 +14,7 @@ class Meal(models.Model):
     calories = models.PositiveSmallIntegerField(null=False, blank=True,
                                                 default=0)
     category = models.ForeignKey('MealCategory', on_delete=models.PROTECT,
-                                 null=True)
+                                 null=True, related_name='mea')
     recipe = models.ForeignKey(Recipe, on_delete=models.SET_NULL, null=True)
 
     def __str__(self):
