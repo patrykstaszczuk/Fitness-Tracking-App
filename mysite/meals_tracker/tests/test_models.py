@@ -14,6 +14,11 @@ def sample_recipe(user, name='testrecipe', calories=1000):
     )
 
 
+def sample_category():
+    """ create sample category """
+    return models.MealCategory.objects.create(name='breakfast')
+
+
 class MealModelTestCase(TestCase):
     """ tests for meal model """
 
@@ -32,7 +37,8 @@ class MealModelTestCase(TestCase):
     def test_meal_str(self):
         """ test string representation of meal model """
 
-        meal = models.Meal.objects.create(user=self.user)
+        meal = models.Meal.objects.create(user=self.user,
+                                          category=sample_category())
 
         self.assertEqual(str(meal), f'{meal.user} + {meal.date}')
 
@@ -42,7 +48,9 @@ class MealModelTestCase(TestCase):
         recipe = sample_recipe(user=self.user)
 
         meal = models.Meal.objects.create(user=self.user,
-                                          recipe=recipe)
+                                          recipe=recipe,
+                                          recipe_portions=1,
+                                          category=sample_category())
         self.assertEqual(recipe.calories, meal.calories)
 
     def test_meal_category_str(self):

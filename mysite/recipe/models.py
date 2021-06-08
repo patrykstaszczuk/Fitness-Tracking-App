@@ -104,11 +104,12 @@ class Recipe(models.Model):
 
     def get_calories(self, number_of_portions):
         """ return calories based on portions """
-
         if self.calories is None:
             self.calories = 0
         if self.portions is None or self.portions == 0:
             self.portions = 1
+        if number_of_portions == 0:
+            number_of_portions = 1
         return (self.calories/self.portions) * number_of_portions
 
 

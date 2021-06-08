@@ -69,7 +69,7 @@ class PrivateMealsTrackerApiTests(TestCase):
         recipe = Recipe.objects.create(user=self.user, name='test',
                                        calories=1000)
         models.Meal.objects.create(user=self.user, recipe=recipe,
-                                   recipe_portions=1)
+                                   recipe_portions=1, category=self.category)
         meals = models.Meal.objects.filter(user=self.user, date=self.today)
         serializer = MealsTrackerSerializer(meals, many=True)
         res = self.client.get(DAILY_MEALS_TRACKER, format='json')
@@ -85,9 +85,9 @@ class PrivateMealsTrackerApiTests(TestCase):
         recipe2 = Recipe.objects.create(user=user2, name='test')
 
         models.Meal.objects.create(user=self.user, recipe=recipe1,
-                                   recipe_portions=1)
+                                   recipe_portions=1, category=self.category)
         models.Meal.objects.create(user=user2, recipe=recipe1,
-                                   recipe_portions=1)
+                                   recipe_portions=1, category=self.category)
         res = self.client.get(DAILY_MEALS_TRACKER)
 
         meal1 = models.Meal.objects.filter(user=self.user)
@@ -104,8 +104,9 @@ class PrivateMealsTrackerApiTests(TestCase):
         recipe = Recipe.objects.create(user=self.user, name='test',
                                        calories=500, portions=5)
         models.Meal.objects.create(user=self.user, recipe=recipe,
-                                   recipe_portions=1)
+                                   recipe_portions=1, category=self.category)
         models.Meal.objects.create(user=self.user, recipe=recipe,
+                                   recipe_portions=1, category=self.category,
                                    date='2021-06-06')
         meals = models.Meal.objects.filter(user=self.user, date=self.today)
         old_meals = models.Meal.objects.filter(user=self.user, date='2021-06-06')
@@ -123,7 +124,7 @@ class PrivateMealsTrackerApiTests(TestCase):
         recipe = sample_recipe(user=self.user, name='Golabki', calories=1000)
 
         models.Meal.objects.create(user=self.user, recipe=recipe,
-                                   recipe_portions=1)
+                                   recipe_portions=1, category=self.category)
         res = self.client.get(DAILY_MEALS_TRACKER)
         self.assertEqual(recipe.name, res.json()[0]['recipe_detail']['name'])
         self.assertEqual(recipe.calories,
@@ -152,6 +153,7 @@ class PrivateMealsTrackerApiTests(TestCase):
         recipe = sample_recipe(user=self.user, calories=1000, portions=4)
 
         models.Meal.objects.create(user=self.user, recipe=recipe,
+                                   category=self.category,
                                    recipe_portions=1)
 
         res = self.client.get(DAILY_MEALS_TRACKER)
@@ -178,6 +180,20 @@ class PrivateMealsTrackerApiTests(TestCase):
         payload = {
             'category': self.category.id,
             'recipe': recipe.id,
+        }
+
+        res = self.client.post(DAILY_MEALS_TRACKER, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_meal_with_portion_set_to_0_failed(self):
+        """ test creating meal with recipe portion set to 0 failed """
+
+        recipe = sample_recipe(user=self.user, calories=1000, portions=4)
+
+        payload = {
+            'category': self.category.id,
+            'recipe': recipe.id,
+            'recipe_portions': 0
         }
 
         res = self.client.post(DAILY_MEALS_TRACKER, payload, format='json')
