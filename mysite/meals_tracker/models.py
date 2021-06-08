@@ -14,8 +14,10 @@ class Meal(models.Model):
     calories = models.PositiveSmallIntegerField(null=False, blank=True,
                                                 default=0)
     category = models.ForeignKey('MealCategory', on_delete=models.PROTECT,
-                                 null=True, related_name='mea')
+                                 null=False, related_name='meal', blank=False)
     recipe = models.ForeignKey(Recipe, on_delete=models.SET_NULL, null=True)
+    recipe_portions = models.PositiveSmallIntegerField(null=False, blank=False,
+                                                       default=0)
 
     def __str__(self):
         """ string representation """
@@ -29,7 +31,7 @@ class Meal(models.Model):
             self.calories = 0
 
         if self.recipe:
-            self.calories = self.calories + self.recipe.calories
+            self.calories += self.recipe.get_calories(self.recipe_portions)
         super().save(*args, **kwargs)
 
 

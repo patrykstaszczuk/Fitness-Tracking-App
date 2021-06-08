@@ -52,19 +52,21 @@ class Recipe(models.Model):
 
     orginal_photos = []
 
+    class Meta:
+        unique_together = ('user', 'slug')
+
     def __init__(self, *args, **kwargs):
         """ save curently used photos in list, to be used later in comparsion"""
+
         super().__init__(*args, **kwargs)
         self.orginal_photos = [self.photo1, self.photo2, self.photo3]
 
     def __str__(self):
         return self.name
 
-    def get_absolute_url(self):
-        return reverse('recipe:recipe_detail', kwargs={'slug': self.slug})
-
     def save(self, *args, **kwargs):
         """ check if there is existing slug for different recipe """
+
         self.slug = slugify(unidecode(self.name))
         if self.check_if_slug_exists(self.slug) and not self.id:
             self.slug = self.slug + "2"
@@ -80,12 +82,18 @@ class Recipe(models.Model):
 
         super().save(*args, **kwargs)
 
+    def get_absolute_url(self):
+        return reverse('recipe:recipe_detail', kwargs={'slug': self.slug})
+
     def check_if_slug_exists(self, slug):
+        """ check if slug already exists in db """
+
         return Recipe.objects.filter(user=self.user). \
             filter(slug=slug).count()
 
     def delete(self, *args, **kwargs):
         """ delete all photos belong to specific recipe """
+
         path = str(settings.MEDIA_ROOT) + \
             "/recipes/" + self.user.name + "/" + self.slug
         if os.path.exists(path):
@@ -94,8 +102,14 @@ class Recipe(models.Model):
             print(f"No such filepath {path}")
         super().delete(*args, **kwargs)
 
-    class Meta:
-        unique_together = ('user', 'slug')
+    def get_calories(self, number_of_portions):
+        """ return calories based on portions """
+
+        if self.calories is None:
+            self.calories = 0
+        if self.portions is None or self.portions == 0:
+            self.portions = 1
+        return (self.calories/self.portions) * number_of_portions
 
 
 class Ingredient(models.Model):

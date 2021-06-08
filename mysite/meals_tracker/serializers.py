@@ -9,7 +9,7 @@ class RecipeHelperSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Recipe
-        fields = ('slug', 'name', 'calories')
+        fields = ('slug', 'name', 'calories', 'portions')
 
 
 class MealsTrackerSerializer(serializers.ModelSerializer):
@@ -20,5 +20,14 @@ class MealsTrackerSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Meal
         fields = ('user', 'date', 'calories', 'category', 'recipe',
-                  'recipe_detail')
-        read_only_fields = ('id', 'user', 'date')
+                  'recipe_detail', 'recipe_portions')
+        read_only_fields = ('id', 'user', 'date', 'calories')
+
+    def validate(self, values):
+        """ overall validation of serializers fields """
+
+        if values.get('recipe') and not values.get('recipe_portions'):
+            raise serializers.ValidationError('Chose portions for given recipe')
+        elif values.get('recipe_portions') and not values.get('recipe'):
+            raise serializers.ValidationError('Choose recipe for given portions')
+        return values
