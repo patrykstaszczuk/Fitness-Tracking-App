@@ -21,15 +21,28 @@ class DynamicFieldsModelSerializer(serializers.ModelSerializer):
 class UserSerializer(DynamicFieldsModelSerializer):
     """ Serializer form the users object """
 
+    password2 = serializers.CharField(label='Potwierdź hasło', write_only=True)
+
     class Meta:
         model = get_user_model()
-        fields = ('email', 'password', 'name', 'age', 'sex', 'height',
-                  'weight')
+        fields = ('email', 'password', 'password2', 'name', 'age', 'sex',
+                  'height', 'weight')
         extra_kwargs = {'password': {'write_only': True}}
 
     def create(self, validated_data):
         """ create a new user with encrypted password and return it """
+        validated_data.pop('password2')
         return get_user_model().objects.create_user(**validated_data)
+
+    def validate(self, values):
+        """ validate passwords matching """
+
+        password = values.get('password')
+        password2 = values.get('password2')
+
+        if password != password2:
+            raise serializers.ValidationError('Hasła różnią się!')
+        return values
 
     def validate_password(self, password):
         """ validate password length """

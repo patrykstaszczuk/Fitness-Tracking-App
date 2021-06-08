@@ -48,6 +48,7 @@ class PublicUserApiTests(TestCase):
         payload = {
             'email': 'test@gmail.com',
             'password': 'testpass',
+            'password2': 'testpass',
             'name': 'testname',
             'height': '185',
             'weight': '85',
@@ -69,6 +70,7 @@ class PublicUserApiTests(TestCase):
         payload = {
             'email': 'test@gmail.com',
             'password': 'test',
+            'password2': 'test4',
             'name': 'tes',
             'age': 0,
             'height': 3000,
@@ -78,6 +80,25 @@ class PublicUserApiTests(TestCase):
 
         res = self.client.post(CREATE_USER_URL, payload)
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_user_passwords_do_not_match(self):
+        """ test password confirmation is different then password field """
+        payload = {
+            'email': 'test@gmail.com',
+            'password': 'testpass',
+            'password2': 'testpass2',
+            'name': 'testname',
+            'height': '185',
+            'weight': '85',
+            'age': '25',
+            'sex': 'Male'
+        }
+
+        res = self.client.post(CREATE_USER_URL, payload, foramt='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.assertNotIn('password', res.data)
+        self.assertNotIn('password2', res.data)
 
     def test_user_exists(self):
         """ test creating user that already exsists fails """
