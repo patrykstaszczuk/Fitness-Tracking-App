@@ -53,7 +53,8 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
         (FEMALE, 'Kobieta'),
     )
 
-    sex = models.CharField(max_length=6, choices=SEX_CHOICE, default=MALE)
+    sex = models.CharField(max_length=6, choices=SEX_CHOICE, null=False,
+                           blank=False)
     age = models.IntegerField()
     height = models.PositiveSmallIntegerField()
     weight = models.PositiveSmallIntegerField()
