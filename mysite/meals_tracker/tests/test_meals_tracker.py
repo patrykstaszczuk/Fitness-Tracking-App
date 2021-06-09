@@ -248,3 +248,61 @@ class PrivateMealsTrackerApiTests(TestCase):
         serializer = MealsTrackerSerializer(meal)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
+
+    def test_partial_update_meal_success(self):
+        """ test updating only part of the meal """
+
+        recipe = sample_recipe(self.user)
+        meal = models.Meal.objects.create(
+            user=self.user,
+            recipe=recipe,
+            recipe_portions=1,
+            category=self.category
+            )
+
+        res = self.client.patch(get_meal_detail_view(meal.id),
+                                {'recipe_portions': 2}, format='json')
+        meal.refresh_from_db()
+        serializer = MealsTrackerSerializer(meal)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data, serializer.data)
+
+    def test_other_user_meal_update_failed(self):
+        """ test users separation """
+
+        user2 = sample_user()
+        meal1 = models.Meal.objects.create(user=user2, category=self.category)
+
+        payload = {
+            'recipe': sample_recipe(user=self.user).id,
+            'recipe_portions': 2
+        }
+
+        res = self.client.patch(get_meal_detail_view(meal1.id), payload,
+                                format='json')
+        meal1.refresh_from_db()
+        serializer = MealsTrackerSerializer(meal1)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertNotEqual(res.data, serializer.data)
+
+    def test_update_meal_with_invalid_recipe(self):
+        """ test udpating recipe with other user recipe id """
+
+        user2 = sample_user()
+        recipe = sample_recipe(user=user2)
+
+        meal = models.Meal.objects.create(
+            user=self.user,
+            category=self.category)
+
+        payload = {
+            'recipe': recipe.id,
+            'recipe_portions': 2
+        }
+        res = self.client.patch(get_meal_detail_view(meal.id), payload,
+                                format='json')
+        meal.refresh_from_db()
+        serializer = MealsTrackerSerializer(meal)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotEqual(res.data, serializer.data)

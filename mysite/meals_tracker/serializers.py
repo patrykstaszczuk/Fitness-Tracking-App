@@ -26,11 +26,22 @@ class MealsTrackerSerializer(serializers.ModelSerializer):
     def validate(self, values):
         """ overall validation of serializers fields """
 
-        if values.get('recipe') and not values.get('recipe_portions'):
-            raise serializers.ValidationError('Chose portions for given recipe')
-        elif values.get('recipe_portions') and not values.get('recipe'):
-            raise serializers.ValidationError('Choose recipe for given portions')
+        if not self.instance:
+            if values.get('recipe') and not values.get('recipe_portions'):
+                raise serializers.ValidationError('Chose portions for given recipe')
+            elif values.get('recipe_portions') and not values.get('recipe'):
+                raise serializers.ValidationError('Choose recipe for given portions')
         return values
+
+    def validate_recipe(self, value):
+        """ check if provided recipe.id is valid for requested user """
+        user = self.context['request'].user
+
+        try:
+            Recipe.objects.filter(user=user).get(id=value.id)
+        except Recipe.DoesNotExist:
+            raise serializers.ValidationError('No such recipe for requestes user')
+        return value
 
     def update(self, instance, validated_data):
         """ set the calories amount of meal to 0 during update """
