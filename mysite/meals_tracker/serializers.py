@@ -35,6 +35,7 @@ class MealsTrackerSerializer(serializers.ModelSerializer):
 
     def validate_recipe(self, value):
         """ check if provided recipe.id is valid for requested user """
+
         user = self.context['request'].user
 
         try:

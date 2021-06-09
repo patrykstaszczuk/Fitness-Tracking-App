@@ -306,3 +306,26 @@ class PrivateMealsTrackerApiTests(TestCase):
         serializer = MealsTrackerSerializer(meal)
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertNotEqual(res.data, serializer.data)
+
+    def test_delete_meal_success(self):
+        """ test deleting meal success """
+
+        meal = models.Meal.objects.create(
+            user=self.user,
+            category=self.category)
+
+        res = self.client.delete(get_meal_detail_view(meal.id))
+
+        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_delete_other_user_meal_failed(self):
+        """ test deleting other user meal failed """
+
+        user2 = sample_user()
+        meal = models.Meal.objects.create(
+            user=user2,
+            category=self.category
+        )
+
+        res = self.client.delete(get_meal_detail_view(meal.id))
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
