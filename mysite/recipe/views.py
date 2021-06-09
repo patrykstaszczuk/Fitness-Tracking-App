@@ -180,7 +180,7 @@ class RecipeDetailViewSet(viewsets.GenericViewSet, mixins.RetrieveModelMixin):
 
         try:
             user_id = int(user_id)
-        except TypeError:
+        except ValueError:
             raise Http404('Identyfikator użytkownika musi być liczbą!')
 
         instance = get_object_or_404(Recipe, user=user_id, slug=slug)
