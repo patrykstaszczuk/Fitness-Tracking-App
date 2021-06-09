@@ -16,6 +16,11 @@ import datetime
 DAILY_MEALS_TRACKER = reverse('meals_tracker:meal-list')
 
 
+def get_meal_detail_view(meal_id):
+    """ reverse to meal detail view """
+    return reverse('meals_tracker:meal-detail', kwargs={'id': meal_id})
+
+
 def sample_recipe(user, name='test', calories=0, **kwargs):
     """ create sample recipe """
     return Recipe.objects.create(
@@ -210,3 +215,36 @@ class PrivateMealsTrackerApiTests(TestCase):
 
         res = self.client.post(DAILY_MEALS_TRACKER, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_meal_with_invalid_category_id(self):
+        """ test creating meal failed becouse invalid id """
+
+        payload = {
+            'category': 10,
+        }
+
+        res = self.client.post(DAILY_MEALS_TRACKER, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_full_update_meal_success(self):
+        """ test updating meal success """
+
+        recipe1 = sample_recipe(user=self.user, name='test', calories=1000)
+        recipe2 = sample_recipe(user=self.user, name='test2', calories=2000)
+        new_category = sample_category(name='Dinner')
+
+        meal = models.Meal.objects.create(user=self.user, recipe=recipe1,
+                                          recipe_portions=1,
+                                          category=self.category)
+
+        payload = {
+            'category': new_category.id,
+            'recipe': recipe2.id,
+            'recipe_portions': 2
+        }
+        res = self.client.put(get_meal_detail_view(meal.id), payload,
+                              format='json')
+        meal.refresh_from_db()
+        serializer = MealsTrackerSerializer(meal)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data, serializer.data)

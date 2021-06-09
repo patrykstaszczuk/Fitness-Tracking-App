@@ -56,10 +56,14 @@ class Recipe(models.Model):
         unique_together = ('user', 'slug')
 
     def __init__(self, *args, **kwargs):
-        """ save curently used photos in list, to be used later in comparsion"""
+        """ save curently used photos in list, to be used later in comparsion,
+        set self.portions to 1 if is None or 0 """
 
         super().__init__(*args, **kwargs)
         self.orginal_photos = [self.photo1, self.photo2, self.photo3]
+
+        if self.portions is None or self.portions == 0:
+            self.portions = 1
 
     def __str__(self):
         return self.name
@@ -106,8 +110,6 @@ class Recipe(models.Model):
         """ return calories based on portions """
         if self.calories is None:
             self.calories = 0
-        if self.portions is None or self.portions == 0:
-            self.portions = 1
         if number_of_portions == 0:
             number_of_portions = 1
         return (self.calories/self.portions) * number_of_portions

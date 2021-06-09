@@ -17,6 +17,7 @@ class MealsTrackerViewSet(viewsets.ModelViewSet):
     permission_classes = (IsAuthenticated, )
     serializer_class = serializers.MealsTrackerSerializer
     queryset = models.Meal.objects.all()
+    lookup_field = 'id'
 
     def perform_create(self, serializer):
         """ create a new object """

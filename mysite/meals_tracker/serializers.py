@@ -19,7 +19,7 @@ class MealsTrackerSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.Meal
-        fields = ('user', 'date', 'calories', 'category', 'recipe',
+        fields = ('id', 'user', 'date', 'calories', 'category', 'recipe',
                   'recipe_detail', 'recipe_portions')
         read_only_fields = ('id', 'user', 'date', 'calories')
 
@@ -31,3 +31,10 @@ class MealsTrackerSerializer(serializers.ModelSerializer):
         elif values.get('recipe_portions') and not values.get('recipe'):
             raise serializers.ValidationError('Choose recipe for given portions')
         return values
+
+    def update(self, instance, validated_data):
+        """ set the calories amount of meal to 0 during update """
+
+        self.instance.calories = 0
+
+        return super().update(instance, validated_data)
