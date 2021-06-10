@@ -105,3 +105,23 @@ class PrivateRecipeApiTests(TestCase):
 
         self.assertEqual(str(recipe_ingredient),
                          f'{recipe.name}_{ingredient.name}')
+
+    def test_retrieve_ingredient_unit_and_calorific_value(self):
+        """ test getting main unit for specific ingredient and amount of
+         calories in 100 units """
+
+        ingredient = models.Ingredient.objects.create(
+            name='Cebula',
+            user=self.user,
+            unit='g',
+            calories=350
+         )
+        self.assertEqual(ingredient.unit, 'g')
+        self.assertEqual(ingredient.calories, 350)
+
+    def test_str_unit(self):
+        """ test string representation of unit """
+
+        unit = models.Unit.objects.create(name='gram')
+
+        self.assertEqual(str(unit), unit.name)

@@ -117,6 +117,19 @@ class Recipe(models.Model):
 
 class Ingredient(models.Model):
 
+    GRAM = 'G'
+    MILI = 'ML'
+    UNIT_CHOICE = [
+        (GRAM, 'g'),
+        (MILI, 'ml'),
+    ]
+
+    SOLID = 'S'
+    LIQUID = 'L'
+    TYPE_CHOICE = [
+        (SOLID, 'solid'),
+        (LIQUID, 'liquid')
+    ]
     name = models.CharField(max_length=255, blank=False, unique=False,
                             verbose_name='Nazwa')
     user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE,
@@ -124,7 +137,27 @@ class Ingredient(models.Model):
 
     slug = models.SlugField(blank=False, unique=False)
     tag = models.ManyToManyField('Tag')
+    type = models.CharField(max_length=10, choices=TYPE_CHOICE, null=True)
     _usage_counter = models.PositiveIntegerField(default=0, null=False)
+    unit = models.CharField(max_length=10, choices=UNIT_CHOICE, null=True)
+    calories = models.PositiveSmallIntegerField(null=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'name'],
+                                    name='unique_user_name')
+        ]
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        """ two ingredient can have same slug eg 'sól' and 'sol' both
+            have slug 'sol' """
+        self.slug = slugify(unidecode(self.name))
+        if self.check_if_slug_exists(self.slug) and not self.id:
+            self.slug = self.slug + "2"
+        super().save(*args, **kwargs)
 
     @property
     def usage_counter(self):
@@ -146,25 +179,16 @@ class Ingredient(models.Model):
         if res.status_code == status.HTTP_200_OK:
             self.usage_counter += 1
 
-    def save(self, *args, **kwargs):
-        """ two ingredient can have same slug eg 'sól' and 'sol' both
-            have slug 'sol' """
-        self.slug = slugify(unidecode(self.name))
-        if self.check_if_slug_exists(self.slug) and not self.id:
-            self.slug = self.slug + "2"
-        super().save(*args, **kwargs)
-
     def check_if_slug_exists(self, slug):
         return Ingredient.objects.filter(user=self.user).filter(slug=slug).count()
 
-    def __str__(self):
-        return self.name
+    @property
+    def get_calories(self):
+        return self.calories
 
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(fields=['user', 'name'],
-                                    name='unique_user_name')
-        ]
+    @property
+    def get_unit(self):
+        return self.unit
 
 
 class Tag(models.Model):
@@ -200,6 +224,17 @@ class Recipe_Ingredient(models.Model):
                                    null=False)
 
     quantity = models.CharField(max_length=25)
+    amount = models.FloatField(null=True)
+    unit = models.ForeignKey('Unit', null=True, on_delete=models.SET_NULL)
 
     def __str__(self):
         return self.recipe.name + '_' + self.ingredient.name
+
+
+class Unit(models.Model):
+
+    name = models.CharField(max_length=10)
+    short_name = models.CharField(max_length=10)
+
+    def __str__(self):
+        return self.name

@@ -9,6 +9,8 @@ services:
       - ./.env.db
     volumes:
       - ./mysql:/var/lib/mysql
+    ports:
+      - "8888:3306"
     healthcheck:
       test: mysqladmin ping -h 127.0.0.1 -u $$MYSQL_USER --password=$$MYSQL_PASSWORD
   recipe:
