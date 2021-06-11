@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from recipe.models import Ingredient, Tag, Recipe, Recipe_Ingredient
+from recipe.models import Ingredient, Tag, Recipe, Recipe_Ingredient, Unit
 
 
 def raise_validation_error(instance):
@@ -38,7 +38,7 @@ class IngredientSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Ingredient
-        fields = ('id', 'name', 'slug', 'user', 'tag')
+        fields = '__all__'
         read_only_fields = ('id', 'user', 'slug')
 
     def validate_name(self, value):
@@ -89,10 +89,10 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Recipe_Ingredient
-        fields = ('ingredient', 'quantity')
-        extra_kwargs = {
-                        'quantity': {'required': False},
-                        }
+        fields = ('ingredient', 'amount', 'unit')
+        # extra_kwargs = {
+        #                 'quantity': {'required': False},
+        #                 }
 
 
 class RecipeSerializer(serializers.ModelSerializer):
@@ -168,8 +168,9 @@ class RecipeSerializer(serializers.ModelSerializer):
             for ingredient in validated_ingredients:
                 ingredient.update({'recipe': recipe})
                 recipe.ingredients.add(ingredient['ingredient'],
-                                       through_defaults={'quantity':
-                                       ingredient['quantity']})
+                                       through_defaults={'amount':
+                                       ingredient['amount'],
+                                       'unit': ingredient['unit']})
         return recipe
 
     def __init__(self, *args, **kwargs):
@@ -200,3 +201,11 @@ class RecipeImageSerializer(serializers.ModelSerializer):
         model = Recipe
         fields = ('slug', 'photo1', 'photo2', 'photo3')
         read_only_fields = ('slug', )
+
+
+class UnitSerializer(serializers.ModelSerializer):
+    """ serializer for Unit model """
+
+    class Meta:
+        model = Unit
+        fields = '__all__'

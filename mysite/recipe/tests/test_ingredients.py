@@ -6,18 +6,19 @@ from rest_framework.test import APIClient
 from rest_framework import status
 
 from recipe import models
-from recipe.serializers import IngredientSerializer
+from recipe.serializers import IngredientSerializer, UnitSerializer
 
 
 INGREDIENTS_URL = reverse('recipe:ingredient-list')
+UNITS = reverse('recipe:units')
 
 
 def reverse_ingredient_detail(slug):
     return reverse('recipe:ingredient-detail', kwargs={'slug': slug})
 
 
-def sample_ingredient(name, user):
-    return models.Ingredient.objects.create(name=name, user=user)
+def sample_ingredient(**kwargs):
+    return models.Ingredient.objects.create(**kwargs)
 
 
 def sample_tag(name, user):
@@ -69,8 +70,8 @@ class PrivateIngredientApiTests(TestCase):
     def test_retrieve_ingredients(self):
         """ test retrieving ingredients tags """
 
-        sample_ingredient("czosnek", self.user)
-        sample_ingredient("szpinak", self.user)
+        sample_ingredient(name="czosnek", user=self.user)
+        sample_ingredient(name="szpinak", user=self.user)
 
         res = self.client.get(INGREDIENTS_URL)
         ingredients = models.Ingredient.objects.all().order_by('-name')
@@ -82,14 +83,53 @@ class PrivateIngredientApiTests(TestCase):
     def test_ingredient_limited_to_user(self):
         """ test that ingredients returned are for specific user """
         user2 = sample_user()
-        ingredient = sample_ingredient('Szpinak', self.user)
-        sample_ingredient('Czosnek', user2)
+        ingredient = sample_ingredient(name='Szpinak', user=self.user)
+        sample_ingredient(name='Czosnek', user=user2)
 
         res = self.client.get(INGREDIENTS_URL)
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(len(res.data), 1)
         self.assertEqual(res.data[0]['name'], ingredient.name)
+
+    def test_retrieve_calories_from_ingredient(self):
+        """ test getting amount of calories in 100g of ingredient """
+
+        ingredient = sample_ingredient(
+            user=self.user,
+            name='Cukinia',
+            calories=17)
+
+        res = self.client.get(reverse_ingredient_detail(ingredient.slug))
+
+        serializer = IngredientSerializer(ingredient)
+
+        self.assertEqual(res.data, serializer.data)
+
+    def test_retrieve_nutritional_value_of_ingredient(self):
+        """ test getting nutrional value from ingredient """
+
+        ingredient = sample_ingredient(
+            name='Cukinia',
+            user=self.user,
+            carbohydrates=3,
+            fats=0,
+            proteins=1,
+            fiber=1,
+            sodium=8,
+            potassium=261,
+            calcium=16,
+            iron=0.37,
+            magnesium=18,
+            selenium=0.2,
+            zinc=0.32,
+        )
+
+        res = self.client.get(reverse_ingredient_detail(ingredient.slug))
+
+        serializer = IngredientSerializer(ingredient)
+
+        self.assertEqual(res.data, serializer.data)
 
     def test_create_ingredient_sucessful(self):
         """ test creating new ingredient """
@@ -114,7 +154,7 @@ class PrivateIngredientApiTests(TestCase):
 
     def test_create_ingredient_repeated_name(self):
         """ test create ingredient which already is in database """
-        sample_ingredient('Majonez', self.user)
+        sample_ingredient(name='Majonez', user=self.user)
 
         payload = {
             'name': 'Majonez',
@@ -123,10 +163,21 @@ class PrivateIngredientApiTests(TestCase):
         res = self.client.post(INGREDIENTS_URL, payload)
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_create_ingredient_with_invalid_calories_filed(self):
+        """ test creating new ingredient with negative value of calories """
+
+        payload = {
+            'name': 'Cukinia',
+            'calories': -1,
+        }
+
+        res = self.client.post(INGREDIENTS_URL, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_create_ingredient_success_different_user(self):
         """ test create ingredient success with same name but different user"""
         user2 = sample_user()
-        sample_ingredient('Majonez', user2)
+        sample_ingredient(name='Majonez', user=user2)
 
         payload = {
             'name': 'Majonez',
@@ -144,7 +195,7 @@ class PrivateIngredientApiTests(TestCase):
 
     def test_delete_ingredient_success(self):
         """ test deleting ingredient with success """
-        ingredient = sample_ingredient('Majonez', self.user)
+        ingredient = sample_ingredient(name='Majonez', user=self.user)
         res = self.client.delete(reverse_ingredient_detail(ingredient.slug))
         ingredient = models.Ingredient.objects.filter(user=self.user). \
             filter(name=ingredient.name).exists()
@@ -154,7 +205,7 @@ class PrivateIngredientApiTests(TestCase):
 
     def test_full_update_ingredient_success(self):
         """ test update ingredient with success """
-        ingredient = sample_ingredient('Majonez', self.user)
+        ingredient = sample_ingredient(name='Majonez', user=self.user)
         payload = {
             'name': 'Mąka',
             'tag': self.tag
@@ -167,7 +218,7 @@ class PrivateIngredientApiTests(TestCase):
 
     def test_partial_ingredient_update_success(self):
         """ test that partial ingredient update works """
-        ingredient = sample_ingredient('Majonez', self.user)
+        ingredient = sample_ingredient(name='Majonez', user=self.user)
         payload = {
             'tag': self.tag
         }
@@ -179,7 +230,7 @@ class PrivateIngredientApiTests(TestCase):
 
     def test_full_ingredient_update_same_name(self):
         """ test full ingredient update with the same name """
-        ingredient = sample_ingredient('Majonez', self.user)
+        ingredient = sample_ingredient(name='Majonez', user=self.user)
         payload = {
             'name': 'Majonez',
             'tag': self.tag
@@ -190,6 +241,21 @@ class PrivateIngredientApiTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(ingredient.tag.first(), self.tag)
 
+    def test_available_units(self):
+        """ test retrieving available units """
+
+        models.Unit.objects.create(name='gram', short_name='g')
+        models.Unit.objects.create(name='mililitry', short_name='ml')
+        models.Unit.objects.create(name='sztuk', short_name='sztuk')
+        models.Unit.objects.create(name='szklanka', short_name='szklanka')
+
+        res = self.client.get(UNITS)
+
+        all_units = models.Unit.objects.all()
+
+        serializer = UnitSerializer(all_units, many=True)
+
+        self.assertEqual(res.data, serializer.data)
     # @patch('uuid.uuid4')
     # def test_recipe_file_name_uuid(self, mock_uuid):
     #     """ test that image is saved in the correct location """

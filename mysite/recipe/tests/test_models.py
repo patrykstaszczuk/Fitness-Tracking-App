@@ -32,6 +32,7 @@ class PrivateRecipeApiTests(TestCase):
         self.client.force_authenticate(user=self.user)\
 
         self.tag = sample_tag('test', self.user)
+        self.unit = models.Unit.objects.create(name='gram', short_name='g')
 
     def test_ingredient_str(self):
         """ test the ingredient string representation """
@@ -100,7 +101,8 @@ class PrivateRecipeApiTests(TestCase):
         recipe_ingredient = models.Recipe_Ingredient.objects.create(
             recipe=recipe,
             ingredient=ingredient,
-            quantity='2kg'
+            amount='2',
+            unit=self.unit
         )
 
         self.assertEqual(str(recipe_ingredient),

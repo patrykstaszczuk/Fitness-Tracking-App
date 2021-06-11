@@ -51,6 +51,11 @@ def sample_ingredient(user, name):
     return models.Ingredient.objects.create(user=user, name=name)
 
 
+def sample_unit(name, short_name):
+    """ crete sample unit """
+    return models.Unit.objects.create(name=name, short_name=short_name)
+
+
 def sample_user(email='user2@gmail.com', name='testusername'):
     return get_user_model().objects.create_user(
         email=email,
@@ -92,6 +97,7 @@ class PrivateRecipeApiTests(APITestCase):
         self.client.force_authenticate(self.user)
 
         self.user_tag = sample_tag(self.user, 'Tag testowy')
+        self.unit = sample_unit(name='gram', short_name='g')
 
     def test_retrieve_recipes(self):
         """ test retrieving a list of recipes """
@@ -249,10 +255,12 @@ class PrivateRecipeApiTests(APITestCase):
             'tags': [tag.slug, ],
             "ingredients": [{
                 "ingredient": ingredient1.slug,
-                "quantity": "2kg"
+                'amount': '2',
+                'unit': self.unit.id
             }, {
                 "ingredient": ingredient2.slug,
-                "quantity": "2kg"
+                'amount': '2',
+                'unit': self.unit.id
             }, ],
             'description': "opis dania",
         }
@@ -291,7 +299,8 @@ class PrivateRecipeApiTests(APITestCase):
             'tags': [tag_self_user.slug, ],
             "ingredients": [{
                 "ingredient": ingredient_self_user.slug,
-                "quantity": "2kg"
+                'amount': '2',
+                'unit': self.unit.id
             }, ],
             'description': "opis dania",
         }
@@ -357,10 +366,12 @@ class PrivateRecipeApiTests(APITestCase):
             'tags': [new_tag.slug, ],
             "ingredients": [{
                 "ingredient": new_ing.slug,
-                "quantity": "10 łyżek"
+                'amount': '2',
+                'unit': self.unit.id
             }, {
                 "ingredient": new_ing2.slug,
-                "quantity": "10 łyżek"
+                'amount': '2',
+                'unit': self.unit.id
             },
             ],
             'description': "opis dania 2",
@@ -387,7 +398,8 @@ class PrivateRecipeApiTests(APITestCase):
             'tags': [tag.slug, ],
             "ingredients": [{
                 "ingredient": 'new_ingredient',
-                "quantity": "10 łyżek"
+                'amount': '2',
+                'unit': self.unit.id
             }, ],
             'description': "opis dania 2",
         }
@@ -469,7 +481,9 @@ class PrivateRecipeApiTests(APITestCase):
             'name': 'Nowe danie',
             'tags': [tag_user2.slug, ],
             'ingredient': [
-                {'ingredient': ingredient.slug, 'quantity': '2kg'},
+                {'ingredient': ingredient.slug, 'amount': '2',
+                    'unit': self.unit.id
+                },
             ]
         }
         res = self.client.post(RECIPE_URL, payload)
@@ -484,8 +498,10 @@ class PrivateRecipeApiTests(APITestCase):
             'name': "Nowe danie",
             'tags': [self.user_tag.slug, ],
             'ingredients': [
-                {'ingredient': new_ingredient_name, 'quantity': '2kg'},
-                {'ingredient': new_ingredient2_name, 'quantity': '3kg'}
+                {'ingredient': new_ingredient_name, 'amount': '2',
+                    'unit': self.unit.id},
+                {'ingredient': new_ingredient2_name, 'amount': '2',
+                    'unit': self.unit.id}
             ]
         }
 
@@ -506,7 +522,8 @@ class PrivateRecipeApiTests(APITestCase):
             'name': "Nowe danie",
             'tags': [self.user_tag.slug, ],
             'ingredients': [
-                {'ingredient': new_ingredient_name, 'quantity': '2kg'},
+                {'ingredient': new_ingredient_name, 'amount': '2',
+                    'unit': self.unit.id},
             ]
         }
         res = self.client.post(RECIPE_URL, payload, format='json')

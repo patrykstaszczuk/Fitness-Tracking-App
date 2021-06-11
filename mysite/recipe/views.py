@@ -3,7 +3,7 @@ from rest_framework import viewsets, status, mixins
 from rest_framework.response import Response
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
-from recipe.models import Ingredient, Tag, Recipe
+from recipe.models import Ingredient, Tag, Recipe, Unit
 from users.models import Group
 from recipe import serializers
 from django.shortcuts import get_object_or_404
@@ -185,3 +185,12 @@ class RecipeDetailViewSet(viewsets.GenericViewSet, mixins.RetrieveModelMixin):
 
         instance = get_object_or_404(Recipe, user=user_id, slug=slug)
         return instance
+
+
+class UnitViewSet(viewsets.GenericViewSet, mixins.ListModelMixin):
+    """ viewset for retrieving available units """
+
+    authentication_classes = (TokenAuthentication, )
+    permission_classes = (IsAuthenticated, )
+    serializer_class = serializers.UnitSerializer
+    queryset = Unit.objects.all()

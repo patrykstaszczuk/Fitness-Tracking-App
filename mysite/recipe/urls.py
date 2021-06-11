@@ -13,5 +13,7 @@ app_name = 'recipe'
 urlpatterns = [
     path('', include(router.urls)),
     path('przepisy/<pk>/<slug>', views.RecipeDetailViewSet.
-         as_view({'get': 'retrieve'}), name='recipe-group-detail')
+         as_view({'get': 'retrieve'}), name='recipe-group-detail'),
+    path('dostepne-jednostki/', views.UnitViewSet.as_view({'get': 'list'}),
+         name='units'),
 ]

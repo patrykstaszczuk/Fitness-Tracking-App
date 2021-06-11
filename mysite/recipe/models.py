@@ -141,6 +141,17 @@ class Ingredient(models.Model):
     _usage_counter = models.PositiveIntegerField(default=0, null=False)
     unit = models.CharField(max_length=10, choices=UNIT_CHOICE, null=True)
     calories = models.PositiveSmallIntegerField(null=True)
+    carbohydrates = models.PositiveSmallIntegerField(null=True)
+    proteins = models.PositiveSmallIntegerField(null=True)
+    fats = models.PositiveSmallIntegerField(null=True)
+    fiber = models.PositiveSmallIntegerField(null=True)
+    sodium = models.PositiveSmallIntegerField(null=True)
+    potassium = models.PositiveSmallIntegerField(null=True)
+    calcium = models.PositiveSmallIntegerField(null=True)
+    iron = models.PositiveSmallIntegerField(null=True)
+    magnesium = models.PositiveSmallIntegerField(null=True)
+    selenium = models.PositiveSmallIntegerField(null=True)
+    zinc = models.PositiveSmallIntegerField(null=True)
 
     class Meta:
         constraints = [
@@ -222,8 +233,6 @@ class Recipe_Ingredient(models.Model):
                                related_name='ingredients_quantity')
     ingredient = models.ForeignKey('Ingredient', on_delete=models.CASCADE,
                                    null=False)
-
-    quantity = models.CharField(max_length=25)
     amount = models.FloatField(null=True)
     unit = models.ForeignKey('Unit', null=True, on_delete=models.SET_NULL)
 
