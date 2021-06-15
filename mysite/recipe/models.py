@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.core.validators import MinValueValidator as MinValue
 from django.utils.text import slugify
 from unidecode import unidecode
 import uuid
@@ -140,18 +141,18 @@ class Ingredient(models.Model):
     type = models.CharField(max_length=10, choices=TYPE_CHOICE, null=True)
     _usage_counter = models.PositiveIntegerField(default=0, null=False)
     unit = models.CharField(max_length=10, choices=UNIT_CHOICE, null=True)
-    calories = models.PositiveSmallIntegerField(null=True)
-    carbohydrates = models.PositiveSmallIntegerField(null=True)
-    proteins = models.PositiveSmallIntegerField(null=True)
-    fats = models.PositiveSmallIntegerField(null=True)
-    fiber = models.PositiveSmallIntegerField(null=True)
-    sodium = models.PositiveSmallIntegerField(null=True)
-    potassium = models.PositiveSmallIntegerField(null=True)
-    calcium = models.PositiveSmallIntegerField(null=True)
-    iron = models.PositiveSmallIntegerField(null=True)
-    magnesium = models.PositiveSmallIntegerField(null=True)
-    selenium = models.PositiveSmallIntegerField(null=True)
-    zinc = models.PositiveSmallIntegerField(null=True)
+    calories = models.FloatField(null=True, validators=[MinValue(0)])
+    carbohydrates = models.FloatField(null=True, validators=[MinValue(0)])
+    proteins = models.FloatField(null=True, validators=[MinValue(0)])
+    fats = models.FloatField(null=True, validators=[MinValue(0)])
+    fiber = models.FloatField(null=True, validators=[MinValue(0)])
+    sodium = models.FloatField(null=True, validators=[MinValue(0)])
+    potassium = models.FloatField(null=True, validators=[MinValue(0)])
+    calcium = models.FloatField(null=True, validators=[MinValue(0)])
+    iron = models.FloatField(null=True, validators=[MinValue(0)])
+    magnesium = models.FloatField(null=True, validators=[MinValue(0)])
+    selenium = models.FloatField(null=True, validators=[MinValue(0)])
+    zinc = models.FloatField(null=True, validators=[MinValue(0)])
 
     class Meta:
         constraints = [

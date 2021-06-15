@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from recipe.models import Ingredient, Tag, Recipe, Recipe_Ingredient, Unit
+from rest_framework import fields
 
 
 def raise_validation_error(instance):
@@ -38,7 +39,7 @@ class IngredientSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Ingredient
-        fields = '__all__'
+        exclude = ('_usage_counter', )
         read_only_fields = ('id', 'user', 'slug')
 
     def validate_name(self, value):
