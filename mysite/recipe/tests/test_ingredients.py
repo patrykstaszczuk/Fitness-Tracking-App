@@ -135,7 +135,7 @@ class PrivateIngredientApiTests(TestCase):
         """ test creating new ingredient """
         payload = {
             'name': 'Cebula',
-            'tag': self.tag
+            'tags': self.tag.slug
         }
         self.client.post(INGREDIENTS_URL, payload)
         exists = models.Ingredient.objects.filter(
@@ -183,7 +183,7 @@ class PrivateIngredientApiTests(TestCase):
         payload = {
             'name': 'Majonez',
             'user': self.user,
-            'tag': self.tag
+            'tags': self.tag.slug
         }
 
         res = self.client.post(INGREDIENTS_URL, payload)
@@ -209,7 +209,7 @@ class PrivateIngredientApiTests(TestCase):
         ingredient = sample_ingredient(name='Majonez', user=self.user)
         payload = {
             'name': 'Mąka',
-            'tag': self.tag
+            'tags': self.tag.slug
         }
         res = self.client.put(reverse_ingredient_detail(ingredient.slug), payload)
         ingredient = models.Ingredient.objects.filter(id=ingredient.id)[0]
@@ -221,26 +221,27 @@ class PrivateIngredientApiTests(TestCase):
         """ test that partial ingredient update works """
         ingredient = sample_ingredient(name='Majonez', user=self.user)
         payload = {
-            'tag': self.tag
+            'tags': self.tag.slug
         }
         res = self.client.patch(reverse_ingredient_detail(ingredient.slug),
                                                            payload)
+
         ingredient = models.Ingredient.objects.filter(id=ingredient.id)[0]
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(ingredient.tag.first(), self.tag)
+        self.assertEqual(ingredient.tags.first(), self.tag)
 
     def test_full_ingredient_update_same_name(self):
         """ test full ingredient update with the same name """
         ingredient = sample_ingredient(name='Majonez', user=self.user)
         payload = {
             'name': 'Majonez',
-            'tag': self.tag
+            'tags': self.tag.slug
         }
         res = self.client.put(reverse_ingredient_detail(ingredient.slug), payload)
         ingredient = models.Ingredient.objects.filter(id=ingredient.id)[0]
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(ingredient.tag.first(), self.tag)
+        self.assertEqual(ingredient.tags.first(), self.tag)
 
     def test_available_units(self):
         """ test retrieving available units """

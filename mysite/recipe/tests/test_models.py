@@ -39,7 +39,7 @@ class PrivateRecipeApiTests(TestCase):
 
         ingredient = models.Ingredient.objects.create(name='Szpinak',
                                                       user=self.user)
-        ingredient.tag.add(self.tag)
+        ingredient.tags.add(self.tag)
         self.assertEqual(str(ingredient), ingredient.name)
 
     def test_ingredient_slug(self):
@@ -47,7 +47,7 @@ class PrivateRecipeApiTests(TestCase):
 
         ingredient = models.Ingredient.objects.create(name='Biała czekolada',
                                                       user=self.user)
-        ingredient.tag.add(self.tag)
+        ingredient.tags.add(self.tag)
         self.assertEqual(ingredient.slug, 'biala-czekolada')
 
     # def test_same_slug_different_ingredients(self):

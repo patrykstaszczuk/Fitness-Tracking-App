@@ -4,6 +4,9 @@ from django.urls import reverse
 from django.core.validators import MinValueValidator as MinValue
 from django.utils.text import slugify
 from unidecode import unidecode
+
+from django.db.models.signals import m2m_changed
+from django.dispatch import receiver
 import uuid
 import os
 import shutil
@@ -137,7 +140,7 @@ class Ingredient(models.Model):
                              null=False, related_name='user')
 
     slug = models.SlugField(blank=False, unique=False)
-    tag = models.ManyToManyField('Tag')
+    tags = models.ManyToManyField('Tag')
     type = models.CharField(max_length=10, choices=TYPE_CHOICE, null=True)
     _usage_counter = models.PositiveIntegerField(default=0, null=False)
     unit = models.CharField(max_length=10, choices=UNIT_CHOICE, null=True)
@@ -239,6 +242,18 @@ class Recipe_Ingredient(models.Model):
 
     def __str__(self):
         return self.recipe.name + '_' + self.ingredient.name
+
+
+@receiver(m2m_changed, sender=Recipe_Ingredient)
+def _count_calories_based_on_ingredients(sender, instance, action, **kwargs):
+    """ sum up calories from all recipe ingredients """
+
+    if action == 'post_add':
+        instance.calories = 0
+        for ingredient in instance.ingredients.all():
+            if ingredient.calories is not None:
+                instance.calories += ingredient.calories
+        instance.save()
 
 
 class Unit(models.Model):

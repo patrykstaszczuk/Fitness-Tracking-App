@@ -31,7 +31,7 @@ class TagSlugRelatedField(serializers.SlugRelatedField):
 class IngredientSerializer(serializers.ModelSerializer):
     """ Serializer for ingredient objects """
 
-    tag = TagSlugRelatedField(
+    tags = TagSlugRelatedField(
         many=True,
         slug_field='name',
         required=False
@@ -94,6 +94,13 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
         # extra_kwargs = {
         #                 'quantity': {'required': False},
         #                 }
+
+    def validate(self, values):
+        """ validate if all fields are provided """
+        for field in self.fields:
+            if field not in values:
+                raise serializers.ValidationError(f'{field} have to be set')
+        return values
 
 
 class RecipeSerializer(serializers.ModelSerializer):
@@ -160,11 +167,13 @@ class RecipeSerializer(serializers.ModelSerializer):
         validated_ingredients = validated_data.pop('ingredients_quantity', None)
         recipe = super().update(instance, validated_data)
 
-        existing_through_table_rows = Recipe_Ingredient.objects. \
-            filter(recipe=recipe)
-        for rows in existing_through_table_rows:
-            rows.delete()
-
+        if getattr(self.root, 'partial', False) is False:
+            """ we need to remove all related field during full update to
+             support ingredient changes in recipe """
+            existing_through_table_rows = Recipe_Ingredient.objects. \
+                filter(recipe=recipe)
+            for rows in existing_through_table_rows:
+                rows.delete()
         if validated_ingredients:
             for ingredient in validated_ingredients:
                 ingredient.update({'recipe': recipe})
@@ -181,7 +190,7 @@ class RecipeSerializer(serializers.ModelSerializer):
 
 
 class RecipeDetailSerializer(RecipeSerializer):
-    """ Serializer a recipe detail """
+    """ Serializer for recipe detail, only for retrieve """
 
     ingredients = RecipeIngredientSerializer(many=True, write_only=False,
                                              source='ingredients_quantity',
