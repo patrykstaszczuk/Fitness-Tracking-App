@@ -31,7 +31,6 @@ def sample_recipe(user, **params):
     """ create and return a sample recipe """
     defaults = {
         'name': 'Danie testowe',
-        'calories': 1000,
         'prepare_time': 50,
         'portions': 4,
         'description': "Opis dania testowego"
@@ -836,3 +835,43 @@ class PrivateRecipeApiTests(APITestCase):
         recipe.refresh_from_db()
         self.assertEqual(res.json()['calories'], ing1.calories+ing2.calories+
                          ing3.calories)
+
+    def test_retrieve_calories_based_on_ingredient_portions(self):
+        """ test amount of calories for given ingredient quantity """
+
+        ing1 = sample_ingredient(user=self.user, name='Cukinia', calories=500)
+
+        recipe = sample_recipe(user=self.user, name='Testowy')
+        recipe.ingredients.add(ing1, through_defaults={'amount': 50,
+                               'unit': self.unit})
+        res = self.client.get(recipe_detail_url(recipe.slug))
+
+        # 50g of ing1
+        expected_value = ing1.calories/2
+        self.assertEqual(res.json()['calories'], expected_value)
+
+    def test_retrive_calories_based_on_ingredient_portions_calories_not_set(self):
+        """ test retrieving calories when ingredient does not have
+        calories set """
+
+        ing1 = sample_ingredient(user=self.user, name='Cukinia')
+
+        recipe = sample_recipe(user=self.user, name='Test')
+        recipe.ingredients.add(ing1, through_defaults={'amount': 50,
+                               'unit': self.unit})
+
+        res = self.client.get(recipe_detail_url(recipe.slug))
+
+        self.assertEqual(res.json()['calories'], 0)
+
+    def test_retrieve_calories_based_on_portions_amount_greater_then_100(self):
+        """ test retrieving calories when amount is greater then 100g"""
+
+        ing1 = sample_ingredient(user=self.user, name='Cukinia', calories=500)
+        recipe = sample_recipe(user=self.user, name='Test')
+        recipe.ingredients.add(ing1, through_defaults={'amount': 150,
+                               'unit': self.unit})
+        res = self.client.get(recipe_detail_url(recipe.slug))
+
+        expected_value = (150/100) * ing1.calories
+        self.assertEqual(res.json()['calories'], expected_value)

@@ -24,6 +24,12 @@ def recipe_image_file_path(instance, filename):
     return os.path.join('recipes/', instance.user.name, instance.slug,
                         filename)
 
+# class CustomRecipeManager(models.Manager):
+#     """ override save method for automate calories calculation """
+#
+#     def save(self):
+#         instance = super().save()
+#         print(instance)
 
 class Recipe(models.Model):
 
@@ -56,6 +62,8 @@ class Recipe(models.Model):
 
     orginal_photos = []
 
+    # objects = CustomRecipeManager()
+
     class Meta:
         unique_together = ('user', 'slug')
 
@@ -74,7 +82,6 @@ class Recipe(models.Model):
 
     def save(self, *args, **kwargs):
         """ check if there is existing slug for different recipe """
-
         self.slug = slugify(unidecode(self.name))
         if self.check_if_slug_exists(self.slug) and not self.id:
             self.slug = self.slug + "2"
@@ -144,7 +151,8 @@ class Ingredient(models.Model):
     type = models.CharField(max_length=10, choices=TYPE_CHOICE, null=True)
     _usage_counter = models.PositiveIntegerField(default=0, null=False)
     unit = models.CharField(max_length=10, choices=UNIT_CHOICE, null=True)
-    calories = models.FloatField(null=True, validators=[MinValue(0)])
+    calories = models.FloatField(null=True, validators=[MinValue(1, "Value \
+                        must be greater then 0!")])
     carbohydrates = models.FloatField(null=True, validators=[MinValue(0)])
     proteins = models.FloatField(null=True, validators=[MinValue(0)])
     fats = models.FloatField(null=True, validators=[MinValue(0)])
@@ -251,8 +259,9 @@ def _count_calories_based_on_ingredients(sender, instance, action, **kwargs):
     if action == 'post_add':
         instance.calories = 0
         for ingredient in instance.ingredients.all():
+            obj = sender.objects.get(recipe=instance, ingredient=ingredient)
             if ingredient.calories is not None:
-                instance.calories += ingredient.calories
+                instance.calories += (obj.amount/100)*ingredient.calories
         instance.save()
 
 
