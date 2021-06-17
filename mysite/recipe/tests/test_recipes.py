@@ -399,7 +399,8 @@ class PrivateRecipeApiTests(APITestCase):
             'description': "opis dania 2",
         }
         url = recipe_detail_url(recipe.slug)
-        self.client.put(url, payload, format='json')
+        res = self.client.put(url, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
         recipe.refresh_from_db()
         self.assertEqual(recipe.name, payload['name'])
         self.assertEqual(recipe.description, payload['description'])
@@ -823,7 +824,8 @@ class PrivateRecipeApiTests(APITestCase):
         payload = {
             'tags': [tag.slug, ],
             'ingredients': [
-                {'ingredient': ing3.slug,
+                {
+                 'ingredient': ing3.slug,
                  'amount': 12,
                  'unit': self.unit.id},
             ]
@@ -832,6 +834,5 @@ class PrivateRecipeApiTests(APITestCase):
         res = self.client.patch(recipe_detail_url(recipe.slug),
                                 payload, format='json')
         recipe.refresh_from_db()
-        print(recipe.calories)
         self.assertEqual(res.json()['calories'], ing1.calories+ing2.calories+
                          ing3.calories)

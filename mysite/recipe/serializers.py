@@ -91,12 +91,9 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe_Ingredient
         fields = ('ingredient', 'amount', 'unit')
-        # extra_kwargs = {
-        #                 'quantity': {'required': False},
-        #                 }
 
     def validate(self, values):
-        """ validate if all fields are provided """
+        """ validate if all fields are provided in json request """
         for field in self.fields:
             if field not in values:
                 raise serializers.ValidationError(f'{field} have to be set')
@@ -132,8 +129,8 @@ class RecipeSerializer(serializers.ModelSerializer):
     def to_internal_value(self, data):
         """ create ingredient if does not exists in database """
 
-        if data.get('ingredients', None) is not None:
-            ingredients = data.get('ingredients')
+        ingredients = data.get('ingredients', None)
+        if ingredients:
             for list_item in ingredients:
                 obj, created = Ingredient.objects.get_or_create(user=self.user,
                                                                 name=list_item['ingredient'])
@@ -151,36 +148,16 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         """ Overrided for neasted serializers handling """
+
         validated_ingredients = validated_data.pop('ingredients_quantity', None)
         recipe = super().create(validated_data)
+
         if validated_ingredients:
             for ingredient in validated_ingredients:
                 Recipe_Ingredient.objects.create(
                     recipe=recipe,
                     **ingredient
                 )
-        return recipe
-
-    def update(self, instance, validated_data):
-        """ Overrided for neasted serializers handling """
-
-        validated_ingredients = validated_data.pop('ingredients_quantity', None)
-        recipe = super().update(instance, validated_data)
-
-        if getattr(self.root, 'partial', False) is False:
-            """ we need to remove all related field during full update to
-             support ingredient changes in recipe """
-            existing_through_table_rows = Recipe_Ingredient.objects. \
-                filter(recipe=recipe)
-            for rows in existing_through_table_rows:
-                rows.delete()
-        if validated_ingredients:
-            for ingredient in validated_ingredients:
-                ingredient.update({'recipe': recipe})
-                recipe.ingredients.add(ingredient['ingredient'],
-                                       through_defaults={'amount':
-                                       ingredient['amount'],
-                                       'unit': ingredient['unit']})
         return recipe
 
     def __init__(self, *args, **kwargs):
@@ -196,12 +173,33 @@ class RecipeDetailSerializer(RecipeSerializer):
                                              source='ingredients_quantity',
                                              )
 
-    tags = TagSerializer(many=True, read_only=True)
-
     class Meta:
         model = Recipe
         fields = '__all__'
         read_only_fields = ('id', 'user', 'slug', 'photo1', 'photo2', 'photo3')
+
+    def update(self, instance, validated_data):
+        """ Overrided for neasted serializers handling """
+
+        validated_ingredients = validated_data.pop('ingredients_quantity', None)
+        recipe = super().update(instance, validated_data)
+
+        if getattr(self.root, 'partial', False) is False:
+            """ we need to remove all related field during full update to
+             support ingredients changes """
+            existing_through_table_rows = Recipe_Ingredient.objects. \
+                filter(recipe=recipe)
+            for rows in existing_through_table_rows:
+                rows.delete()
+
+        if validated_ingredients:
+            for ingredient in validated_ingredients:
+                ingredient.update({'recipe': recipe})
+                recipe.ingredients.add(ingredient['ingredient'],
+                                       through_defaults={'amount':
+                                       ingredient['amount'],
+                                       'unit': ingredient['unit']})
+        return recipe
 
 
 class RecipeImageSerializer(serializers.ModelSerializer):

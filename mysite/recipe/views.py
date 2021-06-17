@@ -48,72 +48,15 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
     queryset = Recipe.objects.all()
     lookup_field = 'slug'
 
-    def _return_users_from_filtered_groups(self, user, groups):
-        """ return all users belongs to filtered groups """
-
-        users_instances = []
-
-        if groups is not None:
-            groups = groups.split(',')
-            groups = self._map_raw_data_to_instances(Group, user, 'id', groups)
-        else:
-            groups = user.membership.all()
-
-        users_instances_in_groups = [group.members.all() for group in groups]
-
-        for group_members in users_instances_in_groups:
-            for user in group_members:
-                users_instances.append(user)
-        return list(set(users_instances))
-
-    def _map_raw_data_to_instances(self, instance, user, lookup_key, data):
-        """ map provided filtering data to instances """
-
-        instances_list = []
-        for item in data:
-            try:
-                if instance == Group:
-                    objs = user.membership.all()
-                else:
-                    objs = instance.objects.filter(user=user)
-                obj = objs.get(**{lookup_key: item})
-                instances_list.append(obj)
-            except instance.DoesNotExist:
-                pass
-        return instances_list
-
-    def _get_filtering(self, request):
-        """ check if there is any filter applied and return queryset if so """
-
-        allowed_filters = ['tags', 'groups']
-        user = self.request.user
-        filtered_groups = request.query_params.get('groups')
-        allowed_filters.pop()
-
-        users_in_filtered_groups = \
-            self._return_users_from_filtered_groups(user, filtered_groups)
-        queryset = Recipe.objects.all().filter(user__in=
-                                               users_in_filtered_groups).order_by('-name')
-
-        for filter in request.query_params:
-            if filter in allowed_filters:
-                filter_values = request.query_params[filter].split(',')
-                filter_instances = self._map_raw_data_to_instances(Tag, user,
-                                                                   'slug',
-                                                                   filter_values)
-                query = filter + '__in'
-                queryset = queryset.filter(**{query: filter_instances})
-        return queryset
-
     def get_queryset(self):
         """ Retrieve the recipes for authenticated user with filtering if
         applied """
-
-        return self._get_filtering(self.request)
+        return self._get_filtering(request=self.request)
 
     def get_serializer_class(self):
         """ return appropriate serializer class """
-        if self.action == 'retrieve':
+        detailedActions = ['retrieve', 'update', 'partial_update']
+        if self.action in detailedActions:
             return serializers.RecipeDetailSerializer
         elif self.action == 'upload_image':
             return serializers.RecipeImageSerializer
@@ -158,6 +101,63 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
             serializer.errors,
             status=status.HTTP_400_BAD_REQUEST
         )
+
+    def _get_filtering(self, request):
+        """ check if there is any filter applied and return queryset if so """
+
+        allowed_filters = ['tags', 'groups']
+        user = self.request.user
+        filtered_groups = request.query_params.get('groups')
+        allowed_filters.pop()
+
+        users_in_filtered_groups = \
+            self._return_users_from_filtered_groups(user, filtered_groups)
+        queryset = Recipe.objects.all().filter(user__in=
+                                               users_in_filtered_groups).order_by('-name')
+
+        for filter in request.query_params:
+            if filter in allowed_filters:
+                filter_values = request.query_params[filter].split(',')
+                filter_instances = self._map_raw_data_to_instances(Tag, user,
+                                                                   'slug',
+                                                                   filter_values)
+                query = filter + '__in'
+                queryset = queryset.filter(**{query: filter_instances})
+        return queryset
+
+    def _return_users_from_filtered_groups(self, user, groups):
+        """ return all users belongs to filtered groups """
+
+        users_instances = []
+
+        if groups is not None:
+            groups = groups.split(',')
+            groups = self._map_raw_data_to_instances(Group, user, 'id', groups)
+        else:
+            groups = user.membership.all()
+
+        users_instances_in_groups = [group.members.all() for group in groups]
+
+        for group_members in users_instances_in_groups:
+            for user in group_members:
+                users_instances.append(user)
+        return list(set(users_instances))
+
+    def _map_raw_data_to_instances(self, instance, user, lookup_key, data):
+        """ map provided filtering data to instances """
+
+        instances_list = []
+        for item in data:
+            try:
+                if instance == Group:
+                    objs = user.membership.all()
+                else:
+                    objs = instance.objects.filter(user=user)
+                obj = objs.get(**{lookup_key: item})
+                instances_list.append(obj)
+            except instance.DoesNotExist:
+                pass
+        return instances_list
 
 
 class RecipeDetailViewSet(viewsets.GenericViewSet, mixins.RetrieveModelMixin):
