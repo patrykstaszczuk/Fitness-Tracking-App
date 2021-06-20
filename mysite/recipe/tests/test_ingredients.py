@@ -269,20 +269,31 @@ class PrivateIngredientApiTests(TestCase):
         unit = models.Unit.objects.get(name='gram')
         serializer = UnitSerializer(unit)
 
-        self.assertEqual(res.json()['units'][0], serializer.data)
+        self.assertEqual(res.json()['available_units'][0], serializer.data)
 
     def test_retrieve_available_units_for_ingredient(self):
         """ test retrieving all units set to ingredient """
 
         ing = sample_ingredient(user=self.user, name='Cukier')
         spoon = models.Unit.objects.create(name='spoon', short_name='sp')
+        pinch = models.Unit.objects.create(name='pinch', short_name='pn')
         ing.units.add(spoon, through_defaults={'grams_in_one_unit': 5})
 
         res = self.client.get(reverse_ingredient_detail(ing.slug))
-
+        print(res.data)
         all_units = models.Unit.objects.filter(name__in=['gram', 'spoon'])
         serializer = UnitSerializer(all_units, many=True)
-        self.assertEqual(res.json()['units'], serializer.data)
+        self.assertEqual(res.json()['available_units'], serializer.data)
+
+    def test_create_ingredient_unit_mapping(self):
+        """ test creating mapping for new ingredient """
+
+        ing = sample_ingredient(user=self.user, name='Cukinia')
+        spoon = models.Unit.objects.create(name='spoon', short_name='sp')
+        payload = {
+            'unit': spoon.id,
+            'grams_in_one_unit': 50
+        }
 
     # @patch('uuid.uuid4')
     # def test_recipe_file_name_uuid(self, mock_uuid):

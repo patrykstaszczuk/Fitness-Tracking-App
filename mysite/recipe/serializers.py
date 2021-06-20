@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from recipe.models import Ingredient, Tag, Recipe, Recipe_Ingredient, Unit
+from recipe.models import Ingredient, Tag, Recipe, Recipe_Ingredient, Unit, \
+    Ingredient_Unit
 from rest_framework import fields
 
 
@@ -45,12 +46,19 @@ class IngredientSerializer(serializers.ModelSerializer):
         required=False
     )
 
-    units = UnitSerializer(many=True, required=False)
+    units = serializers.PrimaryKeyRelatedField(many=True, write_only=True,
+                                               queryset=Unit.objects.all())
+    available_units = serializers.SerializerMethodField()
 
     class Meta:
         model = Ingredient
         exclude = ('_usage_counter', )
         read_only_fields = ('id', 'user', 'slug')
+
+    def get_available_units(self, obj):
+        """ get defined unit for ingredient instance """
+        return UnitSerializer(obj.units.all(), many=True).data
+
 
     def validate_name(self, value):
         """ check if ingredient with provided name is not already in db """
@@ -108,6 +116,7 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
             if field not in values:
                 raise serializers.ValidationError(f'{field} have to be set')
         ingredient = values.get('ingredient')
+
         unit = values.get('unit')
         available_units = ingredient.units.all()
         if unit not in available_units:
@@ -125,7 +134,8 @@ class RecipeSerializer(serializers.ModelSerializer):
     tags = TagSlugRelatedField(
         many=True,
         slug_field='slug',
-        required=True
+        required=True,
+        write_only=True
     )
     tag_detail = serializers.SerializerMethodField()
     ingredients = RecipeIngredientSerializer(
@@ -151,7 +161,6 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     def to_internal_value(self, data):
         """ create ingredient if does not exists in database """
-        tags = data.get('tags', None)
         ingredients = data.get('ingredients', None)
         if ingredients:
             for list_item in ingredients:
@@ -209,10 +218,8 @@ class RecipeDetailSerializer(RecipeSerializer):
         if getattr(self.root, 'partial', False) is False:
             """ we need to remove all related field during full update to
              support ingredients changes """
-            existing_through_table_rows = Recipe_Ingredient.objects. \
-                filter(recipe=recipe)
-            for rows in existing_through_table_rows:
-                rows.delete()
+
+            instance.ingredients.clear()
 
         if validated_ingredients:
             for ingredient in validated_ingredients:
