@@ -127,7 +127,7 @@ class RecipeSerializer(serializers.ModelSerializer):
         slug_field='slug',
         required=True
     )
-    # tags = TagSerializer(many=True, required=True)
+    tag_detail = serializers.SerializerMethodField()
     ingredients = RecipeIngredientSerializer(
                                              required=False,
                                              many=True,
@@ -146,9 +146,12 @@ class RecipeSerializer(serializers.ModelSerializer):
             'description': {'write_only': True}
         }
 
+    def get_tag_detail(self, obj):
+        return TagSerializer(obj.tags.all(), many=True).data
+
     def to_internal_value(self, data):
         """ create ingredient if does not exists in database """
-        print(data)
+        tags = data.get('tags', None)
         ingredients = data.get('ingredients', None)
         if ingredients:
             for list_item in ingredients:
@@ -168,7 +171,6 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         """ Overrided for neasted serializers handling """
-
         validated_ingredients = validated_data.pop('ingredients_quantity', None)
         recipe = super().create(validated_data)
 
