@@ -115,10 +115,10 @@ class PrivateRecipeApiTests(TestCase):
         ingredient = models.Ingredient.objects.create(
             name='Cebula',
             user=self.user,
-            unit='g',
             calories=350
          )
-        self.assertEqual(ingredient.unit, 'g')
+
+        self.assertEqual(ingredient.units.all()[0].short_name, 'g')
         self.assertEqual(ingredient.calories, 350)
 
     def test_str_unit(self):

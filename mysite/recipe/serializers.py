@@ -19,6 +19,14 @@ def check_if_name_is_in_db(instance, queryset):
             raise_validation_error(instance)
 
 
+class UnitSerializer(serializers.ModelSerializer):
+    """ serializer for Unit model """
+
+    class Meta:
+        model = Unit
+        fields = '__all__'
+
+
 class TagSlugRelatedField(serializers.SlugRelatedField):
     """ Filter all returned slug tags by specific user """
 
@@ -36,6 +44,8 @@ class IngredientSerializer(serializers.ModelSerializer):
         slug_field='name',
         required=False
     )
+
+    units = UnitSerializer(many=True, required=False)
 
     class Meta:
         model = Ingredient
@@ -57,7 +67,7 @@ class TagSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Tag
-        fields = ('id', 'user', 'slug', 'name')
+        fields = '__all__'
         read_only_fields = ('id', 'user', 'slug')
 
     def validate_name(self, value):
@@ -97,6 +107,15 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
         for field in self.fields:
             if field not in values:
                 raise serializers.ValidationError(f'{field} have to be set')
+        ingredient = values.get('ingredient')
+        unit = values.get('unit')
+        available_units = ingredient.units.all()
+        if unit not in available_units:
+            available_units_names = []
+            for unit in available_units:
+                available_units_names.append(unit.name)
+            raise serializers.ValidationError(f'{unit} is not defined for \
+             {ingredient.name}. Available units: {available_units_names}')
         return values
 
 
@@ -108,6 +127,7 @@ class RecipeSerializer(serializers.ModelSerializer):
         slug_field='slug',
         required=True
     )
+    # tags = TagSerializer(many=True, required=True)
     ingredients = RecipeIngredientSerializer(
                                              required=False,
                                              many=True,
@@ -128,7 +148,7 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     def to_internal_value(self, data):
         """ create ingredient if does not exists in database """
-
+        print(data)
         ingredients = data.get('ingredients', None)
         if ingredients:
             for list_item in ingredients:
@@ -209,11 +229,3 @@ class RecipeImageSerializer(serializers.ModelSerializer):
         model = Recipe
         fields = ('slug', 'photo1', 'photo2', 'photo3')
         read_only_fields = ('slug', )
-
-
-class UnitSerializer(serializers.ModelSerializer):
-    """ serializer for Unit model """
-
-    class Meta:
-        model = Unit
-        fields = '__all__'

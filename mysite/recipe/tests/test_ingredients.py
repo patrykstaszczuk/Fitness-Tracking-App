@@ -66,6 +66,7 @@ class PrivateIngredientApiTests(TestCase):
         self.tag = sample_tag('test', self.user)
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
+        self.unit = models.Unit.objects.create(name='gram')
 
     def test_retrieve_ingredients(self):
         """ test retrieving ingredients tags """
@@ -137,7 +138,7 @@ class PrivateIngredientApiTests(TestCase):
             'name': 'Cebula',
             'tags': self.tag.slug
         }
-        self.client.post(INGREDIENTS_URL, payload)
+        res = self.client.post(INGREDIENTS_URL, payload)
         exists = models.Ingredient.objects.filter(
             user=self.user,
             name=payload['name']
@@ -257,6 +258,32 @@ class PrivateIngredientApiTests(TestCase):
         serializer = UnitSerializer(all_units, many=True)
 
         self.assertEqual(res.data, serializer.data)
+
+    def test_retrieve_default_unit_for_ingredient(self):
+        """ test retrieving all units set to ingredient """
+
+        ing = sample_ingredient(user=self.user, name='Cukinia')
+
+        res = self.client.get(reverse_ingredient_detail(ing.slug))
+
+        unit = models.Unit.objects.get(name='gram')
+        serializer = UnitSerializer(unit)
+
+        self.assertEqual(res.json()['units'][0], serializer.data)
+
+    def test_retrieve_available_units_for_ingredient(self):
+        """ test retrieving all units set to ingredient """
+
+        ing = sample_ingredient(user=self.user, name='Cukier')
+        spoon = models.Unit.objects.create(name='spoon', short_name='sp')
+        ing.units.add(spoon, through_defaults={'grams_in_one_unit': 5})
+
+        res = self.client.get(reverse_ingredient_detail(ing.slug))
+
+        all_units = models.Unit.objects.filter(name__in=['gram', 'spoon'])
+        serializer = UnitSerializer(all_units, many=True)
+        self.assertEqual(res.json()['units'], serializer.data)
+
     # @patch('uuid.uuid4')
     # def test_recipe_file_name_uuid(self, mock_uuid):
     #     """ test that image is saved in the correct location """

@@ -150,7 +150,7 @@ class Ingredient(models.Model):
     tags = models.ManyToManyField('Tag')
     type = models.CharField(max_length=10, choices=TYPE_CHOICE, null=True)
     _usage_counter = models.PositiveIntegerField(default=0, null=False)
-    unit = models.CharField(max_length=10, choices=UNIT_CHOICE, null=True)
+    units = models.ManyToManyField('Unit', through='ingredient_unit',)
     calories = models.FloatField(null=True, validators=[MinValue(1, "Value \
                         must be greater then 0!")])
     carbohydrates = models.FloatField(null=True, validators=[MinValue(0)])
@@ -182,6 +182,10 @@ class Ingredient(models.Model):
             self.slug = self.slug + "2"
         super().save(*args, **kwargs)
 
+        gram_unit_instance = Unit.objects.get(name='gram')
+        self.units.add(gram_unit_instance,
+                      through_defaults={'grams_in_one_unit': 100})
+
     @property
     def usage_counter(self):
         return self._usage_counter
@@ -212,6 +216,12 @@ class Ingredient(models.Model):
     @property
     def get_unit(self):
         return self.unit
+
+    def get_unit_weight(self, unit, amount):
+        """ return the unit and amount in grams/mililiters """
+        obj = Ingredient_Unit.objects.get(
+            ingredient=self.id, unit=unit)
+        return obj.grams_in_one_unit * amount
 
 
 class Tag(models.Model):
@@ -261,7 +271,13 @@ def _count_calories_based_on_ingredients(sender, instance, action, **kwargs):
         for ingredient in instance.ingredients.all():
             obj = sender.objects.get(recipe=instance, ingredient=ingredient)
             if ingredient.calories is not None:
-                instance.calories += (obj.amount/100)*ingredient.calories
+                if obj.amount or obj.unit is not None:
+                    if obj.unit.name != 'gram':
+                        raw_weigth = ingredient.get_unit_weight(obj.unit,
+                                                                obj.amount)
+                    else:
+                        raw_weigth = obj.amount
+                    instance.calories += (raw_weigth/100)*ingredient.calories
         instance.save()
 
 
@@ -272,3 +288,16 @@ class Unit(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class Ingredient_Unit(models.Model):
+    """ Intermediate model for ingredient and unit """
+
+    ingredient = models.ForeignKey('Ingredient', on_delete=models.CASCADE,
+                                   null=False)
+    unit = models.ForeignKey('Unit', on_delete=models.PROTECT, null=False)
+    grams_in_one_unit = models.PositiveSmallIntegerField(null=False,
+                                                         default=100)
+
+    def __str__(self):
+        return self.unit.name + '(' + str(self.grams_in_one_unit) + ')'
