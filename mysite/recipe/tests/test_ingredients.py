@@ -6,14 +6,15 @@ from rest_framework.test import APIClient
 from rest_framework import status
 
 from recipe import models
-from recipe.serializers import IngredientSerializer, UnitSerializer
+from recipe.serializers import IngredientSerializer, UnitSerializer,  \
+    IngredientUnitSerializer
 
 
 INGREDIENTS_URL = reverse('recipe:ingredient-list')
 UNITS = reverse('recipe:units')
 
 
-def reverse_ingredient_detail(slug):
+def ingredient_detail_url(slug):
     return reverse('recipe:ingredient-detail', kwargs={'slug': slug})
 
 
@@ -101,7 +102,7 @@ class PrivateIngredientApiTests(TestCase):
             name='Cukinia',
             calories=17)
 
-        res = self.client.get(reverse_ingredient_detail(ingredient.slug))
+        res = self.client.get(ingredient_detail_url(ingredient.slug))
 
         serializer = IngredientSerializer(ingredient)
 
@@ -126,7 +127,7 @@ class PrivateIngredientApiTests(TestCase):
             zinc=0.32,
         )
 
-        res = self.client.get(reverse_ingredient_detail(ingredient.slug))
+        res = self.client.get(ingredient_detail_url(ingredient.slug))
 
         serializer = IngredientSerializer(ingredient)
 
@@ -197,7 +198,7 @@ class PrivateIngredientApiTests(TestCase):
     def test_delete_ingredient_success(self):
         """ test deleting ingredient with success """
         ingredient = sample_ingredient(name='Majonez', user=self.user)
-        res = self.client.delete(reverse_ingredient_detail(ingredient.slug))
+        res = self.client.delete(ingredient_detail_url(ingredient.slug))
         ingredient = models.Ingredient.objects.filter(user=self.user). \
             filter(name=ingredient.name).exists()
 
@@ -211,7 +212,7 @@ class PrivateIngredientApiTests(TestCase):
             'name': 'Mąka',
             'tags': self.tag.slug
         }
-        res = self.client.put(reverse_ingredient_detail(ingredient.slug), payload)
+        res = self.client.put(ingredient_detail_url(ingredient.slug), payload)
         ingredient = models.Ingredient.objects.filter(id=ingredient.id)[0]
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
@@ -223,7 +224,7 @@ class PrivateIngredientApiTests(TestCase):
         payload = {
             'tags': self.tag.slug
         }
-        res = self.client.patch(reverse_ingredient_detail(ingredient.slug),
+        res = self.client.patch(ingredient_detail_url(ingredient.slug),
                                                            payload)
 
         ingredient = models.Ingredient.objects.filter(id=ingredient.id)[0]
@@ -237,7 +238,7 @@ class PrivateIngredientApiTests(TestCase):
             'name': 'Majonez',
             'tags': self.tag.slug
         }
-        res = self.client.put(reverse_ingredient_detail(ingredient.slug), payload)
+        res = self.client.put(ingredient_detail_url(ingredient.slug), payload)
         ingredient = models.Ingredient.objects.filter(id=ingredient.id)[0]
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
@@ -264,12 +265,9 @@ class PrivateIngredientApiTests(TestCase):
 
         ing = sample_ingredient(user=self.user, name='Cukinia')
 
-        res = self.client.get(reverse_ingredient_detail(ing.slug))
+        res = self.client.get(ingredient_detail_url(ing.slug))
 
-        unit = models.Unit.objects.get(name='gram')
-        serializer = UnitSerializer(unit)
-
-        self.assertEqual(res.json()['available_units'][0], serializer.data)
+        self.assertEqual(res.json()['available_units'][0]['unit'], self.unit.id)
 
     def test_retrieve_available_units_for_ingredient(self):
         """ test retrieving all units set to ingredient """
@@ -279,10 +277,9 @@ class PrivateIngredientApiTests(TestCase):
         pinch = models.Unit.objects.create(name='pinch', short_name='pn')
         ing.units.add(spoon, through_defaults={'grams_in_one_unit': 5})
 
-        res = self.client.get(reverse_ingredient_detail(ing.slug))
-        print(res.data)
-        all_units = models.Unit.objects.filter(name__in=['gram', 'spoon'])
-        serializer = UnitSerializer(all_units, many=True)
+        res = self.client.get(ingredient_detail_url(ing.slug))
+        all_units = models.Ingredient_Unit.objects.filter(ingredient=ing)
+        serializer = IngredientUnitSerializer(all_units, many=True)
         self.assertEqual(res.json()['available_units'], serializer.data)
 
     def test_create_ingredient_unit_mapping(self):
@@ -291,10 +288,54 @@ class PrivateIngredientApiTests(TestCase):
         ing = sample_ingredient(user=self.user, name='Cukinia')
         spoon = models.Unit.objects.create(name='spoon', short_name='sp')
         payload = {
-            'unit': spoon.id,
-            'grams_in_one_unit': 50
+            'units': [{
+                'unit': spoon.id,
+                'grams_in_one_unit': 50
+                }
+            ]
         }
 
+        res = self.client.patch(ingredient_detail_url(ing.slug), payload,
+                               format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        ing.refresh_from_db()
+        self.assertEqual(len(ing.units.all()), 2)
+
+    def test_create_ingredient_unit_mapping_failed_invalid_unit(self):
+        """ test create unit mapping with invalid unit instance"""
+
+        ing = sample_ingredient(user=self.user, name='Cukinia')
+
+        payload = {
+            'units': [{
+                'unit': 99,
+                'grams_in_one_unit': 100
+            }]
+        }
+        res = self.client.patch(ingredient_detail_url(ing.slug), payload,
+                               format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_update_ingredient_unit_mapping(self):
+        """ test upgrade ingredient unit mapping """
+
+        ing = sample_ingredient(user=self.user, name='Cukinia')
+        unit = models.Unit.objects.create(name='spoon', short_name='sp')
+        ing.units.add(unit, through_defaults={'grams_in_one_unit': 80})
+
+        payload = {
+            'units': [{
+                'unit': unit.id,
+                'grams_in_one_unit': 100
+            }]
+        }
+        res = self.client.patch(ingredient_detail_url(ing.slug), payload,
+                                format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        self.assertEqual(res.json()['available_units'][1]['grams_in_one_unit'],
+                         100)
     # @patch('uuid.uuid4')
     # def test_recipe_file_name_uuid(self, mock_uuid):
     #     """ test that image is saved in the correct location """

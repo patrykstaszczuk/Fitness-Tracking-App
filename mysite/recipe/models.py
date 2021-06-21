@@ -298,6 +298,6 @@ class Ingredient_Unit(models.Model):
     unit = models.ForeignKey('Unit', on_delete=models.PROTECT, null=False)
     grams_in_one_unit = models.PositiveSmallIntegerField(null=False,
                                                          default=100)
-
+                                                         
     def __str__(self):
         return self.unit.name + '(' + str(self.grams_in_one_unit) + ')'

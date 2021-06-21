@@ -37,6 +37,14 @@ class TagSlugRelatedField(serializers.SlugRelatedField):
         return queryset
 
 
+class IngredientUnitSerializer(serializers.ModelSerializer):
+    """ Serializer for Ingredient Unit intermediate model """
+
+    class Meta:
+        model = Ingredient_Unit
+        fields = '__all__'
+
+
 class IngredientSerializer(serializers.ModelSerializer):
     """ Serializer for ingredient objects """
 
@@ -46,8 +54,7 @@ class IngredientSerializer(serializers.ModelSerializer):
         required=False
     )
 
-    units = serializers.PrimaryKeyRelatedField(many=True, write_only=True,
-                                               queryset=Unit.objects.all())
+    units = IngredientUnitSerializer(many=True, write_only=True, required=False)
     available_units = serializers.SerializerMethodField()
 
     class Meta:
@@ -57,8 +64,8 @@ class IngredientSerializer(serializers.ModelSerializer):
 
     def get_available_units(self, obj):
         """ get defined unit for ingredient instance """
-        return UnitSerializer(obj.units.all(), many=True).data
-
+        units = Ingredient_Unit.objects.filter(ingredient=obj)
+        return IngredientUnitSerializer(units, many=True).data
 
     def validate_name(self, value):
         """ check if ingredient with provided name is not already in db """
@@ -68,6 +75,22 @@ class IngredientSerializer(serializers.ModelSerializer):
         check_if_name_is_in_db(self.instance, queryset)
 
         return value
+
+    def update(self, instance, validated_data):
+        """ update instance with new unit mapping """
+        units = validated_data.pop('units', None)
+        ingredient = super().update(instance, validated_data)
+
+        if getattr(self.root, 'partial', False) is False:
+            instance.units.clear()
+        if units:
+            for unit in units:
+                Ingredient_Unit.objects.update_or_create(
+                    ingredient=ingredient,
+                    unit=unit['unit'],
+                    defaults={'grams_in_one_unit': unit['grams_in_one_unit']}
+                )
+        return instance
 
 
 class TagSerializer(serializers.ModelSerializer):
@@ -111,7 +134,8 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
         fields = ('ingredient', 'amount', 'unit')
 
     def validate(self, values):
-        """ validate if all fields are provided in json request """
+        """ validate if all fields are provided in json request and unit
+        validation """
         for field in self.fields:
             if field not in values:
                 raise serializers.ValidationError(f'{field} have to be set')
@@ -126,7 +150,6 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(f'{unit} is not defined for \
              {ingredient.name}. Available units: {available_units_names}')
         return values
-
 
 class RecipeSerializer(serializers.ModelSerializer):
     """ serializer for recipe objects """
