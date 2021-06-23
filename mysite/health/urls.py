@@ -13,7 +13,7 @@ urlpatterns = [
     path('', views.HealthDiary.as_view({'get': 'retrieve',
                                                'post': 'create',
                                                'put': 'update',
-                                               'patch': 'update'}),
+                                               'patch': 'update'},),
          name='health-diary'),
     path('raporty/', include(router.urls)),
     path('podsumowanie-tygodnia', views.HealthWeeklySummary,

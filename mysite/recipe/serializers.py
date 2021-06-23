@@ -151,6 +151,7 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
              {ingredient.name}. Available units: {available_units_names}')
         return values
 
+
 class RecipeSerializer(serializers.ModelSerializer):
     """ serializer for recipe objects """
 
