@@ -4,16 +4,16 @@ from rest_framework.routers import DefaultRouter
 from recipe import views
 
 router = DefaultRouter()
-router.register('skladniki', views.IngredientViewSet)
-router.register('tagi', views.TagViewSet)
-router.register('przepisy', views.RecipeViewSet)
+router.register('ingredients', views.IngredientViewSet)
+router.register('tags', views.TagViewSet)
+router.register('recipes', views.RecipeViewSet)
 
 app_name = 'recipe'
 
 urlpatterns = [
     path('', include(router.urls)),
-    path('przepisy/<pk>/<slug>', views.RecipeDetailViewSet.
+    path('group-recipe/<pk>/<slug>', views.RecipeDetailViewSet.
          as_view({'get': 'retrieve'}), name='recipe-group-detail'),
-    path('dostepne-jednostki/', views.UnitViewSet.as_view({'get': 'list'}),
+    path('available-units/', views.UnitViewSet.as_view({'get': 'list'}),
          name='units'),
 ]

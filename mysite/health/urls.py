@@ -15,7 +15,7 @@ urlpatterns = [
                                                'put': 'update',
                                                'patch': 'update'},),
          name='health-diary'),
-    path('raporty/', include(router.urls)),
-    path('podsumowanie-tygodnia', views.HealthWeeklySummary,
+    path('raports/', include(router.urls)),
+    path('weekly-summary', views.HealthWeeklySummary,
          name='weekly-summary'),
 ]

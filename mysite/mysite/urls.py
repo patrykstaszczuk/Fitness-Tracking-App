@@ -23,9 +23,9 @@ app_name = 'mysite'
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('konto/', include('users.urls')),
+    path('account/', include('users.urls')),
     path('fitness/', include('health.urls')),
-    path('posilki/', include('meals_tracker.urls')),
-    path('recipes/', include('recipe.urls')),
+    path('meals-tracker/', include('meals_tracker.urls')),
+    path('food/', include('recipe.urls')),
     path('', views.api_root, name='api_root'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
