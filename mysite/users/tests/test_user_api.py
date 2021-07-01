@@ -57,11 +57,26 @@ class PublicUserApiTests(TestCase):
 
         res = self.client.post(CREATE_USER_URL, payload, foramt='json')
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-
         user = get_user_model().objects.get(**res.data)
         self.assertTrue(user.check_password(payload['password']))
 
         self.assertNotIn('password', res.data)
+
+    def test_redirect_to_profile_after_successfull_user_creation(self):
+        """ test if response header has location atribute """
+        payload = {
+            'email': 'test@gmail.com',
+            'password': 'testpass',
+            'name': 'testname',
+            'height': '185',
+            'weight': '85',
+            'age': '25',
+            'sex': 'Male'
+        }
+
+        res = self.client.post(CREATE_USER_URL, payload, foramt='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertIn('location', res._headers)
 
     def test_create_user_invalid_field_values(self):
         """ test creating user with invalid values in fields """
@@ -109,7 +124,6 @@ class PublicUserApiTests(TestCase):
         get_user_model().objects.create_user(**payload)
 
         res = self.client.post(TOKEN_URL, payload)
-
         self.assertIn('token', res.data)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
 
@@ -181,7 +195,7 @@ class PrivateUserApiTests(TestCase):
             'age': self.user.age,
             'height': self.user.height,
             'weight': self.user.weight,
-            'sex': self.user.sex
+            'sex': self.user.sex,
         })
 
     def test_post_not_allowed(self):

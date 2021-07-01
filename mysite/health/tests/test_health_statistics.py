@@ -63,7 +63,6 @@ class PrivateHealthApiTests(TestCase):
 
         url = reverse('users:profile')
         res = self.client.get(url)
-
         serializer = user_serializers.UserSerializer(self.user)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)

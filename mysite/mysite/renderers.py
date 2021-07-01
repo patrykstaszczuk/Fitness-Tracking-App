@@ -1,0 +1,28 @@
+from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
+from rest_framework.reverse import reverse
+
+class CustomRenderer(BrowsableAPIRenderer):
+
+    def get_default_renderer(self, view):
+        return JSONRenderer()
+
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+
+        links = renderer_context.get('links')
+        status_code = renderer_context['response'].status_code
+        response = {
+          "status": "success",
+          "code": status_code,
+          "data": data,
+          "message": None,
+          "_links": links
+        }
+
+        if not str(status_code).startswith('2'):
+            response["status"] = "error"
+            response["data"] = None
+            try:
+                response["message"] = data["detail"]
+            except KeyError:
+                response["data"] = data
+        return super(CustomRenderer, self).render(response, accepted_media_type, renderer_context)
