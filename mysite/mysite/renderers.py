@@ -1,7 +1,8 @@
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 from rest_framework.reverse import reverse
 
-class CustomRenderer(BrowsableAPIRenderer):
+
+class CustomRenderer(BrowsableAPIRenderer, JSONRenderer):
 
     def get_default_renderer(self, view):
         return JSONRenderer()

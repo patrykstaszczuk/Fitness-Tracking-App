@@ -9,11 +9,14 @@ from recipe import serializers
 from django.shortcuts import get_object_or_404
 from django.http import Http404
 
+from mysite.renderers import CustomRenderer
+
 
 class BaseRecipeAttrViewSet(viewsets.ModelViewSet):
     """ Base viewset for user owned recipe atributes """
     authentication_classes = (TokenAuthentication, )
     permission_classes = (IsAuthenticated, )
+    renderer_classes = [CustomRenderer, ]
     lookup_field = "slug"
 
     def get_queryset(self):
@@ -78,7 +81,8 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
 
         for ingredient in ingredients:
             ingredient.send_to_nozbe()
-        serializer = serializers.IngredientSerializer(ingredients, many=True)
+        serializer = serializers.IngredientSerializer(ingredients, many=True,
+                                                      context={'request': request})
         return Response(serializer.data)
 
     @action(methods=['POST', 'GET'], detail=True, url_path='dodaj-zdjecie')

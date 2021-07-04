@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 
-from rest_framework.test import APIClient
+from rest_framework.test import APIClient, APIRequestFactory
 from rest_framework import status
 
 from recipe import models
@@ -42,7 +42,7 @@ class PublicTagTestsApi(TestCase):
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
-class PrivateTagTestsApi(TestCase):
+class PrivateTagApiTests(TestCase):
     """ test tags for authenticated user """
 
     def setUp(self):
@@ -57,15 +57,18 @@ class PrivateTagTestsApi(TestCase):
             sex='Male'
         )
         self.client.force_authenticate(user=self.user)
+        self.factory = APIRequestFactory()
 
     def test_retrieve_tags_success(self):
         """ retrieve all tags which are created by specific user """
         models.Tag.objects.create(name='Wegański', user=self.user)
         models.Tag.objects.create(name='Zupa', user=self.user)
 
+        request = self.factory.get(TAG_URL)
+
         res = self.client.get(TAG_URL)
         tags = models.Tag.objects.filter(user=self.user)
-        serializer = TagSerializer(tags, many=True)
+        serializer = TagSerializer(tags, many=True, context={'request': request})
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(len(res.data), 2)
@@ -160,8 +163,7 @@ class PrivateTagTestsApi(TestCase):
     def test_delete_tag_success(self):
         tag = models.Tag.objects.create(name='nazwa', user=self.user)
 
-        res = self.client.delete(reverse_tag_detail(tag.slug))
-
+        res = self.client.delete(reverse_tag_detail(tag.slug), follow=True)
         self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
 
         tags = models.Tag.objects.filter(id=tag.id).exists()

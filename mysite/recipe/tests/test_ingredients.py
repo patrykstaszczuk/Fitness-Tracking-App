@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 
-from rest_framework.test import APIClient
+from rest_framework.test import APIClient, APIRequestFactory
 from rest_framework import status
 
 from recipe import models
@@ -68,6 +68,7 @@ class PrivateIngredientApiTests(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
         self.unit = models.Unit.objects.create(name='gram')
+        self.request = APIRequestFactory().get('/')
 
     def test_retrieve_ingredients(self):
         """ test retrieving ingredients tags """
@@ -77,7 +78,7 @@ class PrivateIngredientApiTests(TestCase):
 
         res = self.client.get(INGREDIENTS_URL)
         ingredients = models.Ingredient.objects.all().order_by('-name')
-        serializer = IngredientSerializer(ingredients, many=True)
+        serializer = IngredientSerializer(ingredients, many=True, context={'request': self.request})
 
         self.assertTrue(res.status_code, status.HTTP_200_OK)
         self.assertTrue(res.data, serializer.data)
@@ -104,7 +105,7 @@ class PrivateIngredientApiTests(TestCase):
 
         res = self.client.get(ingredient_detail_url(ingredient.slug))
 
-        serializer = IngredientSerializer(ingredient)
+        serializer = IngredientSerializer(ingredient, context={'request': self.request})
 
         self.assertEqual(res.data, serializer.data)
 
@@ -129,7 +130,7 @@ class PrivateIngredientApiTests(TestCase):
 
         res = self.client.get(ingredient_detail_url(ingredient.slug))
 
-        serializer = IngredientSerializer(ingredient)
+        serializer = IngredientSerializer(ingredient, context={'request': self.request})
 
         self.assertEqual(res.data, serializer.data)
 
@@ -256,7 +257,7 @@ class PrivateIngredientApiTests(TestCase):
 
         all_units = models.Unit.objects.all()
 
-        serializer = UnitSerializer(all_units, many=True)
+        serializer = UnitSerializer(all_units, many=True, context={'request': self.request})
 
         self.assertEqual(res.data, serializer.data)
 
@@ -267,7 +268,7 @@ class PrivateIngredientApiTests(TestCase):
 
         res = self.client.get(ingredient_detail_url(ing.slug))
 
-        self.assertEqual(res.json()['available_units'][0]['unit'], self.unit.id)
+        self.assertEqual(res.json()['data']['available_units'][0]['unit'], self.unit.id)
 
     def test_retrieve_available_units_for_ingredient(self):
         """ test retrieving all units set to ingredient """
@@ -279,8 +280,8 @@ class PrivateIngredientApiTests(TestCase):
 
         res = self.client.get(ingredient_detail_url(ing.slug))
         all_units = models.Ingredient_Unit.objects.filter(ingredient=ing)
-        serializer = IngredientUnitSerializer(all_units, many=True)
-        self.assertEqual(res.json()['available_units'], serializer.data)
+        serializer = IngredientUnitSerializer(all_units, many=True, context={'request': self.request})
+        self.assertEqual(res.json()['data']['available_units'], serializer.data)
 
     def test_create_ingredient_unit_mapping(self):
         """ test creating mapping for new ingredient """
@@ -333,8 +334,7 @@ class PrivateIngredientApiTests(TestCase):
         res = self.client.patch(ingredient_detail_url(ing.slug), payload,
                                 format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-
-        self.assertEqual(res.json()['available_units'][1]['grams_in_one_unit'],
+        self.assertEqual(res.json()['data']['available_units'][1]['grams_in_one_unit'],
                          100)
     # @patch('uuid.uuid4')
     # def test_recipe_file_name_uuid(self, mock_uuid):
