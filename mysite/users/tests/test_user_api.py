@@ -2,11 +2,13 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 
-from rest_framework.test import APIClient
+from rest_framework.test import APIClient, APIRequestFactory
 from rest_framework import status
 
 from users import serializers
 from users import models
+
+from rest_framework.authtoken.models import Token
 
 
 CREATE_USER_URL = reverse('users:create')
@@ -201,6 +203,33 @@ class PrivateUserApiTests(TestCase):
         """ test that post is not allowed on the profile url """
         res = self.client.post(ME_URL, {})
         self.assertEqual(res.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    # def test_redirect_to_profile_page_when_access_create_page(self):
+    #     """ test redirecting to profile page when already authenticated user
+    #      trying to access create new user page """
+    #
+    #     token = Token.objects.create(key='123456', user=self.user)
+    #     res = self.client.get(CREATE_USER_URL, headers={'HTTP_AUTHORIZATION': f'Token {token}'})
+    #     self.assertEqual(res.status_code, status.HTTP_303_SEE_OTHER)
+    #     self.assertIn('location', res._headers)
+    #
+    # def test_redirect_to_profile_page_when_access_create_page_post(self):
+    #     """ test redirecting authenticated user to profile page when trying
+    #      to post on create new user page """
+    #
+    #     payload = {
+    #          'email': 'test@gmail.com',
+    #          'password': 'testpass',
+    #          'name': 'testname',
+    #          'height': '185',
+    #          'weight': '85',
+    #          'age': '25',
+    #          'sex': 'Male'
+    #      }
+    #
+    #     res = self.client.post(CREATE_USER_URL, payload, foramt='json')
+    #     self.assertEqual(res.status_code, status.HTTP_303_SEE_OTHER)
+    #     self.assertIn('location', res._headers)
 
     def test_update_user_profile(self):
         """ test updating the user profile for authenticated user """

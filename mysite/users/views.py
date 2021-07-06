@@ -1,13 +1,11 @@
 from rest_framework import generics, authentication, permissions, status
 from rest_framework.authtoken.views import ObtainAuthToken
-from rest_framework.settings import api_settings
-from rest_framework.viewsets import ModelViewSet, GenericViewSet, ViewSetMixin
-from rest_framework.views import APIView
+from rest_framework.viewsets import GenericViewSet
 from rest_framework.response import Response
 from rest_framework import mixins
 from users import models
 from users import serializers
-from rest_framework.reverse import reverse, reverse_lazy
+from rest_framework.reverse import reverse
 from users.serializers import UserSerializer, AuthTokenSerializer, \
                              UserChangePasswordSerializer
 from rest_framework.decorators import action
@@ -57,9 +55,38 @@ class CreateUserView(RequiredFieldsResponseMessage, generics.CreateAPIView,
         return response
 
     def get(self, request, *args, **kwargs):
-        """ return response wiht required fields """
+        """ redirect to profile page if token provided and valid """
+        if self._check_if_token_provided(request):
+            return self._redirect_to_profile_page()
         self.get_serializer()
         return Response(data=None, status=status.HTTP_200_OK)
+
+    def post(self, request, *args, **kwargs):
+        """ redirect to profile page if token provided and valid """
+        if self._check_if_token_provided(request):
+            return self._redirect_to_profile_page()
+        return self.create(request, *args, **kwargs)
+
+    def _check_if_token_provided(self, request):
+        """ redirect user to profile page when accesing as authenticated
+        user """
+        token_provided = request.META.get('HTTP_AUTHORIZATION')
+        if token_provided:
+            token = request.META['HTTP_AUTHORIZATION']
+            try:
+                token = token.split(" ")
+                Token.objects.select_related('user').get(key=token[1])
+                return True
+            except authentication.Token.DoesNotExist:
+                pass
+        return False
+
+    def _redirect_to_profile_page(self):
+        """ redirect to profile page """
+        headers = {}
+        headers['Location'] = reverse('users:profile')
+        return Response(data=None, status=status.HTTP_303_SEE_OTHER,
+                        headers=headers)
 
 
 class CreateTokenView(RequiredFieldsResponseMessage, ObtainAuthToken):
