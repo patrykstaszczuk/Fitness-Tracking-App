@@ -10,12 +10,14 @@ class CustomRenderer(BrowsableAPIRenderer, JSONRenderer):
     def render(self, data, accepted_media_type=None, renderer_context=None):
 
         links = renderer_context.get('links')
+        required = renderer_context.get('required')
         status_code = renderer_context['response'].status_code
         response = {
           "status": "success",
           "code": status_code,
           "data": data,
           "message": None,
+          "required": required,
           "_links": links
         }
 

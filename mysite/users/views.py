@@ -1,7 +1,8 @@
 from rest_framework import generics, authentication, permissions, status
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.settings import api_settings
-from rest_framework.viewsets import ModelViewSet, GenericViewSet
+from rest_framework.viewsets import ModelViewSet, GenericViewSet, ViewSetMixin
+from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import mixins
 from users import models
@@ -15,7 +16,36 @@ from rest_framework.authtoken.models import Token
 from mysite.renderers import CustomRenderer
 
 
-class CreateUserView(generics.CreateAPIView):
+def get_serializer_required_fields(serializer):
+    """ return fields names which are required """
+    try:
+        return [f for f, v in serializer.get_fields().items() if getattr(v, 'required', True)]
+    except AttributeError:
+        return None
+
+
+class RequiredFieldsResponseMessage(generics.RetrieveAPIView):
+    """ create custom init for descendants """
+
+    def get_serializer(self, *args, **kwargs):
+        """ set serializers required fields private variable """
+        serializer = super().get_serializer(*args, **kwargs)
+        self._serializer_required_fields = get_serializer_required_fields(serializer)
+        return serializer
+
+    def get_renderer_context(self):
+        """ add links to response """
+        context = super().get_renderer_context()
+        context['required'] = self._serializer_required_fields
+        return context
+
+    def __init__(self, *args, **kwargs):
+        self._serializer_required_fields = []
+        super().__init__(*args, **kwargs)
+
+
+class CreateUserView(RequiredFieldsResponseMessage, generics.CreateAPIView,
+                     ):
     """ Create a new user in the system """
     serializer_class = UserSerializer
     renderer_classes = [CustomRenderer, ]
@@ -26,8 +56,13 @@ class CreateUserView(generics.CreateAPIView):
         response['Location'] = reverse('users:token', request=request)
         return response
 
+    def get(self, request, *args, **kwargs):
+        """ return response wiht required fields """
+        self.get_serializer()
+        return Response(data=None, status=status.HTTP_200_OK)
 
-class CreateTokenView(ObtainAuthToken):
+
+class CreateTokenView(RequiredFieldsResponseMessage, ObtainAuthToken):
     """ create a new auth token for user """
     serializer_class = AuthTokenSerializer
     renderer_classes = [CustomRenderer, ]
@@ -39,7 +74,8 @@ class CreateTokenView(ObtainAuthToken):
         return response
 
 
-class ManageUserView(generics.RetrieveUpdateAPIView):
+class ManageUserView(RequiredFieldsResponseMessage,
+                      generics.RetrieveUpdateAPIView):
     """ manage the authenticated user """
     serializer_class = UserSerializer
     authentication_classes = (authentication.TokenAuthentication, )
@@ -55,7 +91,9 @@ class ManageUserView(generics.RetrieveUpdateAPIView):
         fields = ('email', 'name', 'age', 'sex', 'height', 'weight')
         kwargs['context'] = self.get_serializer_context()
         kwargs['fields'] = fields
-        return serializer_class(*args, **kwargs)
+        serializer = serializer_class(*args, **kwargs)
+        self._serializer_required_fields = get_serializer_required_fields(serializer)
+        return serializer
 
     def get_renderer_context(self):
         """ add links to response """
@@ -65,10 +103,11 @@ class ManageUserView(generics.RetrieveUpdateAPIView):
             'groups': reverse('users:group-list', request=self.request)
         }
         context['links'] = links
+        context['required'] = self._serializer_required_fields
         return context
 
-
-class ChangeUserPasswordView(generics.UpdateAPIView):
+class ChangeUserPasswordView(RequiredFieldsResponseMessage,
+                             generics.UpdateAPIView):
     """ update user password view """
     serializer_class = UserChangePasswordSerializer
     authentication_classes = (authentication.TokenAuthentication, )
@@ -85,9 +124,14 @@ class ChangeUserPasswordView(generics.UpdateAPIView):
         response['Location'] = reverse('users:profile', request=request)
         return response
 
+    def get(self, request, *args, **kwargs):
+        """ return response wiht required fields """
+        self.get_serializer()
+        return Response(data=None, status=status.HTTP_200_OK)
 
-class GroupViewSet(GenericViewSet, mixins.UpdateModelMixin,
-                   mixins.ListModelMixin):
+
+class GroupViewSet(RequiredFieldsResponseMessage, GenericViewSet,
+                   mixins.UpdateModelMixin,  mixins.ListModelMixin):
     """ Manage Group in database """
     queryset = models.Group.objects.all()
     serializer_class = serializers.GroupSerializer
@@ -124,19 +168,38 @@ class GroupViewSet(GenericViewSet, mixins.UpdateModelMixin,
 
     def get_renderer_context(self):
         """ add links to response """
+
         context = super().get_renderer_context()
-        links = {
-            'manage-invitation': reverse('users:group-manage-invitation', request=self.request),
-            'send-group-invitation': reverse('users:group-send-invitation',
-                                             request=self.request)
-        }
+        links = {}
+        if self.action == 'manage_invitation':
+            links.update(
+                {'send-group-invitation': reverse('users:group-send-invitation',
+                                                 request=self.request),
+                'groups': reverse('users:group-list', request=self.request)}
+            )
+        elif self.action == 'send_invitation':
+            links.update(
+                {'manage-invitation': reverse('users:group-manage-invitation',
+                                                 request=self.request),
+                'groups': reverse('users:group-list', request=self.request)}
+            )
+        else:
+            links.update(
+                {'manage-invitation': reverse('users:group-manage-invitation', request=self.request),
+                'send-group-invitation': reverse('users:group-send-invitation',
+                                                 request=self.request)}
+            )
         context['links'] = links
         return context
 
-    @action(methods=['POST'], detail=False,
+    @action(methods=['GET', 'POST'], detail=False,
             url_path='send-group-invitation')
     def send_invitation(self, request):
         """ send group invitation to other users """
+
+        if not request.data:
+            serializer = self.get_serializer()
+            return Response(status=status.HTTP_200_OK)
 
         group = self.get_object()
         serializer = self.get_serializer(group, request.data)
