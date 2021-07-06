@@ -112,6 +112,12 @@ class PrivateRecipeApiTests(APITestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
 
+    def test_retrieve_required_fields_for_recipe_creation(self):
+        """ test required fields in GET response on recipe-list url """
+
+        res = self.client.get(RECIPE_URL)
+        self.assertNotEqual(res.json()['required'], None)
+
     def test_recipes_limited_to_user(self):
         """ test retrieving recipes for user """
         user2 = sample_user()

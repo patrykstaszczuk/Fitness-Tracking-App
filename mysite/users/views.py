@@ -12,34 +12,7 @@ from rest_framework.decorators import action
 from rest_framework.authtoken.models import Token
 
 from mysite.renderers import CustomRenderer
-
-
-def get_serializer_required_fields(serializer):
-    """ return fields names which are required """
-    try:
-        return [f for f, v in serializer.get_fields().items() if getattr(v, 'required', True)]
-    except AttributeError:
-        return None
-
-
-class RequiredFieldsResponseMessage(generics.RetrieveAPIView):
-    """ create custom init for descendants """
-
-    def get_serializer(self, *args, **kwargs):
-        """ set serializers required fields private variable """
-        serializer = super().get_serializer(*args, **kwargs)
-        self._serializer_required_fields = get_serializer_required_fields(serializer)
-        return serializer
-
-    def get_renderer_context(self):
-        """ add links to response """
-        context = super().get_renderer_context()
-        context['required'] = self._serializer_required_fields
-        return context
-
-    def __init__(self, *args, **kwargs):
-        self._serializer_required_fields = []
-        super().__init__(*args, **kwargs)
+from mysite.views import RequiredFieldsResponseMessage, get_serializer_required_fields
 
 
 class CreateUserView(RequiredFieldsResponseMessage, generics.CreateAPIView,
@@ -100,6 +73,11 @@ class CreateTokenView(RequiredFieldsResponseMessage, ObtainAuthToken):
         response['Location'] = reverse('users:profile', request=request)
         return response
 
+    def get(self, request, *args, **kwargs):
+        """ return custom response format based on serializer """
+        self.get_serializer()
+        return Response(data=None, status=status.HTTP_200_OK)
+
 
 class ManageUserView(RequiredFieldsResponseMessage,
                       generics.RetrieveUpdateAPIView):
@@ -133,6 +111,7 @@ class ManageUserView(RequiredFieldsResponseMessage,
         context['required'] = self._serializer_required_fields
         return context
 
+
 class ChangeUserPasswordView(RequiredFieldsResponseMessage,
                              generics.UpdateAPIView):
     """ update user password view """
@@ -152,7 +131,7 @@ class ChangeUserPasswordView(RequiredFieldsResponseMessage,
         return response
 
     def get(self, request, *args, **kwargs):
-        """ return response wiht required fields """
+        """ return custom message format based on serializer """
         self.get_serializer()
         return Response(data=None, status=status.HTTP_200_OK)
 

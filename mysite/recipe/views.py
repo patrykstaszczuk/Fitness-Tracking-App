@@ -1,4 +1,5 @@
 from rest_framework.decorators import action
+from rest_framework.reverse import reverse
 from rest_framework import viewsets, status, mixins
 from rest_framework.response import Response
 from rest_framework.authentication import TokenAuthentication
@@ -10,9 +11,10 @@ from django.shortcuts import get_object_or_404
 from django.http import Http404
 
 from mysite.renderers import CustomRenderer
+from mysite.views import RequiredFieldsResponseMessage
 
 
-class BaseRecipeAttrViewSet(viewsets.ModelViewSet):
+class BaseRecipeAttrViewSet(RequiredFieldsResponseMessage, viewsets.ModelViewSet):
     """ Base viewset for user owned recipe atributes """
     authentication_classes = (TokenAuthentication, )
     permission_classes = (IsAuthenticated, )
@@ -65,6 +67,27 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
             return serializers.RecipeImageSerializer
         return self.serializer_class
 
+    def get_renderer_context(self):
+        """ override for extra links """
+        context = super().get_renderer_context()
+
+        if self.action == 'retrieve':
+            slug = self.kwargs.get('slug')
+            links = {
+                'recipes-list': reverse('recipe:recipe-list', request=self.request),
+                'availabe-units': reverse('recipe:units', request=self.request),
+                'send_to_nozbe': reverse('recipe:recipe-send-to-nozbe',
+                                         args=[slug], request=self.request),
+                'upload_image': reverse('recipe:recipe-upload-image',
+                                        args=[slug], request=self.request),
+            }
+        else:
+            links = {
+                'availabe-units': reverse('recipe:units', request=self.request)
+            }
+        context['links'] = links
+        return context
+
     def _validate_ingredients(self, ingredients):
         """ validate that passed ingredient slug's can be mapped to models
          object"""
@@ -74,8 +97,9 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
             return ingredient_queryset
         return Response(status.HTTP_400_BAD_REQUEST)
 
-    @action(methods=['PUT'], detail=True, url_path='dodaj-do-nozbe')
+    @action(methods=['PUT'], detail=True, url_path='add-to-nozbe')
     def send_to_nozbe(self, request, slug=None):
+        """ send provided ingredients to nozbe """
 
         ingredients = self._validate_ingredients(request.data)
 
@@ -85,9 +109,10 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
                                                       context={'request': request})
         return Response(serializer.data)
 
-    @action(methods=['POST', 'GET'], detail=True, url_path='dodaj-zdjecie')
+    @action(methods=['POST', 'GET'], detail=True, url_path='add-photos')
     def upload_image(self, request, slug=None):
         """ upload an image to a recipe """
+
         recipe = self.get_object()
         serializer = self.get_serializer(
             recipe,
@@ -164,7 +189,9 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
         return instances_list
 
 
-class RecipeDetailViewSet(viewsets.GenericViewSet, mixins.RetrieveModelMixin):
+class RecipeDetailViewSet(RequiredFieldsResponseMessage,
+                          viewsets.GenericViewSet,
+                          mixins.RetrieveModelMixin):
     """ Detail View for handling group recipes detail. Only GET is allowed,
     becouse user is not allowed to modify other users recipe. If user wants
     to modify his own recipe he must go to standard detail recipe url

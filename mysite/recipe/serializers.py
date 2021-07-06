@@ -250,6 +250,7 @@ class RecipeDetailSerializer(RecipeSerializer):
 
     ingredients = RecipeIngredientSerializer(many=True, write_only=False,
                                              source='ingredients_quantity',
+                                             required=False
                                              )
 
     class Meta:
