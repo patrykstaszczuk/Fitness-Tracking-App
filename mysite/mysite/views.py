@@ -8,7 +8,7 @@ from rest_framework import generics
 def api_root(request, format=None):
     return Response({
         'account': reverse('users:profile', request=request, format=format),
-        'fitness': reverse('health:health-diary', request=request, format=format),
+        'fitness': reverse('health:dashboard', request=request, format=format),
         'meals-tracker': reverse('meals_tracker:api-root', request=request, format=format),
         'food': reverse('recipe:api-root', request=request, format=format),
     })
@@ -17,7 +17,11 @@ def api_root(request, format=None):
 def get_serializer_required_fields(serializer):
     """ return fields names which are required """
     try:
-        return [f for f, v in serializer.get_fields().items() if getattr(v, 'required', True)]
+        list = [f for f, v in serializer.get_fields().items()
+                if getattr(v, 'required', True)]
+        if not list:
+            return None
+        return list
     except AttributeError:
         return None
 
@@ -35,10 +39,11 @@ class RequiredFieldsResponseMessage(generics.RetrieveAPIView):
         """ add links to response """
         context = super().get_renderer_context()
         context['required'] = self._serializer_required_fields
+        app_name = self.request.resolver_match.app_name
         if hasattr(self, 'action') and self.basename is not None:
             if self.action == 'retrieve':
                 links = {
-                    f'{self.basename}-list': reverse(f'recipe:{self.basename}-list',
+                    f'{self.basename}-list': reverse(f'{app_name}:{self.basename}-list',
                                                      request=self.request),
                 }
             else:
@@ -47,5 +52,5 @@ class RequiredFieldsResponseMessage(generics.RetrieveAPIView):
         return context
 
     def __init__(self, *args, **kwargs):
-        self._serializer_required_fields = []
+        self._serializer_required_fields = None
         super().__init__(*args, **kwargs)
