@@ -10,12 +10,13 @@ app_name = 'health'
 
 urlpatterns = [
     path('bmi/', views.BmiViewSet.as_view({'get': 'retrieve'}), name='bmi'),
-    path('', views.HealthDiary.as_view({'get': 'retrieve',
+    path('daily/', views.HealthDiary.as_view({'get': 'retrieve',
                                                'post': 'create',
                                                'put': 'update',
-                                               'patch': 'update'}),
+                                               'patch': 'update'},),
          name='health-diary'),
-    path('raporty/', include(router.urls)),
-    path('podsumowanie-tygodnia', views.HealthWeeklySummary,
+    path('raports/', include(router.urls)),
+    path('weekly-summary/', views.HealthWeeklySummary.as_view(),
          name='weekly-summary'),
+    path('', views.Dashboard.as_view(), name='dashboard')
 ]

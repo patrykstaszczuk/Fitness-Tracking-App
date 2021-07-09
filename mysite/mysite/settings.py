@@ -51,10 +51,12 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework.authtoken',
     'corsheaders',
+    'django_extensions',
     'core',
     'users',
     'recipe',
     'health',
+    'meals_tracker'
 ]
 
 MIDDLEWARE = [

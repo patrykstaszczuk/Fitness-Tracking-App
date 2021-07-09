@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 
-from rest_framework.test import APIClient, APITestCase
+from rest_framework.test import APIClient, APITestCase, APIRequestFactory
 from rest_framework import status
 
 from recipe import models
@@ -16,7 +16,7 @@ from users import models as user_models
 RECIPE_URL = reverse('recipe:recipe-list')
 
 
-def detail_url(recipe_slug):
+def recipe_detail_url(recipe_slug):
     """ return recile detail URL """
     return reverse('recipe:recipe-detail', kwargs={'slug': recipe_slug})
 
@@ -31,7 +31,6 @@ def sample_recipe(user, **params):
     """ create and return a sample recipe """
     defaults = {
         'name': 'Danie testowe',
-        'calories': 1000,
         'prepare_time': 50,
         'portions': 4,
         'description': "Opis dania testowego"
@@ -46,9 +45,14 @@ def sample_tag(user, name):
     return models.Tag.objects.create(user=user, name=name)
 
 
-def sample_ingredient(user, name):
+def sample_ingredient(**values):
     """ create sample ingredeint """
-    return models.Ingredient.objects.create(user=user, name=name)
+    return models.Ingredient.objects.create(**values)
+
+
+def sample_unit(name, short_name):
+    """ crete sample unit """
+    return models.Unit.objects.create(name=name, short_name=short_name)
 
 
 def sample_user(email='user2@gmail.com', name='testusername'):
@@ -92,6 +96,8 @@ class PrivateRecipeApiTests(APITestCase):
         self.client.force_authenticate(self.user)
 
         self.user_tag = sample_tag(self.user, 'Tag testowy')
+        self.unit = sample_unit(name='gram', short_name='g')
+        self.request = APIRequestFactory().get('/')
 
     def test_retrieve_recipes(self):
         """ test retrieving a list of recipes """
@@ -100,12 +106,17 @@ class PrivateRecipeApiTests(APITestCase):
             'name': 'test'
         }
         sample_recipe(self.user, **params)
-
         res = self.client.get(RECIPE_URL)
         recipes = models.Recipe.objects.all().order_by('-name')
-        serializer = RecipeSerializer(recipes, many=True)
+        serializer = RecipeSerializer(recipes, many=True, context={'request': self.request})
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
+
+    def test_retrieve_required_fields_for_recipe_creation(self):
+        """ test required fields in GET response on recipe-list url """
+
+        res = self.client.get(RECIPE_URL)
+        self.assertNotEqual(res.json()['required'], None)
 
     def test_recipes_limited_to_user(self):
         """ test retrieving recipes for user """
@@ -116,7 +127,7 @@ class PrivateRecipeApiTests(APITestCase):
         res = self.client.get(RECIPE_URL)
 
         recipes = models.Recipe.objects.filter(user=self.user)
-        serializer = RecipeSerializer(recipes, many=True)
+        serializer = RecipeSerializer(recipes, many=True, context={'request': self.request})
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(len(res.data), 1)
@@ -140,9 +151,9 @@ class PrivateRecipeApiTests(APITestCase):
         user4_recipe = sample_recipe(user4)
 
         user2_recipe.tags.add(sample_tag(user2, 'vege'))
-        user2_recipe.ingredients.add(sample_ingredient(user2, 'cukinia'))
+        user2_recipe.ingredients.add(sample_ingredient(user=user2, name='cukinia'))
         user3_recipe.tags.add(sample_tag(user3, 'vege'))
-        user3_recipe.ingredients.add(sample_ingredient(user3, 'cukinia'))
+        user3_recipe.ingredients.add(sample_ingredient(user=user3, name='cukinia'))
 
         group_user2 = user_models.Group.objects.get(founder=user2)
         group_user3 = user_models.Group.objects.get(founder=user3)
@@ -154,8 +165,8 @@ class PrivateRecipeApiTests(APITestCase):
         user2_recipe = models.Recipe.objects.get(user=user2)
         user3_recipe = models.Recipe.objects.get(user=user3)
         serializer_recipes = RecipeSerializer([user2_recipe, user3_recipe],
-                                              many=True)
-        serializer_recipe_user4 = RecipeSerializer([user4_recipe, ], many=True)
+                                              many=True, context={'request': self.request})
+        serializer_recipe_user4 = RecipeSerializer([user4_recipe, ], many=True, context={'request': self.request})
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertIn(serializer_recipes.data[0], res.data)
@@ -165,12 +176,12 @@ class PrivateRecipeApiTests(APITestCase):
         """ test viewing a recipe detail """
         recipe = sample_recipe(user=self.user)
         recipe.tags.add(sample_tag(self.user, 'vege'))
-        recipe.ingredients.add(sample_ingredient(self.user, 'szpinak'))
+        recipe.ingredients.add(sample_ingredient(user=self.user, name='szpinak'))
 
-        url = detail_url(recipe.slug)
+        url = recipe_detail_url(recipe.slug)
 
         res = self.client.get(url)
-        serializer = RecipeDetailSerializer(recipe)
+        serializer = RecipeDetailSerializer(recipe, context={'request': self.request})
 
         self.assertEqual(res.data, serializer.data)
 
@@ -184,7 +195,7 @@ class PrivateRecipeApiTests(APITestCase):
         self.user.membership.add(group)
         url = detail_group_url(recipe.slug, user2.id)
         res = self.client.get(url)
-        serializer = RecipeDetailSerializer(recipe)
+        serializer = RecipeDetailSerializer(recipe, context={'request': self.request})
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
 
@@ -201,7 +212,7 @@ class PrivateRecipeApiTests(APITestCase):
 
         url = detail_group_url(recipe_user2.slug, user2.id)
         res = self.client.get(url)
-        serializer = RecipeDetailSerializer(recipe_user2)
+        serializer = RecipeDetailSerializer(recipe_user2, context={'request': self.request})
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
 
@@ -213,7 +224,7 @@ class PrivateRecipeApiTests(APITestCase):
         }
         res = self.client.post(RECIPE_URL, payload)
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-        recipe = models.Recipe.objects.get(id=res.data['id'])
+        recipe = models.Recipe.objects.get(slug=res.data['slug'])
 
         for key in payload.keys():
             self.assertEqual(payload[key], getattr(recipe, key))
@@ -232,7 +243,7 @@ class PrivateRecipeApiTests(APITestCase):
         res = self.client.post(RECIPE_URL, payload)
 
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-        recipe = models.Recipe.objects.get(id=res.data['id'])
+        recipe = models.Recipe.objects.get(slug=res.data['slug'])
         tags = recipe.tags.all()
 
         self.assertEqual(len(tags), 2)
@@ -249,17 +260,19 @@ class PrivateRecipeApiTests(APITestCase):
             'tags': [tag.slug, ],
             "ingredients": [{
                 "ingredient": ingredient1.slug,
-                "quantity": "2kg"
+                'amount': '2',
+                'unit': self.unit.id
             }, {
                 "ingredient": ingredient2.slug,
-                "quantity": "2kg"
+                'amount': '2',
+                'unit': self.unit.id
             }, ],
             'description': "opis dania",
         }
 
         res = self.client.post(RECIPE_URL, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-        recipe = models.Recipe.objects.get(id=res.data['id'])
+        recipe = models.Recipe.objects.get(slug=res.data['slug'])
 
         recipe_ingredient = models.Recipe_Ingredient.objects.filter(
             recipe=recipe
@@ -275,8 +288,8 @@ class PrivateRecipeApiTests(APITestCase):
     def test_create_multi_recipes_for_multi_users(self):
         """ create multi recipes for multi users """
         user2 = sample_user()
-        ingredient_self_user = sample_ingredient(self.user, 'Szpinak')
-        ingredient_user2 = sample_ingredient(user2, 'Czonsek')
+        ingredient_self_user = sample_ingredient(user=self.user, name='Szpinak')
+        ingredient_user2 = sample_ingredient(user=user2, name='Czonsek')
 
         tag_self_user = sample_tag(self.user, 'Vege')
         tag_user2 = sample_tag(user2, 'Vegetarian')
@@ -291,7 +304,8 @@ class PrivateRecipeApiTests(APITestCase):
             'tags': [tag_self_user.slug, ],
             "ingredients": [{
                 "ingredient": ingredient_self_user.slug,
-                "quantity": "2kg"
+                'amount': '2',
+                'unit': self.unit.id
             }, ],
             'description': "opis dania",
         }
@@ -317,7 +331,7 @@ class PrivateRecipeApiTests(APITestCase):
         """ test updating a recipe with PATCH """
         recipe = sample_recipe(user=self.user)
         recipe.tags.add(sample_tag(user=self.user, name='Vege'))
-        recipe.ingredients.add(sample_ingredient(self.user, 'Cukinia'))
+        recipe.ingredients.add(sample_ingredient(user=self.user, name='Cukinia'))
 
         new_tag = sample_tag(user=self.user, name='Curry')
 
@@ -325,7 +339,7 @@ class PrivateRecipeApiTests(APITestCase):
             'name': 'Nowe danie testowe',
             'tags': [new_tag.slug, ]
         }
-        url = detail_url(recipe.slug)
+        url = recipe_detail_url(recipe.slug)
         self.client.patch(url, payload)
 
         recipe.refresh_from_db()
@@ -334,11 +348,33 @@ class PrivateRecipeApiTests(APITestCase):
         self.assertEqual(len(tags), 1)
         self.assertIn(new_tag, tags)
 
+    def test_partial_recipe_update_failed(self):
+        """ test partial update with put request """
+
+        recipe = sample_recipe(user=self.user, name='test')
+        recipe.tags.add(sample_tag(user=self.user, name='Bege'))
+        recipe.ingredients.add(sample_ingredient(user=self.user,
+                                                 name='Cukinia'))
+
+        payload = {
+            'ingredients': [
+                {
+                    'ingredient': sample_ingredient(user=self.user, name='Test').slug,
+                    'amount': 20,
+                    'unit': self.unit.id
+                }
+            ]
+        }
+
+        res = self.client.put(recipe_detail_url(recipe.slug), payload,
+                              format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_full_recipe_update(self):
         """ test updating a recipe with put """
         recipe = sample_recipe(user=self.user)
         recipe.tags.add(sample_tag(self.user, name='Vege'))
-        recipe.ingredients.add(sample_ingredient(self.user, 'Cukinia'))
+        recipe.ingredients.add(sample_ingredient(user=self.user, name='Cukinia'))
 
         new_ing = models.Ingredient.objects.create(
             user=self.user,
@@ -357,16 +393,19 @@ class PrivateRecipeApiTests(APITestCase):
             'tags': [new_tag.slug, ],
             "ingredients": [{
                 "ingredient": new_ing.slug,
-                "quantity": "10 łyżek"
+                'amount': '2',
+                'unit': self.unit.id
             }, {
                 "ingredient": new_ing2.slug,
-                "quantity": "10 łyżek"
+                'amount': '2',
+                'unit': self.unit.id
             },
             ],
             'description': "opis dania 2",
         }
-        url = detail_url(recipe.slug)
-        self.client.put(url, payload, format='json')
+        url = recipe_detail_url(recipe.slug)
+        res = self.client.put(url, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
         recipe.refresh_from_db()
         self.assertEqual(recipe.name, payload['name'])
         self.assertEqual(recipe.description, payload['description'])
@@ -387,11 +426,12 @@ class PrivateRecipeApiTests(APITestCase):
             'tags': [tag.slug, ],
             "ingredients": [{
                 "ingredient": 'new_ingredient',
-                "quantity": "10 łyżek"
+                'amount': '2',
+                'unit': self.unit.id
             }, ],
             'description': "opis dania 2",
         }
-        url = detail_url(recipe.slug)
+        url = recipe_detail_url(recipe.slug)
         res = self.client.put(url, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertTrue(models.Ingredient.objects.all().count(), 1)
@@ -407,7 +447,7 @@ class PrivateRecipeApiTests(APITestCase):
             'tags': [tag.slug, ],
             'description': "opis dania 2",
         }
-        url = detail_url(recipe.slug)
+        url = recipe_detail_url(recipe.slug)
         res = self.client.put(url, payload, format='json')
 
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
@@ -422,7 +462,7 @@ class PrivateRecipeApiTests(APITestCase):
         group = user_models.Group.objects.get(founder=user2)
         self.user.membership.add(group)
 
-        serializer = RecipeDetailSerializer(recipe)
+        serializer = RecipeDetailSerializer(recipe, context={'request': self.request})
         res = self.client.get(detail_group_url(recipe.slug, user2.id))
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
@@ -440,7 +480,7 @@ class PrivateRecipeApiTests(APITestCase):
         group = user_models.Group.objects.get(founder=user2)
         self.user.membership.add(group)
 
-        serializer = RecipeDetailSerializer(recipe)
+        serializer = RecipeDetailSerializer(recipe, context={'request': self.request})
         res = self.client.get(detail_group_url(recipe.slug, user2.id))
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
@@ -463,13 +503,15 @@ class PrivateRecipeApiTests(APITestCase):
         user2 = sample_user()
         tag_user2 = sample_tag(user2, 'Tag uzytkownika 2')
         sample_tag(self.user, 'Poprawny Tag')
-        ingredient = sample_ingredient(self.user, 'Czosnek')
+        ingredient = sample_ingredient(user=self.user, name='Czosnek')
 
         payload = {
             'name': 'Nowe danie',
             'tags': [tag_user2.slug, ],
             'ingredient': [
-                {'ingredient': ingredient.slug, 'quantity': '2kg'},
+                {'ingredient': ingredient.slug, 'amount': '2',
+                    'unit': self.unit.id
+                },
             ]
         }
         res = self.client.post(RECIPE_URL, payload)
@@ -484,8 +526,10 @@ class PrivateRecipeApiTests(APITestCase):
             'name': "Nowe danie",
             'tags': [self.user_tag.slug, ],
             'ingredients': [
-                {'ingredient': new_ingredient_name, 'quantity': '2kg'},
-                {'ingredient': new_ingredient2_name, 'quantity': '3kg'}
+                {'ingredient': new_ingredient_name, 'amount': '2',
+                    'unit': self.unit.id},
+                {'ingredient': new_ingredient2_name, 'amount': '2',
+                    'unit': self.unit.id}
             ]
         }
 
@@ -500,17 +544,17 @@ class PrivateRecipeApiTests(APITestCase):
         """ test creating recipe with passing new ingredient name which is
         already used. Test should pass, becouse slug will be modify """
 
-        sample_ingredient(self.user, 'Test')
+        sample_ingredient(user=self.user, name='Test')
         new_ingredient_name = 'Test'
         payload = {
             'name': "Nowe danie",
             'tags': [self.user_tag.slug, ],
             'ingredients': [
-                {'ingredient': new_ingredient_name, 'quantity': '2kg'},
+                {'ingredient': new_ingredient_name, 'amount': '2',
+                    'unit': self.unit.id},
             ]
         }
         res = self.client.post(RECIPE_URL, payload, format='json')
-
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
 
     def test_deleting_recipe(self):
@@ -518,7 +562,7 @@ class PrivateRecipeApiTests(APITestCase):
 
         recipe = sample_recipe(self.user)
 
-        res = self.client.delete(detail_url(recipe.slug))
+        res = self.client.delete(recipe_detail_url(recipe.slug))
 
         self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
 
@@ -534,7 +578,7 @@ class PrivateRecipeApiTests(APITestCase):
         recipe_user1 = sample_recipe(self.user)
         recipe_user2 = sample_recipe(user2)
 
-        res = self.client.delete(detail_url(recipe_user1.slug))
+        res = self.client.delete(recipe_detail_url(recipe_user1.slug))
 
         self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
 
@@ -580,9 +624,9 @@ class PrivateRecipeApiTests(APITestCase):
 
         res = self.client.get(RECIPE_URL, {'tags': f'{tag1.slug},{tag2.slug}'})
 
-        serializer1 = RecipeSerializer(recipe1)
-        serializer2 = RecipeSerializer(recipe2)
-        serializer3 = RecipeSerializer(recipe3)
+        serializer1 = RecipeSerializer(recipe1, context={'request': self.request})
+        serializer2 = RecipeSerializer(recipe2, context={'request': self.request})
+        serializer3 = RecipeSerializer(recipe3, context={'request': self.request})
 
         self.assertIn(serializer1.data, res.data)
         self.assertIn(serializer2.data, res.data)
@@ -617,9 +661,9 @@ class PrivateRecipeApiTests(APITestCase):
         user2_recipe = models.Recipe.objects.get(user=user2)
         user3_recipe = models.Recipe.objects.get(user=user3)
 
-        serializer_self_user = RecipeSerializer(self_user_recipes, many=True)
-        serializer_user2 = RecipeSerializer(user2_recipe)
-        serializer_user3 = RecipeSerializer(user3_recipe)
+        serializer_self_user = RecipeSerializer(self_user_recipes, many=True, context={'request': self.request})
+        serializer_user2 = RecipeSerializer(user2_recipe, context={'request': self.request})
+        serializer_user3 = RecipeSerializer(user3_recipe, context={'request': self.request})
         res = self.client.get(RECIPE_URL, {'groups': f'{group.id}'},
                               format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
@@ -691,6 +735,189 @@ class PrivateRecipeApiTests(APITestCase):
         url = reverse('recipe:recipe-send-to-nozbe', args=[recipe.slug])
 
         res = self.client.put(url, ingredients_list, format='json')
-        serializer = IngredientSerializer([ing1, ing2], many=True)
+        serializer = IngredientSerializer([ing1, ing2], many=True, context={'request': self.request})
         self.assertEqual(res.data, serializer.data)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+    def test_retrieve_recipe_calories_based_on_ingredients(self):
+        """ test auto calculating calories based on recipes ingredients """
+
+        ing1 = sample_ingredient(
+            user=self.user,
+            name='Cukinia',
+            calories=345,
+            potassium=200,
+            iron=50,
+            )
+        ing2 = sample_ingredient(
+            user=self.user,
+            name='Cukinia2',
+            calories=345,
+            potassium=200,
+            iron=50,
+            )
+        ing3 = sample_ingredient(
+            user=self.user,
+            name='Cukinia3',
+            calories=345,
+            potassium=200,
+            iron=50,
+            )
+
+        recipe = sample_recipe(user=self.user, name='Testowa')
+        recipe.ingredients.add(ing1, through_defaults={'amount': 100, 'unit': self.unit})
+        recipe.ingredients.add(ing2, through_defaults={'amount': 100, 'unit': self.unit})
+        recipe.ingredients.add(ing3, through_defaults={'amount': 100, 'unit': self.unit})
+        recipe.refresh_from_db()
+        res = self.client.get(recipe_detail_url(recipe.slug))
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.json()['data']['calories'], ing1.calories + ing2.calories
+                         + ing3.calories)
+
+    def test_retrieving_calories_based_on_ingredients_with_no_portions_set(self):
+        """ test geting 0 calories for ingredients where there is not
+        portion set """
+
+        ing1 = sample_ingredient(
+            user=self.user, name='Test1', calories=100
+        )
+        ing2 = sample_ingredient(
+            user=self.user, name='Test2', calories=300
+        )
+        recipe = sample_recipe(user=self.user, name='Testowy')
+        recipe.ingredients.add(ing1, through_defaults={'amount': 50, 'unit':
+                                                       self.unit})
+        recipe.ingredients.add(ing2)
+        recipe.refresh_from_db()
+        res = self.client.get(recipe_detail_url(recipe.slug))
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.json()['data']['calories'], ing1.calories/2)
+
+    def test_recalculating_calories_during_ingredient_update(self):
+        """ test recalculating calories when recipe's ingredients changes """
+
+        ing1 = sample_ingredient(user=self.user, name='Test', calories=100)
+        ing2 = sample_ingredient(user=self.user, name='Test2', calories=100)
+        ing3 = sample_ingredient(user=self.user, name='Test3', calories=100)
+
+        recipe = sample_recipe(user=self.user, name='Cukinia')
+        recipe.ingredients.add(ing1, through_defaults={'amount': 100, 'unit': self.unit})
+        recipe.ingredients.add(ing2, through_defaults={'amount': 100, 'unit': self.unit})
+        res = self.client.get(recipe_detail_url(recipe.slug))
+        self.assertEqual(res.json()['data']['calories'], ing1.calories + ing2.calories)
+
+        recipe.ingredients.add(ing3, through_defaults={'amount': 100, 'unit': self.unit})
+        res = self.client.get(recipe_detail_url(recipe.slug))
+        self.assertEqual(res.json()['data']['calories'], ing1.calories + ing2.calories +
+                         ing3.calories)
+
+    def test_recalculating_calories_during_ingredient_update_via_api(self):
+        """ test recalculating when ingredients are updated via API """
+
+        ing1 = sample_ingredient(user=self.user, name='Test1', calories=100)
+        ing2 = sample_ingredient(user=self.user, name='Test2', calories=200)
+        ing3 = sample_ingredient(user=self.user, name='Test3', calories=400)
+
+        recipe = sample_recipe(user=self.user, name='Testowy')
+        recipe.ingredients.add(ing1, through_defaults={'amount': 100, 'unit': self.unit})
+        recipe.ingredients.add(ing2, through_defaults={'amount': 100, 'unit': self.unit})
+
+        res = self.client.get(recipe_detail_url(recipe.slug))
+        self.assertEqual(res.json()['data']['calories'], ing1.calories+ing2.calories)
+
+        tag = sample_tag(user=self.user, name='Test')
+        payload = {
+            'tags': [tag.slug, ],
+            'ingredients': [
+                {
+                 'ingredient': ing3.slug,
+                 'amount': 12,
+                 'unit': self.unit.id},
+            ]
+        }
+
+        res = self.client.patch(recipe_detail_url(recipe.slug),
+                                payload, format='json')
+        recipe.refresh_from_db()
+        expected_value_ing3 = payload['ingredients'][0]['amount'] / 100 * \
+            ing3.calories
+        self.assertEqual(res.json()['data']['calories'], ing1.calories+ing2.calories+
+                         expected_value_ing3)
+
+    def test_retrieve_calories_based_on_ingredient_portions(self):
+        """ test amount of calories for given ingredient quantity """
+
+        ing1 = sample_ingredient(user=self.user, name='Cukinia', calories=500)
+
+        recipe = sample_recipe(user=self.user, name='Testowy')
+        recipe.ingredients.add(ing1, through_defaults={'amount': 50,
+                               'unit': self.unit})
+        res = self.client.get(recipe_detail_url(recipe.slug))
+
+        # 50g of ing1
+        expected_value = ing1.calories/2
+        self.assertEqual(res.json()['data']['calories'], expected_value)
+
+    def test_retrive_calories_based_on_ingredient_portions_calories_not_set(self):
+        """ test retrieving calories when ingredient does not have
+        calories set """
+
+        ing1 = sample_ingredient(user=self.user, name='Cukinia')
+
+        recipe = sample_recipe(user=self.user, name='Test')
+        recipe.ingredients.add(ing1, through_defaults={'amount': 50,
+                               'unit': self.unit})
+
+        res = self.client.get(recipe_detail_url(recipe.slug), format='json')
+        self.assertEqual(res.json()['data']['calories'], 0)
+
+    def test_retrieve_calories_based_on_portions_amount_greater_then_100(self):
+        """ test retrieving calories when amount is greater then 100g"""
+
+        ing1 = sample_ingredient(user=self.user, name='Cukinia', calories=500)
+        recipe = sample_recipe(user=self.user, name='Test')
+        recipe.ingredients.add(ing1, through_defaults={'amount': 150,
+                               'unit': self.unit})
+        res = self.client.get(recipe_detail_url(recipe.slug))
+
+        expected_value = (150/100) * ing1.calories
+        self.assertEqual(res.json()['data']['calories'], expected_value)
+
+    def test_retieve_calories_set_by_number_of_spoons(self):
+        """ test retrieving calories from recipe where ingredient portion is
+        set by number of spoons """
+
+        unit = sample_unit(name='spoon', short_name='SP')
+        ing1 = sample_ingredient(user=self.user, name='cukier', calories=400)
+        recipe = sample_recipe(user=self.user, name='Test')
+        models.Ingredient_Unit.objects.create(unit=unit, ingredient=ing1,
+                                              grams_in_one_unit=5)
+        recipe.ingredients.add(ing1, through_defaults={'amount': 2,
+                               'unit': unit})
+
+        res = self.client.get(recipe_detail_url(recipe.slug))
+
+        expected_value = (2*5/100) * ing1.calories
+        # assume that one spoon of sugar weight 5g
+        self.assertEqual(res.json()['data']['calories'], expected_value)
+
+    def test_create_recipe_with_non_default_ingredinet_portions_failed(self):
+        """ test creating recipe with ingredient defined by unit which was not
+        previously set for defined ingredient """
+
+        ingredient = sample_ingredient(user=self.user, name='Test',
+                                       calories='300')
+        non_default_unit = models.Unit.objects.create(name='spoon',
+                                                      short_name='sp')
+        payload = {
+            'name': "Nowe danie",
+            'tags': [self.user_tag.slug, ],
+            'ingredients': [
+                {'ingredient': ingredient.slug, 'amount': '2',
+                    'unit': non_default_unit.id},
+            ]
+        }
+        res = self.client.post(RECIPE_URL, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)

@@ -69,7 +69,7 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
 
     def get_bmi(self):
         """ return calculated bmi """
-        return round(self.weight/(self.height)**2, 1)
+        return round(self.weight/(self.height/100)**2, 1)
 
     def get_memberships(self):
         return self.membership.all()

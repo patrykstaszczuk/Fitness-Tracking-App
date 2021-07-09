@@ -32,13 +32,14 @@ class PrivateRecipeApiTests(TestCase):
         self.client.force_authenticate(user=self.user)\
 
         self.tag = sample_tag('test', self.user)
+        self.unit = models.Unit.objects.create(name='gram', short_name='g')
 
     def test_ingredient_str(self):
         """ test the ingredient string representation """
 
         ingredient = models.Ingredient.objects.create(name='Szpinak',
                                                       user=self.user)
-        ingredient.tag.add(self.tag)
+        ingredient.tags.add(self.tag)
         self.assertEqual(str(ingredient), ingredient.name)
 
     def test_ingredient_slug(self):
@@ -46,7 +47,7 @@ class PrivateRecipeApiTests(TestCase):
 
         ingredient = models.Ingredient.objects.create(name='Biała czekolada',
                                                       user=self.user)
-        ingredient.tag.add(self.tag)
+        ingredient.tags.add(self.tag)
         self.assertEqual(ingredient.slug, 'biala-czekolada')
 
     # def test_same_slug_different_ingredients(self):
@@ -100,8 +101,29 @@ class PrivateRecipeApiTests(TestCase):
         recipe_ingredient = models.Recipe_Ingredient.objects.create(
             recipe=recipe,
             ingredient=ingredient,
-            quantity='2kg'
+            amount='2',
+            unit=self.unit
         )
 
         self.assertEqual(str(recipe_ingredient),
                          f'{recipe.name}_{ingredient.name}')
+
+    def test_retrieve_ingredient_unit_and_calorific_value(self):
+        """ test getting main unit for specific ingredient and amount of
+         calories in 100 units """
+
+        ingredient = models.Ingredient.objects.create(
+            name='Cebula',
+            user=self.user,
+            calories=350
+         )
+
+        self.assertEqual(ingredient.units.all()[0].short_name, 'g')
+        self.assertEqual(ingredient.calories, 350)
+
+    def test_str_unit(self):
+        """ test string representation of unit """
+
+        unit = models.Unit.objects.create(name='gram')
+
+        self.assertEqual(str(unit), unit.name)

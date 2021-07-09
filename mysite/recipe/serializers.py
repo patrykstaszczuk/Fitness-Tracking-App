@@ -1,5 +1,7 @@
 from rest_framework import serializers
-from recipe.models import Ingredient, Tag, Recipe, Recipe_Ingredient
+from recipe.models import Ingredient, Tag, Recipe, Recipe_Ingredient, Unit, \
+    Ingredient_Unit
+from rest_framework import fields
 
 
 def raise_validation_error(instance):
@@ -18,6 +20,14 @@ def check_if_name_is_in_db(instance, queryset):
             raise_validation_error(instance)
 
 
+class UnitSerializer(serializers.ModelSerializer):
+    """ serializer for Unit model """
+
+    class Meta:
+        model = Unit
+        fields = '__all__'
+
+
 class TagSlugRelatedField(serializers.SlugRelatedField):
     """ Filter all returned slug tags by specific user """
 
@@ -27,36 +37,27 @@ class TagSlugRelatedField(serializers.SlugRelatedField):
         return queryset
 
 
-class IngredientSerializer(serializers.ModelSerializer):
-    """ Serializer for ingredient objects """
+class IngredientUnitSerializer(serializers.ModelSerializer):
+    """ Serializer for Ingredient Unit intermediate model """
 
-    tag = TagSlugRelatedField(
-        many=True,
-        slug_field='name',
-        required=False
-    )
+    unit_name = serializers.SerializerMethodField()
 
     class Meta:
-        model = Ingredient
-        fields = ('id', 'name', 'slug', 'user', 'tag')
-        read_only_fields = ('id', 'user', 'slug')
+        model = Ingredient_Unit
+        fields = '__all__'
 
-    def validate_name(self, value):
-        """ check if ingredient with provided name is not already in db """
-        user = self.context['request'].user
-
-        queryset = Ingredient.objects.filter(user=user).filter(name=value)
-        check_if_name_is_in_db(self.instance, queryset)
-
-        return value
-
+    def get_unit_name(self, obj):
+        """ get unit name for ingredient unit mapping information """
+        return obj.unit.name
 
 class TagSerializer(serializers.ModelSerializer):
     """ Serializer for tag objects """
 
+    url = serializers.HyperlinkedIdentityField(view_name='recipe:tag-detail',
+                                               lookup_field='slug')
     class Meta:
         model = Tag
-        fields = ('id', 'user', 'slug', 'name')
+        exclude = ('id',)
         read_only_fields = ('id', 'user', 'slug')
 
     def validate_name(self, value):
@@ -67,6 +68,58 @@ class TagSerializer(serializers.ModelSerializer):
         check_if_name_is_in_db(self.instance, queryset)
 
         return value
+
+
+class IngredientSerializer(serializers.ModelSerializer):
+    """ Serializer for ingredient objects """
+
+    tags = TagSlugRelatedField(
+        many=True,
+        slug_field='name',
+        required=False,
+        write_only=True,
+    )
+    url = serializers.HyperlinkedIdentityField(view_name='recipe:ingredient-detail',
+                                               lookup_field='slug')
+    tag_information = TagSerializer(many=True, source="tags", read_only=True)
+
+    units = IngredientUnitSerializer(many=True, write_only=True, required=False)
+    available_units = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Ingredient
+        exclude = ('_usage_counter', 'id')
+        read_only_fields = ('user', 'slug')
+
+    def get_available_units(self, obj):
+        """ get defined unit for ingredient instance """
+        units = Ingredient_Unit.objects.filter(ingredient=obj)
+        return IngredientUnitSerializer(units, many=True, context={'request': self.context['request']}).data
+
+    def validate_name(self, value):
+        """ check if ingredient with provided name is not already in db """
+        user = self.context['request'].user
+
+        queryset = Ingredient.objects.filter(user=user).filter(name=value)
+        check_if_name_is_in_db(self.instance, queryset)
+
+        return value
+
+    def update(self, instance, validated_data):
+        """ update instance with new unit mapping """
+        units = validated_data.pop('units', None)
+        ingredient = super().update(instance, validated_data)
+
+        if getattr(self.root, 'partial', False) is False:
+            instance.units.clear()
+        if units:
+            for unit in units:
+                Ingredient_Unit.objects.update_or_create(
+                    ingredient=ingredient,
+                    unit=unit['unit'],
+                    defaults={'grams_in_one_unit': unit['grams_in_one_unit']}
+                )
+        return instance
 
 
 class IngredientSlugRelatedField(serializers.SlugRelatedField):
@@ -84,25 +137,52 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
 
     ingredient = IngredientSlugRelatedField(
             slug_field='slug',
-            required=True
+            required=True,
+            write_only=True
     )
+    ingredient_detail = IngredientSerializer(read_only=True,
+                                             source='ingredient')
 
     class Meta:
         model = Recipe_Ingredient
-        fields = ('ingredient', 'quantity')
-        extra_kwargs = {
-                        'quantity': {'required': False},
-                        }
+        fields = ('ingredient', 'ingredient_detail', 'amount', 'unit')
+
+    def validate(self, values):
+        """ validate if all fields are provided in json request and unit
+        validation """
+
+        fields = self.fields
+        fields.pop('ingredient_detail', None)
+        for field in fields:
+            if field not in values:
+                raise serializers.ValidationError(f'{field} have to be set')
+        ingredient = values.get('ingredient')
+
+        unit = values.get('unit')
+        available_units = ingredient.units.all()
+        if unit not in available_units:
+            available_units_names = []
+            for unit in available_units:
+                available_units_names.append(unit.name)
+            raise serializers.ValidationError(f'{unit} is not defined for \
+             {ingredient.name}. Available units: {available_units_names}')
+        return values
 
 
 class RecipeSerializer(serializers.ModelSerializer):
     """ serializer for recipe objects """
 
+    url = serializers.HyperlinkedIdentityField(view_name='recipe:recipe-detail',
+                                               lookup_field='slug')
     tags = TagSlugRelatedField(
         many=True,
         slug_field='slug',
-        required=True
+        required=True,
+        write_only=True
     )
+    tag_detail = TagSerializer(Tag.objects.all(), many=True, source='tags',
+                               read_only=True)
+    # tag_detail = serializers.SerializerMethodField()
     ingredients = RecipeIngredientSerializer(
                                              required=False,
                                              many=True,
@@ -112,8 +192,8 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Recipe
-        fields = '__all__'
-        read_only_fields = ('id', 'user', 'slug', 'photo1', 'photo2', 'photo3')
+        exclude = ('id', )
+        read_only_fields = ('url', 'user', 'slug', 'photo1', 'photo2', 'photo3')
         extra_kwargs = {
             'calories': {'write_only': True},
             'portions': {'write_only': True},
@@ -121,11 +201,13 @@ class RecipeSerializer(serializers.ModelSerializer):
             'description': {'write_only': True}
         }
 
+    def get_tag_detail(self, obj):
+        return TagSerializer(obj.tags.all(), many=True).data
+
     def to_internal_value(self, data):
         """ create ingredient if does not exists in database """
-
-        if data.get('ingredients', None) is not None:
-            ingredients = data.get('ingredients')
+        ingredients = data.get('ingredients', None)
+        if ingredients:
             for list_item in ingredients:
                 obj, created = Ingredient.objects.get_or_create(user=self.user,
                                                                 name=list_item['ingredient'])
@@ -145,6 +227,7 @@ class RecipeSerializer(serializers.ModelSerializer):
         """ Overrided for neasted serializers handling """
         validated_ingredients = validated_data.pop('ingredients_quantity', None)
         recipe = super().create(validated_data)
+
         if validated_ingredients:
             for ingredient in validated_ingredients:
                 Recipe_Ingredient.objects.create(
@@ -153,44 +236,48 @@ class RecipeSerializer(serializers.ModelSerializer):
                 )
         return recipe
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.context.get('request'):
+            try:
+                self.user = self.context['request'].user
+            except AttributeError:
+                self.user = None
+
+
+class RecipeDetailSerializer(RecipeSerializer):
+    """ Serializer for recipe detail, only for retrieve """
+
+    ingredients = RecipeIngredientSerializer(many=True, write_only=False,
+                                             source='ingredients_quantity',
+                                             required=False
+                                             )
+
+    class Meta:
+        model = Recipe
+        exclude = ('id', )
+        read_only_fields = ('user', 'slug', 'photo1', 'photo2', 'photo3')
+
     def update(self, instance, validated_data):
         """ Overrided for neasted serializers handling """
 
         validated_ingredients = validated_data.pop('ingredients_quantity', None)
         recipe = super().update(instance, validated_data)
 
-        existing_through_table_rows = Recipe_Ingredient.objects. \
-            filter(recipe=recipe)
-        for rows in existing_through_table_rows:
-            rows.delete()
+        if getattr(self.root, 'partial', False) is False:
+            """ we need to remove all related field during full update to
+             support ingredients changes """
+
+            instance.ingredients.clear()
 
         if validated_ingredients:
             for ingredient in validated_ingredients:
                 ingredient.update({'recipe': recipe})
                 recipe.ingredients.add(ingredient['ingredient'],
-                                       through_defaults={'quantity':
-                                       ingredient['quantity']})
+                                       through_defaults={'amount':
+                                       ingredient['amount'],
+                                       'unit': ingredient['unit']})
         return recipe
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if self.context.get('request'):
-            self.user = self.context['request'].user
-
-
-class RecipeDetailSerializer(RecipeSerializer):
-    """ Serializer a recipe detail """
-
-    ingredients = RecipeIngredientSerializer(many=True, write_only=False,
-                                             source='ingredients_quantity',
-                                             )
-
-    tags = TagSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = Recipe
-        fields = '__all__'
-        read_only_fields = ('id', 'user', 'slug', 'photo1', 'photo2', 'photo3')
 
 
 class RecipeImageSerializer(serializers.ModelSerializer):

@@ -82,9 +82,9 @@ class UserSerializer(DynamicFieldsModelSerializer):
 class UserChangePasswordSerializer(serializers.Serializer):
     """ update user password """
     old_password = serializers.CharField(required=True, write_only=True)
-    confirm_password = serializers.CharField(required=True, write_only=True)
     password = serializers.CharField(min_length=8, required=True,
                                      write_only=True, trim_whitespace=False)
+    confirm_password = serializers.CharField(required=True, write_only=True)
 
     def validate_old_password(self, value):
         user = self.context['request'].user
@@ -130,6 +130,7 @@ class AuthTokenSerializer(serializers.Serializer):
             raise serializers.ValidationError(msg, code='authentication')
 
         attrs['user'] = user
+
         return attrs
 
 

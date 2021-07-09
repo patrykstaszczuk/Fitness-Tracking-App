@@ -4,7 +4,7 @@ from django.urls import reverse
 from health import models
 
 from rest_framework import status
-from rest_framework.test import APIClient
+from rest_framework.test import APIClient, APIRequestFactory
 
 from users import serializers as user_serializers
 from health import serializers as health_serializers
@@ -57,13 +57,13 @@ class PrivateHealthApiTests(TestCase):
 
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
+        self.request = APIRequestFactory().get('/')
 
     def test_retrieve_user_information(self):
         """ test retrieving information about user """
 
         url = reverse('users:profile')
         res = self.client.get(url)
-
         serializer = user_serializers.UserSerializer(self.user)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
@@ -221,7 +221,7 @@ class PrivateHealthApiTests(TestCase):
 
         res = self.client.post(USER_DAILY_HEALTH_DASHBOARD, payload,
                                format='json')
-        self.assertNotEqual(res.json()['date'], payload['date'])
+        self.assertNotEqual(res.json()['data']['date'], payload['date'])
 
     def test_updating_user_weight_with_null(self):
         """ test setting weight to blank value """
@@ -256,7 +256,8 @@ class PrivateHealthApiTests(TestCase):
 
         res = self.client.get(USER_HEALTH_STATISTIC_RAPORT)
         serializer = health_serializers.HealthRaportSerializer(diaries_list,
-                                                               many=True)
+                                                               many=True,
+                                                               context={'request': self.request})
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
 
@@ -274,9 +275,11 @@ class PrivateHealthApiTests(TestCase):
 
         res = self.client.get(USER_HEALTH_STATISTIC_RAPORT)
 
-        u2_serializer = health_serializers.HealthRaportSerializer(user2_diary)
+        u2_serializer = health_serializers.HealthRaportSerializer(user2_diary,
+                                                                  context={'request': self.request})
         serializer = health_serializers.HealthRaportSerializer(diaries,
-                                                               many=True)
+                                                               many=True,
+                                                               context={'request': self.request})
         self.assertNotIn(u2_serializer, res.data)
         self.assertEqual(res.data, serializer.data)
 
@@ -291,7 +294,8 @@ class PrivateHealthApiTests(TestCase):
         today = models.HealthDiary.objects.create(user=self.user)
         res = self.client.get(USER_HEALTH_STATISTIC_RAPORT)
 
-        serializer = health_serializers.HealthRaportSerializer(today)
+        serializer = health_serializers.HealthRaportSerializer(today,
+                                        context={'request': self.request})
         self.assertNotIn(serializer.data, res.data)
 
     def test_post_not_allowed_on_health_history_site(self):

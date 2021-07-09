@@ -67,6 +67,9 @@ class HealthDiarySerializer(serializers.ModelSerializer):
 class HealthRaportSerializer(serializers.ModelSerializer):
     """ serializer for health statistics raports and history list """
 
+    url = serializers.HyperlinkedIdentityField(view_name='health:health-detail',
+                                               lookup_field='slug')
+
     class Meta:
         exclude = ('daily_thoughts', )
         read_only_fields = ('id', 'user', 'date', 'slug')

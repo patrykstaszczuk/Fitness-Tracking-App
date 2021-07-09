@@ -1,20 +1,43 @@
-from rest_framework import viewsets, mixins, status
+
+from rest_framework import viewsets, mixins, status, authentication, permissions
 from rest_framework.decorators import action, api_view, \
     authentication_classes, permission_classes
 
-from rest_framework import authentication, permissions
 from rest_framework.response import Response
-from health import serializers
-from health import models
+from health import serializers, models
 from health.models import get_health_model_usable_fields
 import datetime
+from mysite.renderers import CustomRenderer
+from rest_framework.views import APIView
+from rest_framework.reverse import reverse
+
+from mysite.views import RequiredFieldsResponseMessage
 
 
-class BmiViewSet(viewsets.GenericViewSet):
+class Dashboard(APIView):
+    """ main view for Health app """
+    authentication_classes = (authentication.TokenAuthentication, )
+    permission_classes = (permissions.IsAuthenticated, )
+
+    def get(self, request, *args, **kwargs):
+        """ return possible action for health app """
+
+        data = {
+            'bmi': reverse('health:bmi', request=request),
+            'daily': reverse('health:health-diary', request=request),
+            'raports/': reverse('health:health-list', request=request),
+            'weekly-summary/': reverse('health:weekly-summary', request=request),
+
+        }
+        return Response(data=data, status=status.HTTP_200_OK)
+
+
+class BmiViewSet(RequiredFieldsResponseMessage, viewsets.GenericViewSet):
     """ View for retrieving information about BMI from user model """
 
     authentication_classes = (authentication.TokenAuthentication, )
     permission_classes = (permissions.IsAuthenticated, )
+    renderer_classes = [CustomRenderer, ]
 
     def retrieve(self, request, *args, **kwargs):
         """ retrieve user's BMI """
@@ -23,13 +46,15 @@ class BmiViewSet(viewsets.GenericViewSet):
         return Response(data={'bmi': bmi}, status=status.HTTP_200_OK)
 
 
-class HealthDiary(viewsets.GenericViewSet, mixins.RetrieveModelMixin,
-                  mixins.CreateModelMixin, mixins.UpdateModelMixin):
+class HealthDiary(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
+                  mixins.RetrieveModelMixin, mixins.CreateModelMixin,
+                  mixins.UpdateModelMixin):
     """ view for managing user health diary """
 
     authentication_classes = (authentication.TokenAuthentication, )
     permission_classes = (permissions.IsAuthenticated, )
     serializer_class = serializers.HealthDiarySerializer
+    renderer_classes = [CustomRenderer, ]
 
     def perform_create(self, serializer):
         """ set instance user to requested user """
@@ -48,13 +73,33 @@ class HealthDiary(viewsets.GenericViewSet, mixins.RetrieveModelMixin,
         except models.HealthDiary.DoesNotExist:
             return Response(status=status.HTTP_204_NO_CONTENT)
 
+    def get_renderer_context(self):
+        """ add links to response """
+        context = super().get_renderer_context()
+        links = {
+            'raports': reverse('health:health-list', request=self.request),
+            'weekly-summary': reverse('health:weekly-summary',
+                                      request=self.request)
+        }
+        context['links'] = links
+        context['required'] = self._serializer_required_fields
+        return context
 
-class HealthRaport(viewsets.GenericViewSet, mixins.RetrieveModelMixin,
-                   mixins.UpdateModelMixin, mixins.ListModelMixin):
-    """ viewset for managing user health statistic history """
+
+class HealthRaport(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
+                   mixins.RetrieveModelMixin, mixins.UpdateModelMixin,
+                   mixins.ListModelMixin):
+    """ viewset for managing user health statistic history
+    URL mapping: /fitness/daily
+                 /fitness/raports
+                 /fitness/raports/2021-05-08 e.g ...
+                 /fitness/raports/weight/history e.g
+
+    """
 
     authentication_classes = (authentication.TokenAuthentication, )
     permission_classes = (permissions.IsAuthenticated, )
+    renderer_classes = [CustomRenderer, ]
     serializer_class = serializers.HealthRaportSerializer
     queryset = models.HealthDiary.objects.all()
     lookup_field = 'slug'
@@ -76,6 +121,19 @@ class HealthRaport(viewsets.GenericViewSet, mixins.RetrieveModelMixin,
             return self.queryset.filter(user=self.request.user).exclude(date=today)
         return self.queryset.filter(user=self.request.user)
 
+    def get_renderer_context(self):
+        """ add links to response """
+        context = super().get_renderer_context()
+        approved_fields = get_health_model_usable_fields()
+        links = {}
+        for field in approved_fields:
+            links.update({f'{field.name}-history':
+                         reverse('health:health-statistic',
+                          kwargs={'slug': field.name}, request=self.request)})
+        context['links'] = links
+        context['required'] = self._serializer_required_fields
+        return context
+
     def _map_slug_to_model_field(self, field_name):
         """ map verbose name of field to model field name """
         approved_fields = get_health_model_usable_fields()
@@ -84,9 +142,9 @@ class HealthRaport(viewsets.GenericViewSet, mixins.RetrieveModelMixin,
                 return field.name
         return None
 
-    @action(methods=['GET'], detail=True, url_path='historia')
+    @action(methods=['GET'], detail=True, url_path='history')
     def statistic(self, request, slug=None):
-        """ retrieve specific statistic history """
+        """ retrieve specific statistic history e.g weight """
 
         field = self._map_slug_to_model_field(self.kwargs.get('slug'))
 
@@ -98,7 +156,8 @@ class HealthRaport(viewsets.GenericViewSet, mixins.RetrieveModelMixin,
                 serializer = serializers.HealthStatisticHistorySerializer(
                     statistic,
                     many=True,
-                    fields=(field, )
+                    fields=(field, ),
+                    context={'request': request}
                     )
                 return Response(data=serializer.data,
                                 status=status.HTTP_200_OK)
@@ -106,14 +165,16 @@ class HealthRaport(viewsets.GenericViewSet, mixins.RetrieveModelMixin,
         return Response(status=status.HTTP_404_NOT_FOUND)
 
 
-@api_view()
-@authentication_classes([authentication.TokenAuthentication, ])
-@permission_classes([permissions.IsAuthenticated, ])
-def HealthWeeklySummary(request):
-    """ viewset for retrieving weekly summary """
+class HealthWeeklySummary(APIView):
+    """ view for retrieving weekly summary """
+    authentication_classes = (authentication.TokenAuthentication, )
+    permission_classes = (permissions.IsAuthenticated, )
+    renderer_classes = [CustomRenderer, ]
 
-    weekly_summary = request.user.get_weekly_avg_stats()
-    if weekly_summary == {}:
-        return Response(status=status.HTTP_204_NO_CONTENT)
-    return Response(data=weekly_summary,
-                    status=status.HTTP_200_OK)
+    def get(self, request, *args, **kwargs):
+        """ retrieve weekly summary """
+        weekly_summary = request.user.get_weekly_avg_stats()
+        if weekly_summary == {}:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(data=weekly_summary,
+                        status=status.HTTP_200_OK)
