@@ -131,9 +131,9 @@ class PrivateMealsTrackerApiTests(TestCase):
         models.Meal.objects.create(user=self.user, recipe=recipe,
                                    recipe_portions=1, category=self.category)
         res = self.client.get(DAILY_MEALS_TRACKER)
-        self.assertEqual(recipe.name, res.json()[0]['recipe_detail']['name'])
+        self.assertEqual(recipe.name, res.json()['data'][0]['recipe_detail']['name'])
         self.assertEqual(recipe.calories,
-                         res.json()[0]['recipe_detail']['calories'])
+                         res.json()['data'][0]['recipe_detail']['calories'])
 
     def test_create_meal_from_one_recipe(self):
         """ test create meal from recipe """
@@ -162,7 +162,7 @@ class PrivateMealsTrackerApiTests(TestCase):
                                    recipe_portions=1)
 
         res = self.client.get(DAILY_MEALS_TRACKER)
-        self.assertEqual(res.json()[0]['calories'], recipe.calories/4)
+        self.assertEqual(res.json()['data'][0]['calories'], recipe.calories/4)
 
     def test_create_meal_without_category_failed(self):
         """ test creating meal without category failed """

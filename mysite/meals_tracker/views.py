@@ -9,12 +9,14 @@ from meals_tracker import serializers
 
 import datetime
 
+from mysite.renderers import CustomRenderer
 
 class MealsTrackerViewSet(viewsets.ModelViewSet):
     """ ViewSets for managing meals """
 
     authentication_classes = (TokenAuthentication, )
     permission_classes = (IsAuthenticated, )
+    renderer_classes = [CustomRenderer, ]
     serializer_class = serializers.MealsTrackerSerializer
     queryset = models.Meal.objects.all()
     lookup_field = 'id'
