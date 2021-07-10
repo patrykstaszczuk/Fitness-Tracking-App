@@ -21,7 +21,7 @@ class Migration(migrations.Migration):
                 ('email', models.EmailField(max_length=255, unique=True)),
                 ('name', models.CharField(max_length=255)),
                 ('password', models.CharField(max_length=255)),
-                ('sex', models.CharField(choices=[('Male', 'Mężczyzna'), ('WOMAN', 'Kobieta')], default='Male', max_length=5)),
+                ('gender', models.CharField(choices=[('Male', 'Mężczyzna'), ('WOMAN', 'Kobieta')], default='Male', max_length=5)),
                 ('age', models.IntegerField()),
                 ('is_active', models.BooleanField(default=True)),
                 ('is_staff', models.BooleanField(default=False)),

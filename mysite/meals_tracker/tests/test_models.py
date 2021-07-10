@@ -30,7 +30,7 @@ class MealModelTestCase(TestCase):
             height=188,
             weight=85,
             age=25,
-            sex='Male'
+            gender='Male'
         )
         self.now = datetime.date.today()
 

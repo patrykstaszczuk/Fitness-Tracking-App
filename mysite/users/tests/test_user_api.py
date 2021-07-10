@@ -35,7 +35,7 @@ def sample_user(email='test2@gmail.com', name='testname2'):
         height=188,
         weight=85,
         age=25,
-        sex='Male'
+        gender='Male'
     )
 
 
@@ -55,7 +55,7 @@ class PublicUserApiTests(TestCase):
             'height': '185',
             'weight': '85',
             'age': '25',
-            'sex': 'Male'
+            'gender': 'Male'
         }
 
         res = self.client.post(CREATE_USER_URL, payload, foramt='json')
@@ -74,7 +74,7 @@ class PublicUserApiTests(TestCase):
             'height': '185',
             'weight': '85',
             'age': '25',
-            'sex': 'Male'
+            'gender': 'Male'
         }
 
         res = self.client.post(CREATE_USER_URL, payload, foramt='json')
@@ -108,7 +108,7 @@ class PublicUserApiTests(TestCase):
             'height': '185',
             'weight': '85',
             'age': '25',
-            'sex': 'Male'
+            'gender': 'Male'
         }
 
         res = self.client.post(CREATE_USER_URL, payload, foramt='json')
@@ -126,7 +126,7 @@ class PublicUserApiTests(TestCase):
             'age': 25,
             'height': 188,
             'weight': 88,
-            'sex': 'Male'
+            'gender': 'Male'
         }
         get_user_model().objects.create_user(**payload)
 
@@ -142,7 +142,7 @@ class PublicUserApiTests(TestCase):
             'age': 25,
             'height': 188,
             'weight': 55,
-            'sex': 'Male'
+            'gender': 'Male'
         }
         get_user_model().objects.create_user(**payload)
 
@@ -159,7 +159,7 @@ class PublicUserApiTests(TestCase):
             'age': 25,
             'height': 188,
             'weight': 55,
-            'sex': 'Male'
+            'gender': 'Male'
         }
         get_user_model().objects.create_user(**payload)
 
@@ -201,7 +201,7 @@ class PrivateUserApiTests(TestCase):
             'age': 25,
             'height': 188,
             'weight': 88,
-            'sex': 'Male'
+            'gender': 'Male'
         }
         self.user = get_user_model().objects.create_user(**payload)
         self.client = APIClient()
@@ -217,7 +217,7 @@ class PrivateUserApiTests(TestCase):
             'age': self.user.age,
             'height': self.user.height,
             'weight': self.user.weight,
-            'sex': self.user.sex,
+            'gender': self.user.gender,
         })
 
     def test_post_not_allowed(self):
@@ -245,7 +245,7 @@ class PrivateUserApiTests(TestCase):
     #          'height': '185',
     #          'weight': '85',
     #          'age': '25',
-    #          'sex': 'Male'
+    #          'gender': 'Male'
     #      }
     #
     #     res = self.client.post(CREATE_USER_URL, payload, foramt='json')
@@ -258,7 +258,7 @@ class PrivateUserApiTests(TestCase):
             'email': 'newtest@gmail.com',
             'name': 'testname',
             'age': 25,
-            'sex': 'Male'
+            'gender': 'Male'
         }
         res = self.client.patch(ME_URL, payload)
         self.user.refresh_from_db()

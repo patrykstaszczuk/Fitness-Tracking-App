@@ -93,7 +93,7 @@ class ManageUserView(RequiredFieldsResponseMessage,
 
     def get_serializer(self, *args, **kwargs):
         serializer_class = self.get_serializer_class()
-        fields = ('email', 'name', 'age', 'sex', 'height', 'weight')
+        fields = ('email', 'name', 'age', 'gender', 'height', 'weight')
         kwargs['context'] = self.get_serializer_context()
         kwargs['fields'] = fields
         serializer = serializer_class(*args, **kwargs)

@@ -36,7 +36,7 @@ def sample_user(email='test2@gmail.com', name='test2'):
         age=25,
         height=188,
         weight=74,
-        sex='Male'
+        gender='Male'
     )
 
 
@@ -52,7 +52,7 @@ class PrivateHealthApiTests(TestCase):
             age=25,
             height=188,
             weight=74,
-            sex='Male'
+            gender='Male'
         )
 
         self.client = APIClient()

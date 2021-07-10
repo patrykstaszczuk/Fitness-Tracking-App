@@ -63,7 +63,7 @@ def sample_user(email='user2@gmail.com', name='testusername'):
         age=25,
         weight=88,
         height=188,
-        sex='Male'
+        gender='Male'
     )
 
 
@@ -91,7 +91,7 @@ class PrivateRecipeApiTests(APITestCase):
             age=25,
             weight=88,
             height=188,
-            sex='Male'
+            gender='Male'
         )
         self.client.force_authenticate(self.user)
 

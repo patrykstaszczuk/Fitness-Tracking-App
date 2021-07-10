@@ -14,14 +14,14 @@ class ModelTests(TestCase):
         email = "test@gmail.com"
         password = "testpass123"
         age = 25
-        sex = 'MALE'
+        gender = 'MALE'
         weight = 30
         height = 188
         user = get_user_model().objects.create_user(
             email=email,
             password=password,
             age=age,
-            sex=sex,
+            gender=gender,
             weight=weight,
             height=height
         )
@@ -34,12 +34,12 @@ class ModelTests(TestCase):
         email = 'test@GMAIL.COM'
         password = 'testpass'
         age = 25
-        sex = 'MALE'
+        gender = 'MALE'
         weight = 25
         height = 188
         user = get_user_model().objects.create_user(email=email,
                                                     password=password,
-                                                    age=age, sex=sex,
+                                                    age=age, gender=gender,
                                                     weight=weight,
                                                     height=height)
         self.assertEqual(user.email, email.lower())
@@ -50,7 +50,7 @@ class ModelTests(TestCase):
         with self.assertRaises(ValueError):
             get_user_model().objects.create_user(email=None,
                                                  password="dada",
-                                                 age=25, sex='Male',
+                                                 age=25, gender='Male',
                                                  weight=88, height=188)
 
     def test_create_new_superuser(self):
@@ -60,7 +60,7 @@ class ModelTests(TestCase):
             age=25,
             weight=88,
             height=188,
-            sex='Male'
+            gender='Male'
         )
 
         self.assertTrue(user.is_superuser, True)
@@ -74,7 +74,7 @@ class ModelTests(TestCase):
             age=25,
             weight=88,
             height=188,
-            sex='Male'
+            gender='Male'
         )
         group = models.Group.objects.get(founder=user)
         group_str = group.founder.name + 's group'
@@ -87,7 +87,7 @@ class ModelTests(TestCase):
             email='test@gmail.com',
             password='testpass',
             age=25,
-            sex='Male',
+            gender='Male',
             weight=25,
             height=188
         )

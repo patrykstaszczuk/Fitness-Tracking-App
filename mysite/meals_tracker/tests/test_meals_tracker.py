@@ -45,7 +45,7 @@ def sample_user():
         height=188,
         weight=85,
         age=25,
-        sex='Male'
+        gender='Male'
     )
 
 
@@ -61,7 +61,7 @@ class PrivateMealsTrackerApiTests(TestCase):
             height=188,
             weight=85,
             age=25,
-            sex='Male'
+            gender='Male'
         )
         self.category = sample_category()
         self.today = datetime.date.today()

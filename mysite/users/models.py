@@ -48,13 +48,13 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
     MALE = 'Male'
     FEMALE = 'Female'
 
-    SEX_CHOICE = (
-        (MALE, 'Mężczyzna'),
-        (FEMALE, 'Kobieta'),
+    GENDER_CHOICE = (
+        (MALE, 'M'),
+        (FEMALE, 'F'),
     )
 
-    sex = models.CharField(max_length=6, choices=SEX_CHOICE, null=False,
-                           blank=False)
+    gender = models.CharField(max_length=6, choices=GENDER_CHOICE, null=False,
+                              blank=False, default='M')
     age = models.IntegerField()
     height = models.PositiveSmallIntegerField()
     weight = models.PositiveSmallIntegerField()
@@ -63,7 +63,7 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
 
     USERNAME_FIELD = 'email'
     EMAIL_FIELD = 'email'
-    REQUIRED_FIELDS = ['name', 'sex', 'age']
+    REQUIRED_FIELDS = ['name', 'gender', 'age']
 
     objects = MyManager()
 

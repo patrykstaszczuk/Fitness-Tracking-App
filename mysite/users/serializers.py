@@ -25,7 +25,7 @@ class UserSerializer(DynamicFieldsModelSerializer):
 
     class Meta:
         model = get_user_model()
-        fields = ('email', 'password', 'password2', 'name', 'age', 'sex',
+        fields = ('email', 'password', 'password2', 'name', 'age', 'gender',
                   'height', 'weight')
         extra_kwargs = {'password': {'write_only': True}}
 

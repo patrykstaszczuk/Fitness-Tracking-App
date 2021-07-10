@@ -34,7 +34,7 @@ def sample_user(email='user2@gmail.com', name='test2'):
         age=25,
         weight=88,
         height=188,
-        sex='Male'
+        gender='Male'
     )
 
 
@@ -62,7 +62,7 @@ class PrivateIngredientApiTests(TestCase):
             age=25,
             weight=88,
             height=188,
-            sex='Male'
+            gender='Male'
         )
         self.tag = sample_tag('test', self.user)
         self.client = APIClient()

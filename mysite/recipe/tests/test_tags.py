@@ -25,7 +25,7 @@ def sample_user(email='user2@gmail.com', name='test2'):
         age=25,
         weight=88,
         height=188,
-        sex='Male'
+        gender='Male'
     )
 
 
@@ -54,7 +54,7 @@ class PrivateTagApiTests(TestCase):
             age=25,
             weight=88,
             height=188,
-            sex='Male'
+            gender='Male'
         )
         self.client.force_authenticate(user=self.user)
         self.factory = APIRequestFactory()

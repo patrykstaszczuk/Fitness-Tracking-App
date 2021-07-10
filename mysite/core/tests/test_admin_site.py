@@ -14,7 +14,7 @@ class AdminSiteTests(TestCase):
             age=25,
             height=188,
             weight=88,
-            sex='Male'
+            gender='Male'
         )
         self.client.force_login(self.admin_user)
         self.user = get_user_model().objects.create(
@@ -24,7 +24,7 @@ class AdminSiteTests(TestCase):
             age=25,
             height=188,
             weight=88,
-            sex='Male'
+            gender='Male'
         )
 
     def test_users_listed(self):

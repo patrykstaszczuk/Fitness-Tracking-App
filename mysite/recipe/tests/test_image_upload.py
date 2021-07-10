@@ -32,7 +32,7 @@ class PrivateTestCases(TestCase):
             age=25,
             height=188,
             weight=88,
-            sex='Male'
+            gender='Male'
         )
         self.client.force_authenticate(user=self.user)
 

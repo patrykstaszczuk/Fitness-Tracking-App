@@ -7,7 +7,7 @@ from recipe import models
 
 
 def sample_user(email='test@gmail.com', name='Test', password='testpass',
-                age=25, sex='Male'):
+                age=25, gender='Male'):
     """ create sample user """
     return get_user_model().objects.create_user(
         email=email,
@@ -16,7 +16,7 @@ def sample_user(email='test@gmail.com', name='Test', password='testpass',
         age=age,
         weight=88,
         height=188,
-        sex=sex
+        gender=gender
     )
 
 

@@ -15,7 +15,7 @@ class ModelTests(TestCase):
             height=188,
             weight=85,
             age=25,
-            sex='Male'
+            gender='Male'
         )
 
     def test_add_basic_daily_health_data(self):
