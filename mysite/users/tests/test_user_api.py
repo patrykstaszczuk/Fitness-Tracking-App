@@ -27,6 +27,10 @@ def manage_invitation_url():
     return reverse('users:group-manage-invitation')
 
 
+def leave_group_url():
+    return reverse('users:group-leave-group')
+
+
 def sample_user(email='test2@gmail.com', name='testname2'):
     return get_user_model().objects.create_user(
         email=email,
@@ -70,6 +74,7 @@ class PublicUserApiTests(TestCase):
         payload = {
             'email': 'test@gmail.com',
             'password': 'testpass',
+            'password2': 'testpass',
             'name': 'testname',
             'height': '185',
             'weight': '85',
@@ -420,8 +425,19 @@ class PrivateUserApiTests(TestCase):
         serializer = serializers.GroupSerializer(group)
         res = self.client.get(manage_invitation_url())
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(res.data['pending_membership'][0],
+        self.assertEqual(res.json()['data']['pending_membership'][0],
                          serializer.data['id'])
+
+    def test_listing_joined_groups_in_manage_membership_endpoint(self):
+        """ test getting all joined groups """
+
+        user2 = sample_user()
+        group = models.Group.objects.get(founder=user2)
+        self.user.membership.add(group)
+
+        res = self.client.get(manage_invitation_url())
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(group.id, res.json()['data']['groups'][0]['id'])
 
     def test_accept_group_invitation(self):
         """ test accepting group invitation send by other users """
@@ -460,3 +476,27 @@ class PrivateUserApiTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
         self.assertFalse(self.user.pending_membership.all().exists())
+
+    def test_leave_group(self):
+        """ test leaving group """
+
+        user2 = sample_user()
+        group = models.Group.objects.get(founder=user2)
+        self.user.membership.add(group)
+
+        payload = {
+            'id': 2
+        }
+        res = self.client.post(leave_group_url(), {'id': group.id},
+                               format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(self.user.membership.all()), 1)
+
+    def test_leaving_request_user_group_failed(self):
+        """ test leaving own group failed """
+
+        group = models.Group.objects.get(founder=self.user)
+        res = self.client.post(leave_group_url(), {'id': group.id},
+                               format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(len(self.user.membership.all()), 1)

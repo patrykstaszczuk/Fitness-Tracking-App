@@ -26,7 +26,7 @@ def get_serializer_required_fields(serializer):
         return None
 
 
-class RequiredFieldsResponseMessage(generics.RetrieveAPIView):
+class RequiredFieldsResponseMessage(generics.GenericAPIView):
     """ create custom init for descendants """
 
     def get_serializer(self, *args, **kwargs):

@@ -9,9 +9,7 @@ class CustomRenderer(JSONRenderer):
         return JSONRenderer()
 
     def render(self, data, accepted_media_type=None, renderer_context=None):
-
         user = renderer_context.get('request').user
-
         links = []
         if user.is_authenticated:
             links = renderer_context.get('links')

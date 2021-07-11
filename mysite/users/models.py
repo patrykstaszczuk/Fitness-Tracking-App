@@ -6,6 +6,8 @@ from django.contrib.auth import get_user_model
 from health.models import HealthDiary
 import datetime
 
+from django.core.exceptions import ValidationError
+
 
 class MyManager(BaseUserManager):
 
@@ -74,6 +76,16 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
     def get_memberships(self):
         return self.membership.all()
 
+    def leave_group(self, group_id):
+        """ leave group """
+        try:
+            group = Group.objects.get(id=group_id, members=self)
+            if group.founder == self:
+                raise Group.DoesNotExist
+            self.membership.remove(group)
+        except Group.DoesNotExist as error:
+            raise error
+
     def get_weekly_avg_stats(self):
         """ get weekly avg weight """
         week_ago = datetime.date.today() - datetime.timedelta(days=7)
@@ -132,7 +144,8 @@ class Group(models.Model):
 
     name = models.CharField(max_length=100, blank=False)
     founder = models.ForeignKey(get_user_model(), on_delete=models.CASCADE,
-                                unique=True, null=False, blank=False)
+                                unique=True, null=False, blank=False,
+                                related_name='founder')
     members = models.ManyToManyField('MyUser', related_name='membership')
     pending_membership = models.ManyToManyField('MyUser', related_name=
                                                 'pending_membership')

@@ -137,7 +137,7 @@ class ChangeUserPasswordView(RequiredFieldsResponseMessage,
 
 
 class GroupViewSet(RequiredFieldsResponseMessage, GenericViewSet,
-                   mixins.UpdateModelMixin,  mixins.ListModelMixin):
+                   mixins.ListModelMixin):
     """ Manage Group in database """
     queryset = models.Group.objects.all()
     serializer_class = serializers.GroupSerializer
@@ -176,6 +176,7 @@ class GroupViewSet(RequiredFieldsResponseMessage, GenericViewSet,
         """ add links to response """
 
         context = super().get_renderer_context()
+
         links = {}
         if self.action == 'manage_invitation':
             links.update(
@@ -189,13 +190,19 @@ class GroupViewSet(RequiredFieldsResponseMessage, GenericViewSet,
                                                  request=self.request),
                 'groups': reverse('users:group-list', request=self.request)}
             )
+        elif self.action == 'leave_group':
+            context['required'] = ['id', ]
         else:
             links.update(
                 {'manage-invitation': reverse('users:group-manage-invitation', request=self.request),
                 'send-group-invitation': reverse('users:group-send-invitation',
-                                                 request=self.request)}
+                                                 request=self.request),
+                 'leave-group': reverse('users:group-leave-group',
+                                                  request=self.request)}
             )
         context['links'] = links
+
+
         return context
 
     @action(methods=['GET', 'POST'], detail=False,
@@ -231,3 +238,24 @@ class GroupViewSet(RequiredFieldsResponseMessage, GenericViewSet,
             return Response(data=serializer.data, status=status.HTTP_200_OK)
         return Response(data=serializer.errors,
                         status=status.HTTP_400_BAD_REQUEST)
+
+    @action(methods=['GET', 'POST'], detail=False, url_path='leave-group')
+    def leave_group(self, request):
+        """ leave group """
+
+        error = 'ID must be an Integer'
+
+        if request.data:
+            try:
+                group_id = int(request.data.pop('id'))
+                try:
+                    self.request.user.leave_group(group_id)
+                except models.Group.DoesNotExist:
+                    return Response(data={'id': "No such group in your membership "},
+                                    status=status.HTTP_400_BAD_REQUEST)
+            except ValueError:
+                return Response(data={'id': error},
+                                status=status.HTTP_400_BAD_REQUEST)
+        headers = {}
+        headers['Location'] = reverse('users:group-list', request=request)
+        return Response(status=status.HTTP_200_OK, headers=headers)

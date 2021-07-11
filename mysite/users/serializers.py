@@ -216,10 +216,16 @@ class ManageInvitationSerializer(serializers.ModelSerializer):
     """ serializer for managing groups invitation and request acceptance """
 
     action = serializers.IntegerField()
+    groups = serializers.SerializerMethodField()
 
     class Meta:
         model = get_user_model()
-        fields = ('pending_membership', 'action')
+        fields = ('pending_membership', 'action', 'groups')
+
+    def get_groups(self, obj):
+        """ get memberships """
+        return GroupSerializer(obj.get_memberships().exclude(founder=obj),
+                               many=True).data
 
     def validate_action(self, action):
         """ validate action value """
@@ -241,11 +247,9 @@ class ManageInvitationSerializer(serializers.ModelSerializer):
 
     def save(self, **kwargs):
         """ update pending_membership and membership fields """
-
         user = self.instance
         groups = self.validated_data.get('pending_membership')
         action = self.validated_data.pop('action')
-
         groups_ids = [group.id for group in groups]
 
         if action:
@@ -257,8 +261,13 @@ class ManageInvitationSerializer(serializers.ModelSerializer):
         return self.instance
 
     def __init__(self, *args, **kwargs):
-        """ pop 'action' from fields if request is get """
+        """ pop 'action' from fields if request is get
+            pop groups when post, becouse it cause OrderedDict mutated error
+            despite its read only field. To future investigation
+        """
         request = kwargs['context'].get('request')
         if request.method == 'GET':
             self.fields.pop('action')
+        elif request.method == 'POST':
+            self.fields.pop('groups')
         super().__init__(*args, **kwargs)
