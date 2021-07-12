@@ -167,3 +167,23 @@ class PrivateTestCases(TestCase):
             self.assertEqual(res.status_code, status.HTTP_200_OK)
             self.assertIn('photo1', res.data)
             self.assertIn('photo2', res.data)
+
+    def test_remove_image_from_recipe(self):
+        """ test removing image from recipe """
+
+        url = image_upload_url(self.sample_recipe.slug)
+        with tempfile.NamedTemporaryFile(suffix='.jpg') as ntf:
+            img = Image.new('RGB', (10, 10))
+            img.save(ntf, format='JPEG')
+            ntf.seek(0)
+
+            res = self.client.post(url, {'photo1': ntf}, format='multipart')
+            self.assertEqual(res.status_code, status.HTTP_200_OK)
+            self.assertIn('photo1', res.data)
+
+        payload = {
+            'photo1': None
+        }
+        res = self.client.post(url, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['photo1'], None)

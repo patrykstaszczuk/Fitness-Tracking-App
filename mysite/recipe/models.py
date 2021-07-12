@@ -31,6 +31,7 @@ def recipe_image_file_path(instance, filename):
 #         instance = super().save()
 #         print(instance)
 
+
 class Recipe(models.Model):
 
     name = models.CharField(max_length=255, blank=False, verbose_name='Nazwa')
@@ -46,11 +47,11 @@ class Recipe(models.Model):
     slug = models.SlugField(blank=False)
 
     photo1 = models.ImageField(upload_to=recipe_image_file_path, blank=True,
-                               verbose_name='Zdjęcie 1')
+                               verbose_name='Zdjęcie 1', null=True)
     photo2 = models.ImageField(upload_to=recipe_image_file_path, blank=True,
-                               verbose_name='Zdjęcie 2')
+                               verbose_name='Zdjęcie 2', null=True)
     photo3 = models.ImageField(upload_to=recipe_image_file_path, blank=True,
-                               verbose_name='Zdjęcie 3')
+                               verbose_name='Zdjęcie 3', null=True)
 
     tags = models.ManyToManyField('Tag')
     ingredients = models.ManyToManyField('Ingredient',
@@ -90,7 +91,7 @@ class Recipe(models.Model):
             """ check if images change after upload """
             new_photos = [self.photo1, self.photo2, self.photo3]
             for old, new in zip(self.orginal_photos, new_photos):
-                if new != old and old != '':
+                if new != old and old not in ('', None):
                     path = old.path
                     if os.path.exists(path):
                         os.remove(path)
@@ -298,6 +299,6 @@ class Ingredient_Unit(models.Model):
     unit = models.ForeignKey('Unit', on_delete=models.PROTECT, null=False)
     grams_in_one_unit = models.PositiveSmallIntegerField(null=False,
                                                          default=100)
-                                                         
+
     def __str__(self):
         return self.unit.name + '(' + str(self.grams_in_one_unit) + ')'

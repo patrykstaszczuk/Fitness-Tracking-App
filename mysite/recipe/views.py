@@ -121,11 +121,17 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
 
         if serializer.is_valid():
             serializer.save()
+            headers = {}
+            if request.method == 'POST':
+
+                headers['Location'] = reverse('recipe:recipe-detail',
+                                              kwargs={'slug': slug},
+                                              request=request)
             return Response(
                 serializer.data,
-                status=status.HTTP_200_OK
+                status=status.HTTP_200_OK,
+                headers=headers
             )
-
         return Response(
             serializer.errors,
             status=status.HTTP_400_BAD_REQUEST
