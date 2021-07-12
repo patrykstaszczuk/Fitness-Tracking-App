@@ -206,6 +206,7 @@ class Ingredient(models.Model):
                                   'client_id': os.environ['NOZBE_CLIENT_ID']})
         if res.status_code == status.HTTP_200_OK:
             self.usage_counter += 1
+            return True
 
     def check_if_slug_exists(self, slug):
         return Ingredient.objects.filter(user=self.user).filter(slug=slug).count()

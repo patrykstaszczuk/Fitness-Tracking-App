@@ -735,9 +735,25 @@ class PrivateRecipeApiTests(APITestCase):
         url = reverse('recipe:recipe-send-to-nozbe', args=[recipe.slug])
 
         res = self.client.put(url, ingredients_list, format='json')
-        serializer = IngredientSerializer([ing1, ing2], many=True, context={'request': self.request})
-        self.assertEqual(res.data, serializer.data)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+    @patch('recipe.models.Ingredient.send_to_nozbe')
+    def test_sending_invalid_ingredients_to_nozbe_failed(self, mock_send_to_nozbe):
+        """ test sening invalid ingredients to nozbe failed """
+        recipe = sample_recipe(self.user)
+
+        ing1 = sample_ingredient(user=self.user, name='Testowy 1')
+        ing2 = sample_ingredient(user=self.user, name='Testowy 2')
+        ing3 = sample_ingredient(user=self.user, name='Testowy 3')
+
+        recipe.ingredients.add(ing1, ing2, ing3)
+
+        ingredients_list = [ing1.slug, ing2.slug, 'invalid-slug']
+
+        url = reverse('recipe:recipe-send-to-nozbe', args=[recipe.slug])
+
+        res = self.client.put(url, ingredients_list, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_retrieve_recipe_calories_based_on_ingredients(self):
         """ test auto calculating calories based on recipes ingredients """

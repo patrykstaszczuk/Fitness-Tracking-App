@@ -94,20 +94,25 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
 
         ingredient_queryset = Ingredient.objects.filter(slug__in=ingredients)
         if ingredient_queryset.count() == len(ingredients):
-            return ingredient_queryset
-        return Response(status.HTTP_400_BAD_REQUEST)
+            return True, ingredient_queryset
+        return False, None
 
     @action(methods=['PUT'], detail=True, url_path='add-to-nozbe')
     def send_to_nozbe(self, request, slug=None):
         """ send provided ingredients to nozbe """
 
-        ingredients = self._validate_ingredients(request.data)
+        bool, ingredients = self._validate_ingredients(request.data)
 
-        for ingredient in ingredients:
-            ingredient.send_to_nozbe()
-        serializer = serializers.IngredientSerializer(ingredients, many=True,
-                                                      context={'request': request})
-        return Response(serializer.data)
+        if bool:
+            for ingredient in ingredients:
+                if ingredient.send_to_nozbe():
+                    headers = {'Location': reverse('recipe:recipe-detail',
+                                                   kwargs={'slug':slug}, 
+                                                   request=request)}
+                    return Response(data={'success'}, status=status.HTTP_200_OK,
+                                    headers=headers)
+        return Response(data={'Failed, check ingredients slug or contact admin'},
+                        status=status.HTTP_400_BAD_REQUEST)
 
     @action(methods=['POST', 'GET'], detail=True, url_path='add-photos')
     def upload_image(self, request, slug=None):
