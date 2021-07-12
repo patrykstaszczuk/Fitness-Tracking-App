@@ -428,14 +428,14 @@ class PrivateUserApiTests(TestCase):
         self.assertEqual(res.json()['data']['pending_membership'][0],
                          serializer.data['id'])
 
-    def test_listing_joined_groups_in_manage_membership_endpoint(self):
+    def test_listing_joined_groups_in_leave_group_endpoint(self):
         """ test getting all joined groups """
 
         user2 = sample_user()
         group = models.Group.objects.get(founder=user2)
         self.user.membership.add(group)
 
-        res = self.client.get(manage_invitation_url())
+        res = self.client.get(leave_group_url())
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(group.id, res.json()['data']['groups'][0]['id'])
 
@@ -492,7 +492,7 @@ class PrivateUserApiTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(len(self.user.membership.all()), 1)
 
-    def test_leaving_request_user_group_failed(self):
+    def test_leaving_request_user_own_group_failed(self):
         """ test leaving own group failed """
 
         group = models.Group.objects.get(founder=self.user)

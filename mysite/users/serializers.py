@@ -216,16 +216,10 @@ class ManageInvitationSerializer(serializers.ModelSerializer):
     """ serializer for managing groups invitation and request acceptance """
 
     action = serializers.IntegerField()
-    groups = serializers.SerializerMethodField()
 
     class Meta:
         model = get_user_model()
-        fields = ('pending_membership', 'action', 'groups')
-
-    def get_groups(self, obj):
-        """ get memberships """
-        return GroupSerializer(obj.get_memberships().exclude(founder=obj),
-                               many=True).data
+        fields = ('pending_membership', 'action')
 
     def validate_action(self, action):
         """ validate action value """
@@ -268,6 +262,37 @@ class ManageInvitationSerializer(serializers.ModelSerializer):
         request = kwargs['context'].get('request')
         if request.method == 'GET':
             self.fields.pop('action')
-        elif request.method == 'POST':
-            self.fields.pop('groups')
+        # elif request.method == 'POST':
+        #     self.fields.pop('groups')
         super().__init__(*args, **kwargs)
+
+
+class LeaveGroupSerializer(serializers.Serializer):
+    """ serializer for leaving group """
+
+    id = serializers.IntegerField(required=True, write_only=True)
+    groups = serializers.SerializerMethodField()
+
+    def get_groups(self, obj):
+        """ get memberships """
+        return GroupSerializer(self.instance.get_memberships().exclude(founder=self.instance),
+                               many=True).data
+
+    def validate_id(self, value):
+        """ check if user accually belongs to provided group """
+
+        try:
+            group = Group.objects.get(id=value)
+        except Group.DoesNotExist:
+            raise serializers.ValidationError('Group does not exists')
+
+        if group.founder == self.instance:
+            raise serializers.ValidationError('You cannot leave your own group')
+        return value
+
+    def save(self, **kwargs):
+        """ remove user from group """
+
+        group = self.validated_data.pop('id')
+        if group:
+            self.instance.membership.remove(group)

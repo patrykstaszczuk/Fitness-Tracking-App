@@ -76,15 +76,15 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
     def get_memberships(self):
         return self.membership.all()
 
-    def leave_group(self, group_id):
-        """ leave group """
-        try:
-            group = Group.objects.get(id=group_id, members=self)
-            if group.founder == self:
-                raise Group.DoesNotExist
-            self.membership.remove(group)
-        except Group.DoesNotExist as error:
-            raise error
+    # def leave_group(self, group_id):
+    #     """ leave group """
+    #     try:
+    #         group = Group.objects.get(id=group_id, members=self)
+    #         if group.founder == self:
+    #             raise Group.DoesNotExist
+    #         self.membership.remove(group)
+    #     except Group.DoesNotExist as error:
+    #         raise error
 
     def get_weekly_avg_stats(self):
         """ get weekly avg weight """

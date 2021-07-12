@@ -243,19 +243,43 @@ class GroupViewSet(RequiredFieldsResponseMessage, GenericViewSet,
     def leave_group(self, request):
         """ leave group """
 
-        error = 'ID must be an Integer'
+        if request.method == 'POST' and request.data:
+            serializer = serializers.LeaveGroupSerializer(instance=request.user,
+                                                          data=request.data,
+                                                          context={'user': request.user})
+            if serializer.is_valid():
+                serializer.save()
+                headers = {'Location': reverse('users:group-list',
+                                               request=request)}
+                return Response(data=serializer.data, status=status.HTTP_200_OK,
+                                headers=headers)
+            return Response(data=serializer.errors,
+                            status=status.HTTP_400_BAD_REQUEST)
+        #current_groups = request.user.membership.all().exclude(founder=request.user)
+        serializer = serializers.LeaveGroupSerializer(instance=request.user, context={'user': request.user})
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
 
-        if request.data:
-            try:
-                group_id = int(request.data.pop('id'))
-                try:
-                    self.request.user.leave_group(group_id)
-                except models.Group.DoesNotExist:
-                    return Response(data={'id': "No such group in your membership "},
-                                    status=status.HTTP_400_BAD_REQUEST)
-            except ValueError:
-                return Response(data={'id': error},
-                                status=status.HTTP_400_BAD_REQUEST)
-        headers = {}
-        headers['Location'] = reverse('users:group-list', request=request)
-        return Response(status=status.HTTP_200_OK, headers=headers)
+        # error = 'ID must be an Integer'
+        # headers = {}
+        # data = None
+        # status = None
+        # if request.method == 'POST' and request.data:
+        #     try:
+        #         group_id = int(request.data.pop('id'))
+        #         try:
+        #             self.request.user.leave_group(group_id)
+        #         except models.Group.DoesNotExist:
+        #             data = {'id': "No such group in your membership "},
+        #             status = status.HTTP_400_BAD_REQUEST
+        #     except ValueError:
+        #         data = {'id': error}
+        #         status = status.HTTP_400_BAD_REQUEST
+        #
+        #     headers['Location'] = reverse('users:group-list', request=request)
+        #     status = status.HTTP_200_OK
+        # else:
+        #     current_groups = request.user.membership.all().exclude(founder=request.user)
+        #     data = serializers.GroupSerializer(current_groups, many=True).data
+        #     status = status.HTTP_200_OK
+        # return Response(data=data, status=status,
+        #                 headers=headers)
