@@ -170,29 +170,6 @@ class GroupSerializer(serializers.ModelSerializer):
         return instance
 
 
-# class ListSendInvitationSerializer(serializers.ListSerializer):
-#     """ list serializer for sening invitations """
-#
-#     def update(self, instance, validated_data):
-#         """ update Group pending_membership field """
-#         for item in validated_data:
-#             user = item['pending_membership']
-#             instance.pending_membership.add(user)
-#         return instance
-#
-#     def validate(self, users):
-#         """ validate if user exists """
-#         for item in users:
-#             email = item.get('pending_membership')
-#             try:
-#                 item['pending_membership'] = \
-#                     get_user_model().objects.get(email=email)
-#             except get_user_model().DoesNotExist:
-#                 raise serializers.ValidationError('Taki użytkownik \
-#                                                   nie istnieje!')
-#         return users
-
-
 class SendInvitationSerializer(serializers.ModelSerializer):
     """ serializer for sending invitation to other users """
 

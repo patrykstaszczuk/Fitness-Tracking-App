@@ -201,6 +201,15 @@ class RecipeSerializer(serializers.ModelSerializer):
             'description': {'write_only': True}
         }
 
+    def to_representation(self, instance):
+        """
+        Object instance -> Dict of primitive datatypes.
+        """
+        ret = super().to_representation(instance)
+        if ret['user'] != self.user.id:
+            ret['url'] = f'http://localhost:8000/food/group-recipe/{ret["user"]}/{ret["slug"]}'
+        return ret
+
     def to_internal_value(self, data):
         """ create ingredient if does not exists in database """
         ingredients = data.get('ingredients', None)
@@ -241,12 +250,12 @@ class RecipeSerializer(serializers.ModelSerializer):
         return recipe
 
     def __init__(self, *args, **kwargs):
+        """ get user from context """
         super().__init__(*args, **kwargs)
-        if self.context.get('request'):
-            try:
-                self.user = self.context['request'].user
-            except AttributeError:
-                self.user = None
+        try:
+            self.user = self.context['user']
+        except KeyError:
+            self.user = None
 
 
 class RecipeDetailSerializer(RecipeSerializer):

@@ -34,6 +34,12 @@ class BaseRecipeAttrViewSet(RequiredFieldsResponseMessage, viewsets.ModelViewSet
         """ update an existing object """
         serializer.save(user=self.request.user)
 
+    def get_serializer_context(self):
+        """ set user to context """
+        context = super().get_serializer_context()
+        context['user'] = self.request.user
+        return context
+
 
 class IngredientViewSet(BaseRecipeAttrViewSet):
     """ Manage ingredient in the database """
@@ -57,6 +63,10 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
         """ Retrieve the recipes for authenticated user with filtering if
         applied """
         return self._get_filtering(request=self.request)
+
+    def get_object(self):
+        """ return appropriate recipe for requested user """
+        return self.queryset.filter(user=self.request.user).get(slug=self.kwargs['slug'])
 
     def get_serializer_class(self):
         """ return appropriate serializer class """
@@ -214,6 +224,12 @@ class RecipeDetailViewSet(RequiredFieldsResponseMessage,
     serializer_class = serializers.RecipeDetailSerializer
     queryset = Recipe.objects.all()
 
+    def get_serializer_context(self):
+        """ set user to context """
+        context = super().get_serializer_context()
+        context['user'] = self.request.user
+        return context
+    
     def get_object(self):
         """ retrieve object based on pk and slug. Recipes in groups can have
         same name """
