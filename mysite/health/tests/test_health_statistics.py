@@ -19,7 +19,7 @@ NOW = datetime.date.today()
 
 
 def user_health_specific_stat_raport(slug):
-    return reverse('health:health-statistic', kwargs={'slug': slug})
+    return reverse('health:health-detail', kwargs={'slug': slug})
 
 
 def user_healh_statistic_raport_detail(slug):
@@ -434,7 +434,7 @@ class PrivateHealthApiTests(TestCase):
 
         res = self.client.get(user_health_specific_stat_raport('user'))
 
-        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_method_post_not_allowed_in_stat_history(self):
         """ test post request failed """
@@ -455,7 +455,7 @@ class PrivateHealthApiTests(TestCase):
 
         res = self.client.get(user_health_specific_stat_raport('nonexisting'))
 
-        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_retrieving_no_content(self):
         """ test retrieving 204 status if no content is returned """

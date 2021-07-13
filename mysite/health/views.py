@@ -13,6 +13,9 @@ from rest_framework.reverse import reverse
 
 from mysite.views import RequiredFieldsResponseMessage
 
+import re
+from rest_framework.exceptions import ValidationError
+
 
 class Dashboard(APIView):
     """ main view for Health app """
@@ -71,7 +74,8 @@ class HealthDiary(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
             return models.HealthDiary.objects.filter(user=self.request.user). \
                 get(date=now)
         except models.HealthDiary.DoesNotExist:
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            # return models.HealthDiary.objects.create(user=self.request.user)
+            return None
 
     def get_renderer_context(self):
         """ add links to response """
@@ -96,7 +100,6 @@ class HealthRaport(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
                  /fitness/raports/weight/history e.g
 
     """
-
     authentication_classes = (authentication.TokenAuthentication, )
     permission_classes = (permissions.IsAuthenticated, )
     renderer_classes = [CustomRenderer, ]
@@ -121,6 +124,29 @@ class HealthRaport(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
             return self.queryset.filter(user=self.request.user).exclude(date=today)
         return self.queryset.filter(user=self.request.user)
 
+    def retrieve(self, *args, **kwargs):
+        """ return appropriate data based on provided slug """
+
+        slug = kwargs.get('slug')
+        if not re.search("....-..-..", slug):
+            try:
+                field = self._map_slug_to_model_field(slug)
+            except ValidationError as e:
+                return Response(data={'slug': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            instance = self.queryset.filter(user=self.request.user).\
+                values(field)
+            serializer = serializers.HealthStatisticHistorySerializer(
+                instance,
+                many=True,
+                fields=(field, ),
+                context={'request': self.request}
+                )
+            code = status.HTTP_200_OK
+            if not serializer.data:
+                code = status.HTTP_204_NO_CONTENT
+            return Response(data=serializer.data, status=code)
+        return super().retrieve(self, *args, **kwargs)
+
     def get_renderer_context(self):
         """ add links to response """
         context = super().get_renderer_context()
@@ -128,7 +154,7 @@ class HealthRaport(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
         links = {}
         for field in approved_fields:
             links.update({f'{field.name}-history':
-                         reverse('health:health-statistic',
+                         reverse('health:health-detail',
                           kwargs={'slug': field.name}, request=self.request)})
         context['links'] = links
         context['required'] = self._serializer_required_fields
@@ -140,29 +166,7 @@ class HealthRaport(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
         for field in approved_fields:
             if field_name in [field.name, field.verbose_name]:
                 return field.name
-        return None
-
-    @action(methods=['GET'], detail=True, url_path='history')
-    def statistic(self, request, slug=None):
-        """ retrieve specific statistic history e.g weight """
-
-        field = self._map_slug_to_model_field(self.kwargs.get('slug'))
-
-        if field:
-            statistic = self.queryset.filter(user=self.request.user).\
-                values(field)
-
-            if statistic:
-                serializer = serializers.HealthStatisticHistorySerializer(
-                    statistic,
-                    many=True,
-                    fields=(field, ),
-                    context={'request': request}
-                    )
-                return Response(data=serializer.data,
-                                status=status.HTTP_200_OK)
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        return Response(status=status.HTTP_404_NOT_FOUND)
+        raise ValidationError("No such field in model approved fields for history viewing")
 
 
 class HealthWeeklySummary(APIView):
