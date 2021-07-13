@@ -90,7 +90,7 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
 
     def _validate_ingredients(self, ingredients):
         """ validate that passed ingredient slug's can be mapped to models
-         object"""
+         object during send_to_nozbe action"""
 
         ingredient_queryset = Ingredient.objects.filter(slug__in=ingredients)
         if ingredient_queryset.count() == len(ingredients):
@@ -107,7 +107,7 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
             for ingredient in ingredients:
                 if ingredient.send_to_nozbe():
                     headers = {'Location': reverse('recipe:recipe-detail',
-                                                   kwargs={'slug':slug}, 
+                                                   kwargs={'slug':slug},
                                                    request=request)}
                     return Response(data={'success'}, status=status.HTTP_200_OK,
                                     headers=headers)

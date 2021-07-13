@@ -94,7 +94,8 @@ class IngredientSerializer(serializers.ModelSerializer):
     def get_available_units(self, obj):
         """ get defined unit for ingredient instance """
         units = Ingredient_Unit.objects.filter(ingredient=obj)
-        return IngredientUnitSerializer(units, many=True, context={'request': self.context['request']}).data
+        return IngredientUnitSerializer(units, many=True, context={'request':
+                                        self.context['request']}).data
 
     def validate_name(self, value):
         """ check if ingredient with provided name is not already in db """
@@ -182,7 +183,6 @@ class RecipeSerializer(serializers.ModelSerializer):
     )
     tag_detail = TagSerializer(Tag.objects.all(), many=True, source='tags',
                                read_only=True)
-    # tag_detail = serializers.SerializerMethodField()
     ingredients = RecipeIngredientSerializer(
                                              required=False,
                                              many=True,
@@ -201,16 +201,20 @@ class RecipeSerializer(serializers.ModelSerializer):
             'description': {'write_only': True}
         }
 
-    def get_tag_detail(self, obj):
-        return TagSerializer(obj.tags.all(), many=True).data
-
     def to_internal_value(self, data):
         """ create ingredient if does not exists in database """
         ingredients = data.get('ingredients', None)
         if ingredients:
             for list_item in ingredients:
-                obj, created = Ingredient.objects.get_or_create(user=self.user,
-                                                                name=list_item['ingredient'])
+                try:
+                    name = list_item['ingredient']
+                    obj, created = Ingredient.objects.get_or_create(user=self.user,
+                                                                    name=name)
+                except TypeError:
+                    raise serializers.ValidationError({'ingredients': 'Invalid request \
+                    structure for ingredients. Valid structure: {"ingredients":\
+                    ["ingredient: slug, amount, unit"]} '})
+
                 if created:
                     list_item.update({'ingredient': obj.slug})
         return super().to_internal_value(data)

@@ -4,8 +4,8 @@ from django.urls import reverse
 from django.core.validators import MinValueValidator as MinValue
 from django.utils.text import slugify
 from unidecode import unidecode
-
-from django.db.models.signals import m2m_changed
+from django.core.exceptions import ValidationError
+from django.db.models.signals import m2m_changed, post_save
 from django.dispatch import receiver
 import uuid
 import os
@@ -221,8 +221,11 @@ class Ingredient(models.Model):
 
     def get_unit_weight(self, unit, amount):
         """ return the unit and amount in grams/mililiters """
-        obj = Ingredient_Unit.objects.get(
-            ingredient=self.id, unit=unit)
+        try:
+            obj = Ingredient_Unit.objects.get(
+                ingredient=self.id, unit=unit)
+        except Ingredient_Unit.DoesNotExist:
+            raise ValidationError(f"{unit} - {self.name} no such mapping")
         return obj.grams_in_one_unit * amount
 
 
@@ -263,11 +266,9 @@ class Recipe_Ingredient(models.Model):
     def __str__(self):
         return self.recipe.name + '_' + self.ingredient.name
 
-
 @receiver(m2m_changed, sender=Recipe_Ingredient)
 def _count_calories_based_on_ingredients(sender, instance, action, **kwargs):
     """ sum up calories from all recipe ingredients """
-
     if action == 'post_add':
         instance.calories = 0
         for ingredient in instance.ingredients.all():
@@ -302,4 +303,4 @@ class Ingredient_Unit(models.Model):
                                                          default=100)
 
     def __str__(self):
-        return self.unit.name + '(' + str(self.grams_in_one_unit) + ')'
+        return self.ingredient.name + ' ' + self.unit.name + '(' + str(self.grams_in_one_unit) + ')'

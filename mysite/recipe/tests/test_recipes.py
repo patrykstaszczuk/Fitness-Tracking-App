@@ -937,3 +937,21 @@ class PrivateRecipeApiTests(APITestCase):
         }
         res = self.client.post(RECIPE_URL, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_recipe_with_invalid_ingredients_structure(self):
+        """ test create recipe with invalid json structure for ingredietns
+        failed with message """
+
+        ingredient = sample_ingredient(user=self.user, name='Test',
+                                       calories='500')
+        payload = {
+            'name': 'test',
+            'tags': [self.user_tag.slug, ],
+            'ingredients': {
+                'ingredient': ingredient.slug, 'amount': '2',
+                'unit': self.unit.id
+            }
+        }
+
+        res = self.client.post(RECIPE_URL, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)

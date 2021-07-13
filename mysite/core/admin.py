@@ -3,7 +3,8 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import Group
 from users.models import MyUser
 from users.models import Group as CustomGroup
-from recipe.models import Ingredient, Tag, Recipe, Recipe_Ingredient, Unit
+from recipe.models import Ingredient, Tag, Recipe, Recipe_Ingredient, Unit, \
+                          Ingredient_Unit
 # from users.forms import CustomUserChangeForm, CustomUserCreationForm
 
 
@@ -46,3 +47,4 @@ admin.site.register(Recipe)
 admin.site.register(Recipe_Ingredient)
 admin.site.register(Unit)
 admin.site.register(CustomGroup)
+admin.site.register(Ingredient_Unit)
