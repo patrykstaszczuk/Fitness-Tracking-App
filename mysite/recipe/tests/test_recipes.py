@@ -941,6 +941,48 @@ class PrivateRecipeApiTests(APITestCase):
         res = self.client.post(RECIPE_URL, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_retrieve_proteins_carbs_and_fats_from_recipe(self):
+        """ test retrieving basic nutritions based on ingredients """
+
+        ing1 = sample_ingredient(
+            user=self.user,
+            name='ing1',
+            calories=345,
+            proteins=10,
+            carbohydrates=50,
+            fats=30,
+            )
+        ing2 = sample_ingredient(
+            user=self.user,
+            name='ing2',
+            calories=345,
+            proteins=20,
+            carbohydrates=30,
+            fats=5,
+            )
+        ing3 = sample_ingredient(
+            user=self.user,
+            name='ing3',
+            calories=345,
+            proteins=30,
+            carbohydrates=10,
+            fats=45,
+            )
+
+        recipe = sample_recipe(user=self.user, name='test')
+        recipe.ingredients.add(ing1, through_defaults={'amount': 50, 'unit': self.unit})
+        recipe.ingredients.add(ing2, through_defaults={'amount': 100, 'unit': self.unit})
+        recipe.ingredients.add(ing3, through_defaults={'amount': 50, 'unit': self.unit})
+
+        res = self.client.get(recipe_detail_url(recipe.slug))
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn('proteins', res.data)
+        self.assertIn('carbohydrates', res.data)
+        self.assertIn('fats', res.data)
+        self.assertEqual(res.data['proteins'], ing1.proteins/2 + ing2.proteins +ing3.proteins/2 )
+        self.assertEqual(res.data['carbohydrates'], ing1.carbohydrates/2 + ing2.carbohydrates +ing3.carbohydrates/2 )
+        self.assertEqual(res.data['fats'], ing1.fats/2 + ing2.fats + ing3.fats/2 )
+
     def test_create_recipe_with_invalid_ingredients_structure(self):
         """ test create recipe with invalid json structure for ingredietns
         failed with message """

@@ -38,8 +38,11 @@ class Recipe(models.Model):
     user = models.ForeignKey(get_user_model(),
                              on_delete=models.CASCADE,
                              null=False, related_name='recipe')
-    calories = models.IntegerField(verbose_name='Kalorie', blank=True,
+    calories = models.FloatField(verbose_name='Kalorie', blank=True,
                                    null=True, default=0)
+    proteins = models.FloatField(blank=True, null=True, default=0)
+    carbohydrates = models.FloatField(blank=True, null=True, default=0)
+    fats = models.FloatField(blank=True, null=True, default=0)
     portions = models.IntegerField(verbose_name='Porcje', blank=True,
                                    null=True)
     prepare_time = models.IntegerField(verbose_name='Czas przygotowania',
@@ -83,6 +86,7 @@ class Recipe(models.Model):
 
     def save(self, *args, **kwargs):
         """ check if there is existing slug for different recipe """
+
         self.slug = slugify(unidecode(self.name))
         if self.check_if_slug_exists(self.slug) and not self.id:
             self.slug = self.slug + "2"
@@ -95,8 +99,35 @@ class Recipe(models.Model):
                     path = old.path
                     if os.path.exists(path):
                         os.remove(path)
-
         super().save(*args, **kwargs)
+
+        self._recalculate_nutritions_values()
+        kwargs['force_insert'] = False
+        super().save(*args, **kwargs, update_fields=['proteins', 'carbohydrates',
+                                                     'fats', 'calories'])
+
+    def _recalculate_nutritions_values(self):
+        """ recalculating nutritions values based on ingredients """
+        self.proteins = 0
+        self.carbohydrates = 0
+        self.fats = 0
+        self.calories = 0
+
+        for ingredient in self.ingredients.all():
+            obj = Recipe_Ingredient.objects.get(recipe=self,
+                                                ingredient=ingredient)
+            if obj.amount or obj.unit is not None:
+                for field in ['proteins', 'carbohydrates', 'fats', 'calories']:
+                    recipe_field_value = getattr(self, field)
+                    ingredient_field_value = getattr(ingredient, field)
+                    if ingredient_field_value is not None:
+                        if obj.unit.name != 'gram':
+                            raw_weigth = ingredient.get_unit_weight(obj.unit,
+                                                                    obj.amount)
+                        else:
+                            raw_weigth = obj.amount
+                        setattr(self, field, (recipe_field_value +
+                                              (raw_weigth/100)*ingredient_field_value))
 
     def get_absolute_url(self):
         return reverse('recipe:recipe_detail', kwargs={'slug': self.slug})
@@ -265,6 +296,7 @@ class Recipe_Ingredient(models.Model):
 
     def __str__(self):
         return self.recipe.name + '_' + self.ingredient.name
+
 
 @receiver(m2m_changed, sender=Recipe_Ingredient)
 def _count_calories_based_on_ingredients(sender, instance, action, **kwargs):
