@@ -66,7 +66,8 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
 
     def get_object(self):
         """ return appropriate recipe for requested user """
-        return self.queryset.filter(user=self.request.user).get(slug=self.kwargs['slug'])
+        obj = get_object_or_404(self.get_queryset(), **{'slug': self.kwargs['slug']})
+        return obj
 
     def get_serializer_class(self):
         """ return appropriate serializer class """
@@ -229,7 +230,7 @@ class RecipeDetailViewSet(RequiredFieldsResponseMessage,
         context = super().get_serializer_context()
         context['user'] = self.request.user
         return context
-    
+
     def get_object(self):
         """ retrieve object based on pk and slug. Recipes in groups can have
         same name """

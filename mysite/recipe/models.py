@@ -122,12 +122,12 @@ class Recipe(models.Model):
                     ingredient_field_value = getattr(ingredient, field)
                     if ingredient_field_value is not None:
                         if obj.unit.name != 'gram':
-                            raw_weigth = ingredient.get_unit_weight(obj.unit,
-                                                                    obj.amount)
+                            weight_in_grams = ingredient.get_unit_weight(obj.unit,
+                                                                         obj.amount)
                         else:
-                            raw_weigth = obj.amount
-                        setattr(self, field, (recipe_field_value +
-                                              (raw_weigth/100)*ingredient_field_value))
+                            weight_in_grams = obj.amount
+                        setattr(self, field, round((recipe_field_value +
+                                              (weight_in_grams/100)*ingredient_field_value), 2))
 
     def get_absolute_url(self):
         return reverse('recipe:recipe_detail', kwargs={'slug': self.slug})
