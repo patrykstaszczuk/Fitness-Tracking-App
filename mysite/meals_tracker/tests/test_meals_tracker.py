@@ -1,11 +1,11 @@
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework import status
 
 from django.urls import reverse
 
-from recipe.models import Recipe
+from recipe.models import Recipe, Ingredient, Unit
 from recipe.serializers import RecipeSerializer
 from meals_tracker import models
 
@@ -18,7 +18,7 @@ DAILY_MEALS_TRACKER = reverse('meals_tracker:meal-list')
 
 def get_meal_detail_view(meal_id):
     """ reverse to meal detail view """
-    return reverse('meals_tracker:meal-detail', kwargs={'id': meal_id})
+    return reverse('meals_tracker:meal-detail', kwargs={'pk': meal_id})
 
 
 def sample_recipe(user, name='test', calories=0, **kwargs):
@@ -27,6 +27,12 @@ def sample_recipe(user, name='test', calories=0, **kwargs):
         user=user,
         name=name,
         calories=calories,
+        **kwargs
+    )
+
+
+def sample_ingredient(**kwargs):
+    return Ingredient.objects.create(
         **kwargs
     )
 
@@ -64,6 +70,7 @@ class PrivateMealsTrackerApiTests(TestCase):
             gender='Male'
         )
         self.category = sample_category()
+        self.unit = Unit.objects.create(name='gram')
         self.today = datetime.date.today()
         self.client = APIClient()
         self.client.force_authenticate(self.user)
@@ -73,13 +80,13 @@ class PrivateMealsTrackerApiTests(TestCase):
 
         recipe = Recipe.objects.create(user=self.user, name='test',
                                        calories=1000)
-        models.Meal.objects.create(user=self.user, recipe=recipe,
-                                   recipe_portions=1, category=self.category)
+        meal = models.Meal.objects.create(user=self.user, category=self.category)
+        meal.recipes.add(recipe, through_defaults={'portion': 1})
         meals = models.Meal.objects.filter(user=self.user, date=self.today)
         serializer = MealsTrackerSerializer(meals, many=True)
         res = self.client.get(DAILY_MEALS_TRACKER, format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(res.data, serializer.data)
+        self.assertIn('recipes', res.json()['data'][0])
 
     def test_retrieve_meals_only_for_given_user(self):
         """ test user's meals separation """
@@ -89,51 +96,39 @@ class PrivateMealsTrackerApiTests(TestCase):
         recipe1 = Recipe.objects.create(user=self.user, name='test')
         recipe2 = Recipe.objects.create(user=user2, name='test')
 
-        models.Meal.objects.create(user=self.user, recipe=recipe1,
-                                   recipe_portions=1, category=self.category)
-        models.Meal.objects.create(user=user2, recipe=recipe1,
-                                   recipe_portions=1, category=self.category)
+        meal = models.Meal.objects.create(user=self.user, category=self.category)
+        meal.recipes.add(recipe1, through_defaults={'portion': 1})
+        meal = models.Meal.objects.create(user=user2, category=self.category)
+        meal.recipes.add(recipe2, through_defaults={'portion': 1})
         res = self.client.get(DAILY_MEALS_TRACKER)
 
-        meal1 = models.Meal.objects.filter(user=self.user)
-        meal2 = models.Meal.objects.filter(user=user2)
-        serializer1 = MealsTrackerSerializer(meal1, many=True)
-        serializer2 = MealsTrackerSerializer(meal2, many=True)
-        self.assertEqual(len(res.data), 1)
-        self.assertNotIn(res.data, serializer2.data)
-        self.assertEqual(res.data, serializer1.data)
+        self.assertEqual(len(res.json()['data'][0]['recipes']), 1)
+        self.assertIn(recipe1.name, res.json()['data'][0]['recipes'][0]['name'])
 
     def test_retrieve_meals_summary_only_for_today(self):
         """ test retreving meals only for a given day """
 
         recipe = Recipe.objects.create(user=self.user, name='test',
                                        calories=500, portions=5)
-        models.Meal.objects.create(user=self.user, recipe=recipe,
-                                   recipe_portions=1, category=self.category)
-        models.Meal.objects.create(user=self.user, recipe=recipe,
-                                   recipe_portions=1, category=self.category,
-                                   date='2021-06-06')
-        meals = models.Meal.objects.filter(user=self.user, date=self.today)
-        old_meals = models.Meal.objects.filter(user=self.user, date='2021-06-06')
-        serializer = MealsTrackerSerializer(meals, many=True)
-        old_meal_serializer = MealsTrackerSerializer(old_meals, many=True)
-
+        meal = models.Meal.objects.create(user=self.user, category=self.category)
+        meal.recipes.add(recipe, through_defaults={'portion': 1})
+        meal = models.Meal.objects.create(user=self.user, category=self.category,
+                                          date='2021-06-06')
+        meal.recipes.add(recipe, through_defaults={'portion': 1})
         res = self.client.get(DAILY_MEALS_TRACKER, format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertNotIn(old_meal_serializer.data, res.data)
-        self.assertEqual(serializer.data, res.data)
+        self.assertEqual(len(res.json()['data']), 1)
 
     def test_retrevig_recipe_detail_from_meals_summary_response(self):
         """ test retrieving all information about recipe added to meal """
 
         recipe = sample_recipe(user=self.user, name='Golabki', calories=1000)
 
-        models.Meal.objects.create(user=self.user, recipe=recipe,
-                                   recipe_portions=1, category=self.category)
+        meal = models.Meal.objects.create(user=self.user,
+                                          category=self.category)
+        meal.recipes.add(recipe, through_defaults={'portion': 1})
         res = self.client.get(DAILY_MEALS_TRACKER)
-        self.assertEqual(recipe.name, res.json()['data'][0]['recipe_detail']['name'])
-        self.assertEqual(recipe.calories,
-                         res.json()['data'][0]['recipe_detail']['calories'])
+        self.assertEqual(recipe.name, res.json()['data'][0]['recipes'][0]['name'])
 
     def test_create_meal_from_one_recipe(self):
         """ test create meal from recipe """
@@ -142,27 +137,54 @@ class PrivateMealsTrackerApiTests(TestCase):
 
         payload = {
             'category': self.category.id,
-            'recipe': recipe.id,
-            'recipe_portions': 1
+            'recipes': [
+                {
+                    'recipe': recipe.id,
+                    'portion': 1
+                }
+            ],
         }
         res = self.client.post(DAILY_MEALS_TRACKER, payload, format='json')
-        meal = models.Meal.objects.filter(user=self.user) \
-            .get(category=self.category)
-        serializer = MealsTrackerSerializer(meal)
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(res.data, serializer.data)
+        self.assertIn('location', res._headers)
+
+    # def test_create_meal_from_ingredient(self):
+    #     """ test creating meal from ignredient e.g one egg """
+    #
+    #     ingredient = sample_ingredient(**{
+    #         'user': self.user,
+    #         'name': 'Egg',
+    #         'calories': 140
+    #     })
+    #
+    #     payload = {
+    #         'category': self.category.id,
+    #         'ingredient': ingredient.slug,
+    #         'amount': 200,
+    #         'unit': self.unit.id
+    #     }
+    #
+    #     res = self.client.post(DAILY_MEALS_TRACKER, payload, format='json')
+    #     meal = models.Meal.objects.filter(user=self.user) \
+    #         .get(category=self.category)
+    #     serializer = MealsTrackerSerializer(meal)
+    #     self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+    #     print(res.data)
+    #     print(serializer.data)
+    #     self.assertEqual(res.data, serializer.data)
 
     def test_calculate_calories_based_on_portion_of_recipe(self):
         """ test calculating calories from provided recipe with quantity """
-
-        recipe = sample_recipe(user=self.user, calories=1000, portions=4)
-
-        models.Meal.objects.create(user=self.user, recipe=recipe,
-                                   category=self.category,
-                                   recipe_portions=1)
+        ing = sample_ingredient(user=self.user, name='Cukinia', calories='1000')
+        recipe = sample_recipe(user=self.user, portions=4)
+        recipe.ingredients.add(ing, through_defaults={'unit': self.unit,
+                                                      'amount': 100})
+        meal = models.Meal.objects.create(user=self.user,
+                                          category=self.category,)
+        meal.recipes.add(recipe, through_defaults={'portion': 1})
 
         res = self.client.get(DAILY_MEALS_TRACKER)
-        self.assertEqual(res.json()['data'][0]['calories'], recipe.calories/4)
+        self.assertEqual(res.json()['data'][0]['calories'], 250)
 
     def test_create_meal_without_category_failed(self):
         """ test creating meal without category failed """
@@ -170,8 +192,7 @@ class PrivateMealsTrackerApiTests(TestCase):
         recipe = sample_recipe(user=self.user, calories=1000, portions=4)
 
         payload = {
-            'recipe': recipe.id,
-            'recipe_portions': 2,
+            'recipe': [{'recipe': recipe.id, 'portion': 1}],
         }
 
         res = self.client.post(DAILY_MEALS_TRACKER, payload, format='json')
@@ -184,7 +205,7 @@ class PrivateMealsTrackerApiTests(TestCase):
 
         payload = {
             'category': self.category.id,
-            'recipe': recipe.id,
+            'recipe': [{'recipe': recipe.id}],
         }
 
         res = self.client.post(DAILY_MEALS_TRACKER, payload, format='json')
@@ -197,7 +218,7 @@ class PrivateMealsTrackerApiTests(TestCase):
 
         payload = {
             'category': self.category.id,
-            'recipe': recipe.id,
+            'recipe': [{'recipe': recipe.id, 'portion': 0}],
             'recipe_portions': 0
         }
 
@@ -209,8 +230,12 @@ class PrivateMealsTrackerApiTests(TestCase):
 
         payload = {
             'category': self.category.id,
-            'recipe': 22,
-            'recipe_portions': 10
+            'recipes': [
+                {
+                    'recipe': 1,
+                    'portion': 1
+                }
+            ]
         }
 
         res = self.client.post(DAILY_MEALS_TRACKER, payload, format='json')
@@ -233,40 +258,43 @@ class PrivateMealsTrackerApiTests(TestCase):
         recipe2 = sample_recipe(user=self.user, name='test2', calories=2000)
         new_category = sample_category(name='Dinner')
 
-        meal = models.Meal.objects.create(user=self.user, recipe=recipe1,
-                                          recipe_portions=1,
+        meal = models.Meal.objects.create(user=self.user,
                                           category=self.category)
+        meal.recipes.add(recipe1, through_defaults={'portion': 1})
 
         payload = {
             'category': new_category.id,
-            'recipe': recipe2.id,
-            'recipe_portions': 2
+            'recipes': [{'recipe': recipe2.id, 'portion': 2}],
         }
         res = self.client.put(get_meal_detail_view(meal.id), payload,
                               format='json')
         meal.refresh_from_db()
-        serializer = MealsTrackerSerializer(meal)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(res.data, serializer.data)
+        self.assertEqual(new_category, meal.category)
+        self.assertIn(recipe2, meal.recipes.all())
+        self.assertNotIn(recipe1, meal.recipes.all())
 
     def test_partial_update_meal_success(self):
         """ test updating only part of the meal """
 
         recipe = sample_recipe(self.user)
+        recipe2 = sample_recipe(user=self.user, name='test2')
         meal = models.Meal.objects.create(
             user=self.user,
-            recipe=recipe,
-            recipe_portions=1,
             category=self.category
             )
+        meal.recipes.add(recipe, through_defaults={'portion': 1})
+        meal.recipes.add(recipe2, through_defaults={'portion': 1})
 
-        res = self.client.patch(get_meal_detail_view(meal.id),
-                                {'recipe_portions': 2}, format='json')
+        payload = {
+            'recipes': [{'recipe': recipe.id, 'portion': 2}]
+        }
+        res = self.client.patch(get_meal_detail_view(meal.id), payload,
+                                format='json')
         meal.refresh_from_db()
-        serializer = MealsTrackerSerializer(meal)
-
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(res.data, serializer.data)
+        self.assertEqual(len(meal.recipes.all()), 2)
+        self.assertEqual(res.json()['data']['recipes'][0]['portions'], 2)
 
     def test_other_user_meal_update_failed(self):
         """ test users separation """
@@ -275,16 +303,15 @@ class PrivateMealsTrackerApiTests(TestCase):
         meal1 = models.Meal.objects.create(user=user2, category=self.category)
 
         payload = {
-            'recipe': sample_recipe(user=self.user).id,
-            'recipe_portions': 2
+            'recipes': [{
+                'recipe': sample_recipe(user=self.user).id,
+                'portion': 2
+            }]
         }
 
         res = self.client.patch(get_meal_detail_view(meal1.id), payload,
                                 format='json')
-        meal1.refresh_from_db()
-        serializer = MealsTrackerSerializer(meal1)
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertNotEqual(res.data, serializer.data)
 
     def test_update_meal_with_invalid_recipe(self):
         """ test udpating recipe with other user recipe id """
@@ -297,15 +324,15 @@ class PrivateMealsTrackerApiTests(TestCase):
             category=self.category)
 
         payload = {
-            'recipe': recipe.id,
-            'recipe_portions': 2
+            'recipes': [{
+                'recipe': recipe.id,
+                'portion': 2
+            }]
         }
         res = self.client.patch(get_meal_detail_view(meal.id), payload,
                                 format='json')
         meal.refresh_from_db()
-        serializer = MealsTrackerSerializer(meal)
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertNotEqual(res.data, serializer.data)
 
     def test_delete_meal_success(self):
         """ test deleting meal success """

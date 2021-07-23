@@ -5,6 +5,7 @@ from users.models import MyUser
 from users.models import Group as CustomGroup
 from recipe.models import Ingredient, Tag, Recipe, Recipe_Ingredient, Unit, \
                           Ingredient_Unit
+from meals_tracker.models import Meal, MealCategory
 # from users.forms import CustomUserChangeForm, CustomUserCreationForm
 
 
@@ -48,3 +49,5 @@ admin.site.register(Recipe_Ingredient)
 admin.site.register(Unit)
 admin.site.register(CustomGroup)
 admin.site.register(Ingredient_Unit)
+admin.site.register(Meal)
+admin.site.register(MealCategory)

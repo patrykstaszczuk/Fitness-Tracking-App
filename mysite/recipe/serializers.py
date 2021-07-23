@@ -50,6 +50,7 @@ class IngredientUnitSerializer(serializers.ModelSerializer):
         """ get unit name for ingredient unit mapping information """
         return obj.unit.name
 
+
 class TagSerializer(serializers.ModelSerializer):
     """ Serializer for tag objects """
 
@@ -241,7 +242,6 @@ class RecipeSerializer(serializers.ModelSerializer):
         """ Overrided for neasted serializers handling """
         validated_ingredients = validated_data.pop('ingredients_quantity', None)
         recipe = super().create(validated_data)
-
         if validated_ingredients:
             for ingredient in validated_ingredients:
                 Recipe_Ingredient.objects.create(

@@ -1,16 +1,23 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from meals_tracker import models
-from recipe.models import Recipe
+from recipe.models import Recipe, Ingredient, Unit
 import datetime
 
 
-def sample_recipe(user, name='testrecipe', calories=1000):
+def sample_recipe(user, name='test', calories=0, **kwargs):
     """ create sample recipe """
     return Recipe.objects.create(
         user=user,
         name=name,
         calories=calories,
+        **kwargs
+    )
+
+
+def sample_ingredient(**kwargs):
+    return Ingredient.objects.create(
+        **kwargs
     )
 
 
@@ -33,6 +40,8 @@ class MealModelTestCase(TestCase):
             gender='Male'
         )
         self.now = datetime.date.today()
+        self.unit = Unit.objects.create(name='gram')
+        self.category = sample_category()
 
     def test_meal_str(self):
         """ test string representation of meal model """
@@ -48,9 +57,8 @@ class MealModelTestCase(TestCase):
         recipe = sample_recipe(user=self.user)
 
         meal = models.Meal.objects.create(user=self.user,
-                                          recipe=recipe,
-                                          recipe_portions=1,
                                           category=sample_category())
+        meal.recipes.add(recipe, through_defaults={'portion': 1})
         self.assertEqual(recipe.calories, meal.calories)
 
     def test_meal_category_str(self):
@@ -67,3 +75,41 @@ class MealModelTestCase(TestCase):
         meal = models.Meal.objects.create(user=self.user, category=breakfast)
 
         self.assertEqual(breakfast, meal.category)
+
+    def recalculate_calories_when_recipes_ingredient_changed(self):
+        """ test recalculating meal calories when reicpes ingredients change"""
+        ing = sample_ingredient(user=self.user, name='Coś', calories='1000')
+        ing2 = sample_ingredient(user=self.user, name='Coś2', calories='2000')
+        recipe = sample_recipe(user=self.user, portions=4)
+        recipe.ingredients.add(ing, through_defaults={'unit': self.unit,
+                                                      'amount': 100})
+        meal = models.Meal.objects.create(user=self.user,
+                                          category=self.category,)
+        meal.recipes.add(recipe, through_defaults={'portion': 1})
+
+        self.assertEqual(meal.calories, 250)
+
+        recipe.ingredients.remove(ing)
+        recipe.ingredients.add(ing2, through_defaults={'amount': 100,
+                                                       'unit': self.unit})
+        meal.refresh_from_db()
+        self.assertEqual(meal.calories, 500)
+
+    def recalculate_calories_when_ingredient_updated(self):
+        """ test recalculating meal calories when one of the ingredient
+        assigned to recipe changed """
+
+        ing = sample_ingredient(user=self.user, name='Coś', calories='1000')
+        recipe = sample_recipe(user=self.user, portions=4)
+        recipe.ingredients.add(ing, through_defaults={'unit': self.unit,
+                                                      'amount': 100})
+        meal = models.Meal.objects.create(user=self.user,
+                                          category=self.category,)
+        meal.recipes.add(recipe, through_defaults={'portion': 1})
+
+        self.assertEqual(meal.calories, 250)
+
+        ing.calories = '2000'
+        ing.save()
+        meal.refresh_from_db()
+        self.assertEqual(meal.calories, 500)

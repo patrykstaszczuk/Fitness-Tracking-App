@@ -1,10 +1,11 @@
 from django.db import models
 from django.conf import settings
 import datetime
-
+from django.dispatch import receiver
+from django.db.models.signals import m2m_changed, post_save
 from django.core.exceptions import ValidationError
 
-from recipe.models import Recipe
+from recipe.models import Recipe, Ingredient, Unit
 # Create your models here.
 
 
@@ -17,31 +18,50 @@ class Meal(models.Model):
                                                 default=0)
     category = models.ForeignKey('MealCategory', on_delete=models.PROTECT,
                                  null=False, related_name='meal', blank=False)
-    recipe = models.ForeignKey(Recipe, on_delete=models.SET_NULL, null=True,
-                               blank=True)
-    recipe_portions = models.PositiveSmallIntegerField(null=True, blank=True)
+    recipes = models.ManyToManyField(Recipe, through='RecipePortion')
+    ingredients = models.ManyToManyField(Ingredient, through='IngredientAmount')
 
     def __str__(self):
         """ string representation """
         return f'{self.user} + {self.date}'
 
-    def save(self, *args, **kwargs):
-        """ set calories based on provided recipe, ingredients or ready
-        meals """
-        self.full_clean()
-        if self.calories is None:
-            self.calories = 0
+    def _recalculate_total_meal_calories(self):
+        """ recalculate calories when m2m change or specific Recipe is being
+            saved """
+        self.calories = 0
+        for recipe in self.recipes.all():
+            obj = RecipePortion.objects.get(recipe=recipe, meal=self)
+            if recipe.calories is not None:
+                self.calories += recipe.get_calories(obj.portion)
+        self.save()
 
-        if self.recipe:
-            self.calories += self.recipe.get_calories(self.recipe_portions)
-        super().save(*args, **kwargs)
 
-    def clean(self):
-        """ check if recipe and recipe_portions are set or not set together """
-        if self.recipe is None:
-            assert self.recipe_portions is None, "Recipe should be set"
-        if self.recipe is not None:
-            assert self.recipe_portions is not None, "Portion should be set"
+class RecipePortion(models.Model):
+    """ Intermediate table for Meal - Recipe """
+
+    meal = models.ForeignKey(Meal, on_delete=models.CASCADE,
+                             related_name='recipes_extra_info')
+    portion = models.PositiveSmallIntegerField(default=1)
+    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
+
+    class Meta:
+        constraints = [
+             models.UniqueConstraint(fields=['meal', 'recipe'],
+                                     name='unique recipe-meal')
+        ]
+
+    def __str__(self):
+        return str(self.portion)
+
+
+class IngredientAmount(models.Model):
+    """ Intermediate table for Meal - Ingredient """
+
+    meal = models.ForeignKey(Meal, on_delete=models.CASCADE, null=False)
+    unit = models.ForeignKey(Unit, on_delete=models.CASCADE, null=False)
+    amount = models.PositiveSmallIntegerField(null=False)
+    ingredient = models.ForeignKey(Ingredient, on_delete=models.CASCADE,
+                                   null=False)
 
 
 class MealCategory(models.Model):
@@ -51,3 +71,15 @@ class MealCategory(models.Model):
     def __str__(self):
         """ string representation """
         return self.name
+
+
+@receiver(post_save, sender=Recipe)
+@receiver(m2m_changed, sender=RecipePortion)
+def _recalculate_total_meal_calories(sender, instance, action=None, **kwargs):
+    """ call Meal instance function to recalculate calories """
+    if sender == RecipePortion and action == 'post_add':
+        instance._recalculate_total_meal_calories()
+    elif sender == Recipe:
+        meals = Meal.objects.filter(recipes=instance.id)
+        for meal in meals:
+            meal._recalculate_total_meal_calories()

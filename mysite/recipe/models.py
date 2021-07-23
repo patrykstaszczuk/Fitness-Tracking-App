@@ -157,6 +157,20 @@ class Recipe(models.Model):
             number_of_portions = 1
         return (self.calories/self.portions) * number_of_portions
 
+    def set_calories(self):
+        """ recalcualte calories based on ingredients """
+        self.calories = 0
+        for ingredient in self.ingredients.all():
+            obj = Recipe_Ingredient.objects.get(recipe=self, ingredient=ingredient)
+            if ingredient.calories is not None:
+                if obj.amount or obj.unit is not None:
+                    if obj.unit.name != 'gram':
+                        raw_weigth = ingredient.get_unit_weight(obj.unit,
+                                                                obj.amount)
+                    else:
+                        raw_weigth = obj.amount
+                    self.calories += (raw_weigth/100)*ingredient.calories
+        self.save()
 
 class Ingredient(models.Model):
 
@@ -207,8 +221,10 @@ class Ingredient(models.Model):
         return self.name
 
     def save(self, *args, **kwargs):
-        """ two ingredient can have same slug eg 'sól' and 'sol' both
-            have slug 'sol' """
+        """
+            - edit slug field if similar slug exists
+            - add default unit for ingredient
+        """
         self.slug = slugify(unidecode(self.name))
         if self.check_if_slug_exists(self.slug) and not self.id:
             self.slug = self.slug + "2"
@@ -298,22 +314,18 @@ class Recipe_Ingredient(models.Model):
         return self.recipe.name + '_' + self.ingredient.name
 
 
+@receiver(post_save, sender=Ingredient)
 @receiver(m2m_changed, sender=Recipe_Ingredient)
-def _count_calories_based_on_ingredients(sender, instance, action, **kwargs):
+def _count_calories_based_on_ingredients(sender, instance, action=None,
+                                         **kwargs):
     """ sum up calories from all recipe ingredients """
-    if action == 'post_add':
-        instance.calories = 0
-        for ingredient in instance.ingredients.all():
-            obj = sender.objects.get(recipe=instance, ingredient=ingredient)
-            if ingredient.calories is not None:
-                if obj.amount or obj.unit is not None:
-                    if obj.unit.name != 'gram':
-                        raw_weigth = ingredient.get_unit_weight(obj.unit,
-                                                                obj.amount)
-                    else:
-                        raw_weigth = obj.amount
-                    instance.calories += (raw_weigth/100)*ingredient.calories
-        instance.save()
+
+    if action in ['post_add', 'post_remove', 'post_clear']:
+        instance.set_calories()
+    elif sender == Ingredient:
+        recipes = Recipe.objects.filter(ingredients=instance.id)
+        for recipe in recipes:
+            recipe.set_calories()
 
 
 class Unit(models.Model):
