@@ -23,7 +23,7 @@ def sample_ingredient(**kwargs):
 
 def sample_category(name='breakfast'):
     """ create sample category """
-    return models.MealCategory.objects.create(name)
+    return models.MealCategory.objects.create(name=name)
 
 
 class MealModelTestCase(TestCase):

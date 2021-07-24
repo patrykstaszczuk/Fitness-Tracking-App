@@ -4,6 +4,14 @@ from meals_tracker import models
 from recipe.models import Recipe
 
 
+class MealCategorySerializer(serializers.ModelSerializer):
+    """ serializer for MealCategory model """
+
+    class Meta:
+        model = models.MealCategory
+        fields = '__all__'
+
+
 class RecipePortionSerializer(serializers.ModelSerializer):
     """ serializer for meal-recipe extra info """
 
@@ -37,6 +45,7 @@ class MealsTrackerSerializer(serializers.ModelSerializer):
 
     recipes = serializers.SerializerMethodField()
     url = serializers.HyperlinkedIdentityField(view_name='meals_tracker:meal-detail')
+    category = MealCategorySerializer(read_only=True)
 
     class Meta:
         model = models.Meal
@@ -66,6 +75,7 @@ class CreateUpdateMealSerializer(MealsTrackerSerializer):
 
     recipes = RecipePortionSerializer(write_only=True, required=False,
                                       many=True)
+    category = serializers.PrimaryKeyRelatedField(queryset=models.MealCategory.objects.all())
 
     def is_valid(self, raise_exception=False):
         """ check if recipe is created by requested user """
@@ -82,7 +92,6 @@ class CreateUpdateMealSerializer(MealsTrackerSerializer):
 
         initial_values = values
         data = super().to_internal_value(values)
-
         if initial_values.keys() != data.keys():
             raise serializers.ValidationError({'non-field-error':
                                               'Bad structure for json request'})
@@ -131,11 +140,3 @@ class CreateUpdateMealSerializer(MealsTrackerSerializer):
                 self.instance.recipes.through.objects.bulk_create(new_objects)
 
         return super().update(instance, validated_data)
-
-
-class MealCategorySerializer(serializers.ModelSerializer):
-    """ serializer for MealCategory model """
-
-    class Meta:
-        model = models.MealCategory
-        fields = '__all__'
