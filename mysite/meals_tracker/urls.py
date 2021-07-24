@@ -7,5 +7,7 @@ router.register('', views.MealsTrackerViewSet)
 app_name = 'meals_tracker'
 
 urlpatterns = [
-    path('', include(router.urls))
+    path('meals/', include(router.urls)),
+    path('categories/', views.MealCategoryListView.as_view(),
+         name='categories')
 ]

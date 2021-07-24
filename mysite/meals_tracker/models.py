@@ -40,9 +40,9 @@ class RecipePortion(models.Model):
     """ Intermediate table for Meal - Recipe """
 
     meal = models.ForeignKey(Meal, on_delete=models.CASCADE,
-                             related_name='recipes_extra_info')
+                             related_name='recipes_extra_info', null=False)
     portion = models.PositiveSmallIntegerField(default=1)
-    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
+    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE, null=False)
 
     class Meta:
         constraints = [
@@ -66,7 +66,7 @@ class IngredientAmount(models.Model):
 
 class MealCategory(models.Model):
 
-    name = models.CharField(max_length=20, null=False)
+    name = models.CharField(max_length=20, null=False, unique=True)
 
     def __str__(self):
         """ string representation """

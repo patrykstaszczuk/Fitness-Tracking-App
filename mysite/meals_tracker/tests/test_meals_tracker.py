@@ -356,3 +356,13 @@ class PrivateMealsTrackerApiTests(TestCase):
 
         res = self.client.delete(get_meal_detail_view(meal.id))
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_retreiving_available_categories(self):
+        """ test retrieving all meal categories """
+
+        sample_category(name='Dinner')
+        sample_category(name='Supper')
+        url = reverse('meals_tracker:categories')
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.json()['data']), 3)

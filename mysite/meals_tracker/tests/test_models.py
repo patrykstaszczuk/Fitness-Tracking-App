@@ -21,9 +21,9 @@ def sample_ingredient(**kwargs):
     )
 
 
-def sample_category():
+def sample_category(name='breakfast'):
     """ create sample category """
-    return models.MealCategory.objects.create(name='breakfast')
+    return models.MealCategory.objects.create(name)
 
 
 class MealModelTestCase(TestCase):
@@ -47,7 +47,7 @@ class MealModelTestCase(TestCase):
         """ test string representation of meal model """
 
         meal = models.Meal.objects.create(user=self.user,
-                                          category=sample_category())
+                                          category=sample_category(name='Supper'))
 
         self.assertEqual(str(meal), f'{meal.user} + {meal.date}')
 
@@ -57,21 +57,21 @@ class MealModelTestCase(TestCase):
         recipe = sample_recipe(user=self.user)
 
         meal = models.Meal.objects.create(user=self.user,
-                                          category=sample_category())
+                                          category=sample_category(name='Supper'))
         meal.recipes.add(recipe, through_defaults={'portion': 1})
         self.assertEqual(recipe.calories, meal.calories)
 
     def test_meal_category_str(self):
         """ test string representation of meal category """
 
-        category = models.MealCategory.objects.create(name='Breakfast')
+        category = models.MealCategory.objects.create(name='Dinner')
 
         self.assertEqual(str(category), category.name)
 
     def test_retrieve_category_of_meal(self):
         """ test retreving category from field """
 
-        breakfast = models.MealCategory.objects.create(name='Breakfast')
+        breakfast = models.MealCategory.objects.create(name='Dinner')
         meal = models.Meal.objects.create(user=self.user, category=breakfast)
 
         self.assertEqual(breakfast, meal.category)

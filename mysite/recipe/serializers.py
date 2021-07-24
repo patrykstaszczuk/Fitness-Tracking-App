@@ -193,7 +193,7 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Recipe
-        exclude = ('id', 'proteins', 'carbohydrates', 'fats')
+        exclude = ('proteins', 'carbohydrates', 'fats')
         read_only_fields = ('url', 'user', 'slug', 'photo1', 'photo2',
                             'photo3')
         extra_kwargs = {
@@ -269,7 +269,7 @@ class RecipeDetailSerializer(RecipeSerializer):
 
     class Meta:
         model = Recipe
-        exclude = ('id', )
+        fields = '__all__'
         read_only_fields = ('user', 'slug', 'photo1', 'photo2', 'photo3',
                             'proteins', 'carbohydrates', 'fats')
 

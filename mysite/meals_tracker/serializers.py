@@ -131,3 +131,11 @@ class CreateUpdateMealSerializer(MealsTrackerSerializer):
                 self.instance.recipes.through.objects.bulk_create(new_objects)
 
         return super().update(instance, validated_data)
+
+
+class MealCategorySerializer(serializers.ModelSerializer):
+    """ serializer for MealCategory model """
+
+    class Meta:
+        model = models.MealCategory
+        fields = '__all__'
