@@ -25,7 +25,7 @@ class Meal(models.Model):
         """ string representation """
         return f'{self.user} + {self.date}'
 
-    def _recalculate_total_meal_calories(self):
+    def set_calories(self):
         """ recalculate calories when m2m change or specific Recipe is being
             saved """
         self.calories = 0
@@ -33,7 +33,13 @@ class Meal(models.Model):
             obj = RecipePortion.objects.get(recipe=recipe, meal=self)
             if recipe.calories is not None:
                 self.calories += recipe.get_calories(obj.portion)
-        self.save()
+
+    def save(self, *args, **kwargs):
+        """ initiate set_calories method """
+        super().save(*args, **kwargs)
+        self.set_calories()
+        kwargs['force_insert'] = False
+        super().save(*args, **kwargs, update_fields=['calories', ])
 
 
 class RecipePortion(models.Model):
@@ -78,8 +84,8 @@ class MealCategory(models.Model):
 def _recalculate_total_meal_calories(sender, instance, action=None, **kwargs):
     """ call Meal instance function to recalculate calories """
     if sender == RecipePortion and action == 'post_add':
-        instance._recalculate_total_meal_calories()
+        instance.save()
     elif sender == Recipe:
         meals = Meal.objects.filter(recipes=instance.id)
         for meal in meals:
-            meal._recalculate_total_meal_calories()
+            meal.save()

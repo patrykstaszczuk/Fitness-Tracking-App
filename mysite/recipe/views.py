@@ -66,7 +66,8 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
 
     def get_object(self):
         """ return appropriate recipe for requested user """
-        obj = get_object_or_404(self.get_queryset(), **{'slug': self.kwargs['slug']})
+        obj = get_object_or_404(self.queryset.filter(user=self.request.user),
+                                **{'slug': self.kwargs['slug']})
         return obj
 
     def get_serializer_class(self):
