@@ -134,14 +134,21 @@ class CreateUpdateMealSerializer(MealsTrackerSerializer):
                                              many=True)
     category = serializers.PrimaryKeyRelatedField(queryset=models.MealCategory.objects.all())
 
+    def _validate_objects_permission(self, list_of_obj, entity):
+        if list_of_obj:
+            for item in list_of_obj:
+                if item[f"{entity}"].user != self.context['request'].user:
+                    raise serializers.ValidationError(f'No such {entity}')
+
     def is_valid(self, raise_exception=False):
         """ check if recipe is created by requested user """
         super().is_valid(raise_exception)
         recipes = self.validated_data.get('recipes', None)
+        ingredients = self.validated_data.get('ingredients', None)
         if recipes:
-            for item in recipes:
-                if item['recipe'].user != self.context['request'].user:
-                    raise serializers.ValidationError('No such recipe')
+            self._validate_objects_permission(recipes, "recipe")
+        if ingredients:
+            self._validate_objects_permission(ingredients, "ingredient")
         return True
 
     def to_internal_value(self, values):
@@ -193,25 +200,42 @@ class CreateUpdateMealSerializer(MealsTrackerSerializer):
     def update(self, instance, validated_data):
         """ set the calories amount of meal to 0 during update """
 
-        self.instance.calories = 0
+        instance.calories = 0
 
         recipes = validated_data.pop('recipes', None)
+        ingredients = validated_data.pop('ingredients', None)
 
+        if getattr(self.root, 'partial', False) is False:
+            """ clear all relationships if full update"""
+            self.instance.recipes.clear()
+            self.instance.ingredients.clear()
+        instance = self._save_nested_relationships(instance, recipes,
+                                                   ingredients)
+        return super().update(instance, validated_data)
+
+    def _save_nested_relationships(self, instance, recipes, ingredients):
+        """ save nested realionships """
         if recipes:
-            if getattr(self.root, 'partial', False) is False:
-                """ clear all relationships if full update"""
-                self.instance.recipes.clear()
-
-            new_objects = []
+            new_recipes = []
             for recipe in recipes:
-                recipe['meal'] = self.instance
-                if recipe['recipe'] in self.instance.recipes.all():
+                recipe['meal'] = instance
+                if recipe['recipe'] in instance.recipes.all():
                     """ if there is such relation, update it """
                     models.RecipePortion.objects \
                         .filter(recipe=recipe['recipe'], meal=recipe['meal']).update(**recipe)
                 else:
-                    new_objects.append(self.instance.recipes.through(**recipe))
-            if new_objects:
-                self.instance.recipes.through.objects.bulk_create(new_objects)
-
-        return super().update(instance, validated_data)
+                    new_recipes.append(instance.recipes.through(**recipe))
+            if new_recipes:
+                instance.recipes.through.objects.bulk_create(new_recipes)
+        if ingredients:
+            new_ingredients = []
+            for ingredient in ingredients:
+                ingredient['meal'] = instance
+                if ingredient['ingredient'] in instance.ingredients.all():
+                    models.IngredientAmount.objects.filter(ingredient=ingredient['ingredient'],
+                                                  meal=instance).update(**ingredient)
+                else:
+                    new_ingredients.append(instance.ingredients.through(**ingredient))
+            if new_ingredients:
+                instance.ingredients.through.objects.bulk_create(new_ingredients)
+        return instance

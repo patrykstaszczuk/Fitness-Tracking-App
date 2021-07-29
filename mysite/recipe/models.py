@@ -194,7 +194,7 @@ class Ingredient(models.Model):
     _usage_counter = models.PositiveIntegerField(default=0, null=False)
     units = models.ManyToManyField('Unit', through='ingredient_unit',)
     calories = models.FloatField(null=True, validators=[MinValue(1, "Value \
-                        must be greater then 0!")])
+                        must be greater then 0!")], default=0)
     carbohydrates = models.FloatField(null=True, validators=[MinValue(0)])
     proteins = models.FloatField(null=True, validators=[MinValue(0)])
     fats = models.FloatField(null=True, validators=[MinValue(0)])
