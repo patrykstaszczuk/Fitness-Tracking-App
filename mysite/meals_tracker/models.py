@@ -33,9 +33,13 @@ class Meal(models.Model):
             obj = RecipePortion.objects.get(recipe=recipe, meal=self)
             if recipe.calories is not None:
                 self.calories += recipe.get_calories(obj.portion)
+        for ingredient in self.ingredients.all():
+            obj = IngredientAmount.objects.get(ingredient=ingredient, meal=self)
+            self.calories += ingredient.calculate_calories(unit=obj.unit,
+                                                           amount=obj.amount)
 
     def save(self, *args, **kwargs):
-        """ initiate set_calories method """
+        """ call set_calories() method """
         super().save(*args, **kwargs)
         self.set_calories()
         kwargs['force_insert'] = False
@@ -64,10 +68,13 @@ class IngredientAmount(models.Model):
     """ Intermediate table for Meal - Ingredient """
 
     meal = models.ForeignKey(Meal, on_delete=models.CASCADE, null=False)
-    unit = models.ForeignKey(Unit, on_delete=models.CASCADE, null=False)
-    amount = models.PositiveSmallIntegerField(null=False)
     ingredient = models.ForeignKey(Ingredient, on_delete=models.CASCADE,
                                    null=False)
+    unit = models.ForeignKey(Unit, on_delete=models.CASCADE, null=False)
+    amount = models.PositiveSmallIntegerField(null=False)
+
+    def __str__(self):
+        return self.amount + self.unit.name
 
 
 class MealCategory(models.Model):
@@ -81,9 +88,10 @@ class MealCategory(models.Model):
 
 @receiver(post_save, sender=Recipe)
 @receiver(m2m_changed, sender=RecipePortion)
+@receiver(m2m_changed, sender=IngredientAmount)
 def _recalculate_total_meal_calories(sender, instance, action=None, **kwargs):
     """ call Meal instance function to recalculate calories """
-    if sender == RecipePortion and action == 'post_add':
+    if (sender in [RecipePortion, IngredientAmount]) and action == 'post_add':
         instance.save()
     elif sender == Recipe:
         meals = Meal.objects.filter(recipes=instance.id)

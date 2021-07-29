@@ -133,7 +133,12 @@ class PrivateMealsTrackerApiTests(TestCase):
     def test_create_meal_from_one_recipe(self):
         """ test create meal from recipe """
 
-        recipe = sample_recipe(user=self.user, calories=1000, portions=4)
+        recipe = sample_recipe(user=self.user, portions=4)
+        ingredient = sample_ingredient(user=self.user, name='jajko',
+                                       calories=100)
+        recipe.ingredients.add(ingredient,
+                               through_defaults={'unit': self.unit,
+                                                 'amount': 200})
 
         payload = {
             'category': self.category.id,
@@ -147,31 +152,31 @@ class PrivateMealsTrackerApiTests(TestCase):
         res = self.client.post(DAILY_MEALS_TRACKER, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         self.assertIn('location', res._headers)
+        self.assertEqual(res.json()['data']['calories'], 50)
 
-    # def test_create_meal_from_ingredient(self):
-    #     """ test creating meal from ignredient e.g one egg """
-    #
-    #     ingredient = sample_ingredient(**{
-    #         'user': self.user,
-    #         'name': 'Egg',
-    #         'calories': 140
-    #     })
-    #
-    #     payload = {
-    #         'category': self.category.id,
-    #         'ingredient': ingredient.slug,
-    #         'amount': 200,
-    #         'unit': self.unit.id
-    #     }
-    #
-    #     res = self.client.post(DAILY_MEALS_TRACKER, payload, format='json')
-    #     meal = models.Meal.objects.filter(user=self.user) \
-    #         .get(category=self.category)
-    #     serializer = MealsTrackerSerializer(meal)
-    #     self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-    #     print(res.data)
-    #     print(serializer.data)
-    #     self.assertEqual(res.data, serializer.data)
+    def test_create_meal_from_ingredient(self):
+        """ test creating meal only based on ingredient """
+
+        ingredient = sample_ingredient(name='jajko', user=self.user,
+                                       calories='100')
+
+        payload = {
+            'category': self.category.id,
+            'ingredients': [
+                {
+                    'ingredient': ingredient.id,
+                    'unit': self.unit.id,
+                    'amount': 200
+                }
+            ]}
+
+        res = self.client.post(DAILY_MEALS_TRACKER, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+
+        meal = models.Meal.objects.filter(user=self.user)
+        self.assertEqual(len(meal), 1)
+
+        self.assertEqual(res.json()['data']['calories'], 200)
 
     def test_calculate_calories_based_on_portion_of_recipe(self):
         """ test calculating calories from provided recipe with quantity """

@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from meals_tracker import models
 
-from recipe.models import Recipe
+from recipe.models import Recipe, Ingredient
+from recipe.serializers import UnitSerializer
 
 
 class MealCategorySerializer(serializers.ModelSerializer):
@@ -20,7 +21,17 @@ class RecipePortionSerializer(serializers.ModelSerializer):
         fields = ('recipe', 'portion')
 
 
-class RecipePortionCustomSerializer(serializers.ModelSerializer):
+class IngredientAmountSerializer(serializers.ModelSerializer):
+    """ serializer for meal-ingredient extra info """
+
+    class Meta:
+        model = models.IngredientAmount
+        fields = ('ingredient', 'unit', 'amount')
+
+
+class RetrieveRecipeSerializer(serializers.ModelSerializer):
+    """ serializer for retrieving recipe assigned to meal during meals GET
+    action """
 
     portions = serializers.SerializerMethodField()
     url = serializers.HyperlinkedIdentityField(view_name='recipe:recipe-detail',
@@ -40,10 +51,40 @@ class RecipePortionCustomSerializer(serializers.ModelSerializer):
             return None
 
 
+class RetrieveIngredientSerializer(serializers.ModelSerializer):
+    """ serialzier for retrieving ingredients assigned to meal durign meals
+    GET action """
+
+    url = serializers.HyperlinkedIdentityField(view_name='recipe:ingredient-detail',
+                                               lookup_field='slug')
+    unit = serializers.SerializerMethodField()
+    amount = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Ingredient
+        fields = ('url', 'name', 'unit', 'amount')
+
+    def get_unit(self, obj):
+        """ return unit used to define ingredient amount """
+        unit = models.IngredientAmount.objects.get(ingredient=obj, meal=self.meal).unit
+        return UnitSerializer(unit).data
+
+    def get_amount(self, obj):
+        """ return amount of ingredient """
+        amount = models.IngredientAmount.objects.get(ingredient=obj, meal=self.meal).amount
+        return amount
+
+    def __init__(self, *args, **kwargs):
+        """ assigned meal instance to variable """
+        super().__init__(*args, **kwargs)
+        self.meal = self.context.get('meal_instance')
+
+
 class MealsTrackerSerializer(serializers.ModelSerializer):
     """ serializer for meal objects """
 
     recipes = serializers.SerializerMethodField()
+    ingredients = serializers.SerializerMethodField()
     url = serializers.HyperlinkedIdentityField(view_name='meals_tracker:meal-detail')
     category = MealCategorySerializer(read_only=True)
 
@@ -62,11 +103,25 @@ class MealsTrackerSerializer(serializers.ModelSerializer):
         except KeyError:
             request = None
 
-        data = RecipePortionCustomSerializer(recipes,
-                                             context={'request': request,
-                                             'meal_instance': obj},
-                                             read_only=True, many=True).data
+        data = RetrieveRecipeSerializer(recipes,
+                                        context={'request': request,
+                                        'meal_instance': obj},
+                                        read_only=True, many=True).data
 
+        return data
+
+    def get_ingredients(self, obj):
+        """ get ingredient and extra information """
+
+        ingredients = obj.ingredients.all()
+        try:
+            request = self.context['request'] # for API testing only
+        except KeyError:
+            request = None
+        data = RetrieveIngredientSerializer(ingredients,
+                                            context={'request': request,
+                                            'meal_instance': obj},
+                                            read_only=True, many=True).data
         return data
 
 
@@ -75,6 +130,8 @@ class CreateUpdateMealSerializer(MealsTrackerSerializer):
 
     recipes = RecipePortionSerializer(write_only=True, required=False,
                                       many=True)
+    ingredients = IngredientAmountSerializer(write_only=True, required=False,
+                                             many=True)
     category = serializers.PrimaryKeyRelatedField(queryset=models.MealCategory.objects.all())
 
     def is_valid(self, raise_exception=False):
@@ -101,17 +158,35 @@ class CreateUpdateMealSerializer(MealsTrackerSerializer):
         """ add recipes to response """
         ret = super().to_representation(instance)
         recipes = self.get_recipes(instance)
+        ingredients = self.get_ingredients(instance)
+        ret['ingredients'] = ingredients
         ret['recipes'] = recipes
         return ret
 
     def create(self, validated_data):
         """ add recipes to meal with extra data """
-        recipes = validated_data.pop('recipes')
+
+        recipes = validated_data.pop('recipes', None)
+        ingredients = validated_data.pop('ingredients', None)
+
         self.instance = super().create(validated_data)
-        for recipe in recipes:
-            meal = self.instance
-            recipe.update({'meal': meal})
-            models.RecipePortion.objects.create(**recipe)
+
+        if recipes:
+            for recipe in recipes:
+                self.instance.recipes.add(
+                    recipe['recipe'],
+                    through_defaults={'meal': self.instance,
+                                      'portion': recipe['portion']}
+                )
+
+        if ingredients:
+            for ingredient in ingredients:
+                self.instance.ingredients.add(
+                    ingredient['ingredient'],
+                    through_defaults={'meal': self.instance,
+                                      'unit': ingredient['unit'],
+                                      'amount': ingredient['amount']}
+                )
 
         return self.instance
 

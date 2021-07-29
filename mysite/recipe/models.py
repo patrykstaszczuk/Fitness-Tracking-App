@@ -100,7 +100,6 @@ class Recipe(models.Model):
                     if os.path.exists(path):
                         os.remove(path)
         super().save(*args, **kwargs)
-
         self._recalculate_nutritions_values()
         kwargs['force_insert'] = False
         super().save(*args, **kwargs, update_fields=['proteins', 'carbohydrates',
@@ -112,22 +111,22 @@ class Recipe(models.Model):
         self.carbohydrates = 0
         self.fats = 0
         self.calories = 0
-
         for ingredient in self.ingredients.all():
             obj = Recipe_Ingredient.objects.get(recipe=self,
                                                 ingredient=ingredient)
-            if obj.amount or obj.unit is not None:
+            if None not in [obj.amount, obj.unit]:
                 for field in ['proteins', 'carbohydrates', 'fats', 'calories']:
                     recipe_field_value = getattr(self, field)
                     ingredient_field_value = getattr(ingredient, field)
                     if ingredient_field_value is not None:
-                        if obj.unit.name != 'gram':
-                            weight_in_grams = ingredient.get_unit_weight(obj.unit,
-                                                                         obj.amount)
-                        else:
-                            weight_in_grams = obj.amount
+                        grams = ingredient.get_unit_weight(obj.unit, obj.amount)
+                        # if obj.unit.name != 'gram':
+                        #     weight_in_grams = ingredient.get_unit_weight(obj.unit,
+                        #                                                  obj.amount)
+                        # else:
+                        #     weight_in_grams = obj.amount
                         setattr(self, field, round((recipe_field_value +
-                                              (weight_in_grams/100)*ingredient_field_value), 2))
+                                              (grams/100)*ingredient_field_value), 2))
 
     def get_absolute_url(self):
         return reverse('recipe:recipe_detail', kwargs={'slug': self.slug})
@@ -162,15 +161,12 @@ class Recipe(models.Model):
         self.calories = 0
         for ingredient in self.ingredients.all():
             obj = Recipe_Ingredient.objects.get(recipe=self, ingredient=ingredient)
-            if ingredient.calories is not None:
-                if obj.amount or obj.unit is not None:
-                    if obj.unit.name != 'gram':
-                        raw_weigth = ingredient.get_unit_weight(obj.unit,
-                                                                obj.amount)
-                    else:
-                        raw_weigth = obj.amount
-                    self.calories += (raw_weigth/100)*ingredient.calories
+            if None not in [ingredient.calories, obj.amount, obj.unit]:
+                self.calories = ingredient.calculate_calories(unit=obj.unit,
+                                                              amount=obj.amount)
+
         self.save()
+
 
 class Ingredient(models.Model):
 
@@ -258,8 +254,8 @@ class Ingredient(models.Model):
     def check_if_slug_exists(self, slug):
         return Ingredient.objects.filter(user=self.user).filter(slug=slug).count()
 
-    @property
-    def get_calories(self):
+    def get_default_calories(self):
+        """ get calories on 100 gram """
         return self.calories
 
     @property
@@ -267,13 +263,22 @@ class Ingredient(models.Model):
         return self.unit
 
     def get_unit_weight(self, unit, amount):
-        """ return the unit and amount in grams/mililiters """
+        """ return the unit and amount in grams/mililiters defined for
+        ingredient """
+
+        if unit.name == 'gram':
+            return amount
         try:
             obj = Ingredient_Unit.objects.get(
                 ingredient=self.id, unit=unit)
         except Ingredient_Unit.DoesNotExist:
             raise ValidationError(f"{unit} - {self.name} no such mapping")
         return obj.grams_in_one_unit * amount
+
+    def calculate_calories(self, unit, amount):
+        """ calculate calories based on unit and amount """
+        return (self.get_unit_weight(unit, amount)/100) * \
+            self.get_default_calories()
 
 
 class Tag(models.Model):
@@ -308,7 +313,7 @@ class Recipe_Ingredient(models.Model):
     ingredient = models.ForeignKey('Ingredient', on_delete=models.CASCADE,
                                    null=False)
     amount = models.FloatField(null=True)
-    unit = models.ForeignKey('Unit', null=True, on_delete=models.SET_NULL)
+    unit = models.ForeignKey('Unit', null=True, on_delete=models.PROTECT)
 
     def __str__(self):
         return self.recipe.name + '_' + self.ingredient.name
