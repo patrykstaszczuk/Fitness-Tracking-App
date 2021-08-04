@@ -74,6 +74,8 @@ class PrivateMealsTrackerApiTests(TestCase):
         self.today = datetime.date.today()
         self.client = APIClient()
         self.client.force_authenticate(self.user)
+        self.recipe = Recipe.objects.create(user=self.user, name='self.test',
+                                            calories=1000)
 
     def test_retrieve_meals_summary(self):
         """ test retrieving meals consumed in given day """
@@ -122,6 +124,64 @@ class PrivateMealsTrackerApiTests(TestCase):
         res = self.client.get(DAILY_MEALS_TRACKER, format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(len(res.json()['data']), 1)
+
+    def test_listing_all_date_where_meals_was_saved(self):
+        """ test listing dates where there was a meal inserted """
+
+        meal1 = models.Meal.objects.create(user=self.user, category=self.category,
+                                          date='2021-03-25')
+        meal1.recipes.add(self.recipe, through_defaults={'portion': 1})
+        meal2 = models.Meal.objects.create(user=self.user, category=self.category,
+                                          date='2021-06-06')
+        meal2.recipes.add(self.recipe, through_defaults={'portion': 1})
+        url = reverse("meals_tracker:meal-available-dates")
+        res = self.client.get(url, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        dates = [d['date'] for d in res.json()['data']]
+        self.assertIn(meal1.date, dates)
+        self.assertIn(meal2.date, dates)
+
+    def test_retrieve_meals_summary_for_given_day(self):
+        """ test retrieving meals for specified day """
+
+        recipe = Recipe.objects.create(user=self.user, name='test',
+                                       calories=500, portions=5)
+        meal = models.Meal.objects.create(user=self.user, category=self.category)
+        meal.recipes.add(recipe, through_defaults={'portion': 1})
+        meal = models.Meal.objects.create(user=self.user, category=self.category,
+                                          date='2021-06-06')
+        meal.recipes.add(recipe, through_defaults={'portion': 1})
+        payload = {
+            'date': "2021-06-06"
+        }
+        res = self.client.get(DAILY_MEALS_TRACKER, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.json()['data']), 1)
+        self.assertEqual(meal.id, res.json()['data'][0]['id'])
+
+    def test_retrieve_meals_with_bad_date_param_failed(self):
+        """ test retreiving meals with invalida date param """
+
+        recipe = Recipe.objects.create(user=self.user, name='test',
+                                       calories=500, portions=5)
+        meal = models.Meal.objects.create(user=self.user, category=self.category)
+        meal.recipes.add(recipe, through_defaults={'portion': 1})
+        meal = models.Meal.objects.create(user=self.user, category=self.category,
+                                          date='2021-06-06')
+        meal.recipes.add(recipe, through_defaults={'portion': 1})
+        payload = {
+            'date': "invalid format"
+        }
+        res = self.client.get(DAILY_MEALS_TRACKER, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_retrieve_meals_for_date_in_future_failed(self):
+        """ test retrieving meals for date in future returns none """
+        payload = {
+            "date": "2021-09-12"
+        }
+        res = self.client.get(DAILY_MEALS_TRACKER, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_retrevig_recipe_detail_from_meals_summary_response(self):
         """ test retrieving all information about recipe added to meal """

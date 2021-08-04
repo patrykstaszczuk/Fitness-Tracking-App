@@ -1,8 +1,26 @@
 from rest_framework import serializers
 from meals_tracker import models
-
+from rest_framework.reverse import reverse
 from recipe.models import Recipe, Ingredient
 from recipe.serializers import UnitSerializer
+
+
+class DatesSerializer(serializers.Serializer):
+    """ simple serializer for dates """
+
+    date = serializers.DateField()
+    url = serializers.SerializerMethodField()
+
+    def get_url(self, obj):
+        """ return url fro specific date """
+        url = reverse('meals_tracker:meal-list', request=self.request) \
+            + "?date=" + str(obj['date'])
+        return url
+
+    def __init__(self, *args, **kwargs):
+        """ pop request from kwargs """
+        self.request = kwargs.pop('request')
+        super().__init__(*args, **kwargs)
 
 
 class MealCategorySerializer(serializers.ModelSerializer):
