@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from recipe.models import Ingredient, Tag, Recipe, Recipe_Ingredient, Unit, \
-    Ingredient_Unit
+    Ingredient_Unit, ReadyMeals
 from rest_framework import fields
 
 
@@ -122,6 +122,26 @@ class IngredientSerializer(serializers.ModelSerializer):
                     defaults={'grams_in_one_unit': unit['grams_in_one_unit']}
                 )
         return instance
+
+
+class ReadyMealIngredientSerializer(IngredientSerializer):
+    """ serialzier for ready meals """
+
+    class Meta:
+        model = ReadyMeals
+        exclude = ('_usage_counter', 'id')
+        read_only_fields = ('user', 'slug')
+
+    def create(self, validated_data):
+        """ add default tag for ready meals """
+
+        user = self.context['request'].user
+        ready_meal_tag, created = Tag.objects.get_or_create(name='Ready Meal',
+                                                            user=user)
+        validated_data.update({"tags": [ready_meal_tag.id, ]})
+
+        return super().create(validated_data)
+
 
 
 class IngredientSlugRelatedField(serializers.SlugRelatedField):

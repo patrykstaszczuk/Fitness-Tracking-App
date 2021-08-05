@@ -46,6 +46,14 @@ class IngredientViewSet(BaseRecipeAttrViewSet):
     serializer_class = serializers.IngredientSerializer
     queryset = Ingredient.objects.all()
 
+    def get_serializer_class(self):
+        """ return different serializer if ready_meal flag is True """
+
+        flag = self.request.data.get('ready_meal')
+        if flag is True:
+            return serializers.ReadyMealIngredientSerializer
+        return self.serializer_class
+
 
 class TagViewSet(BaseRecipeAttrViewSet):
     """ Manage tag in the database """

@@ -148,6 +148,40 @@ class PrivateIngredientApiTests(TestCase):
 
         self.assertTrue(exists)
 
+    def test_create_read_meal_successful(self):
+        """ test crete ready meal successfull """
+
+        payload = {
+            'ready_meal': True,
+            'name': 'Pizza',
+            'calories': 350,
+            'proteins': 43,
+            'carbohydrates': 60,
+            'fats': 20
+        }
+        res = self.client.post(INGREDIENTS_URL, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+
+        rmeal = models.ReadyMeals.objects.get(name=payload['name'])
+        self.assertEqual('Ready Meal', rmeal.tags.all()[0].name)
+
+    def test_create_ready_meal_with_invalid_flag(self):
+        """ test creating ready meal but with invalid ready meal flag """
+
+        payload = {
+            'ready_meal': "String insted of bool",
+            'name': 'Pizza',
+            'calories': 350,
+            'proteins': 43,
+            'carbohydrates': 60,
+            'fats': 20
+        }
+        res = self.client.post(INGREDIENTS_URL, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+
+        rmeal = models.ReadyMeals.objects.get(name=payload['name'])
+        self.assertEqual(len(rmeal.tags.all()), 0)
+
     def test_create_ingredient_invalid(self):
         """ test create ingredient with invalid payload """
         payload = {'name': ''}

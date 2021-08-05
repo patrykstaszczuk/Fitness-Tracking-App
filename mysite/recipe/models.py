@@ -281,6 +281,27 @@ class Ingredient(models.Model):
             self.get_default_calories()
 
 
+class ReadyMeals(Ingredient):
+    """ proxy model for ready meals """
+
+    class Meta:
+        proxy = True
+
+    def save(self, *args, **kwargs):
+        """ set default tag for ready meal or create that tag if not exists """
+
+        if not self.id:
+            super().save(*args, **kwargs)
+            tag, created = Tag.objects.get_or_create(name='Ready Meal',
+                                            defaults={"user": self.user})
+            self.tags.add(tag)
+        else:
+            super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
 class Tag(models.Model):
     user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE,
                              null=False)

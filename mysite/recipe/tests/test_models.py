@@ -127,3 +127,19 @@ class PrivateRecipeApiTests(TestCase):
         unit = models.Unit.objects.create(name='gram')
 
         self.assertEqual(str(unit), unit.name)
+
+    def test_str_ready_meals(self):
+        """ test string representation of ReadyMeals model """
+
+        rmeal = models.ReadyMeals.objects.create(name='test', user=self.user)
+
+        self.assertEqual(str(rmeal), rmeal.name)
+
+    def test_default_tag_for_ready_meals(self):
+        """ test default tag for ready meals """
+
+        rmeal = models.ReadyMeals.objects.create(name='ready', user=self.user)
+
+        tag = models.Tag.objects.get(name='ready meal')
+
+        self.assertIn(tag.name, rmeal.tags.all().values()[0]['name'])
