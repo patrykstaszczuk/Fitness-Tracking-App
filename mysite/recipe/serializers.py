@@ -215,9 +215,8 @@ class RecipeSerializer(serializers.ModelSerializer):
         model = Recipe
         exclude = ('proteins', 'carbohydrates', 'fats')
         read_only_fields = ('url', 'user', 'slug', 'photo1', 'photo2',
-                            'photo3')
+                            'photo3', 'calories')
         extra_kwargs = {
-            'calories': {'write_only': True},
             'portions': {'write_only': True},
             'prepare_time': {'write_only': True},
             'description': {'write_only': True}
@@ -291,7 +290,7 @@ class RecipeDetailSerializer(RecipeSerializer):
         model = Recipe
         fields = '__all__'
         read_only_fields = ('user', 'slug', 'photo1', 'photo2', 'photo3',
-                            'proteins', 'carbohydrates', 'fats')
+                            'proteins', 'carbohydrates', 'fats', 'calories')
 
     def update(self, instance, validated_data):
         """ Overrided for neasted serializers handling """
