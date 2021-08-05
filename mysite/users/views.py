@@ -12,7 +12,7 @@ from rest_framework.decorators import action
 from rest_framework.authtoken.models import Token
 
 from mysite.renderers import CustomRenderer
-from mysite.views import RequiredFieldsResponseMessage, get_serializer_required_fields
+from mysite.views import RequiredFieldsResponseMessage, get_serializer_fields
 
 
 class CreateUserView(RequiredFieldsResponseMessage, generics.CreateAPIView,
@@ -97,7 +97,7 @@ class ManageUserView(RequiredFieldsResponseMessage,
         kwargs['context'] = self.get_serializer_context()
         kwargs['fields'] = fields
         serializer = serializer_class(*args, **kwargs)
-        self._serializer_required_fields = get_serializer_required_fields(serializer)
+        self._serializer_fields = get_serializer_fields(serializer)
         return serializer
 
     def get_renderer_context(self):
@@ -108,7 +108,7 @@ class ManageUserView(RequiredFieldsResponseMessage,
             'groups': reverse('users:group-list', request=self.request)
         }
         context['links'] = links
-        context['required'] = self._serializer_required_fields
+        context['required'] = self._serializer_fields
         return context
 
 

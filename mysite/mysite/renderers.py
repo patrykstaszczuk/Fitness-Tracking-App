@@ -15,12 +15,14 @@ class CustomRenderer(JSONRenderer):
             links = renderer_context.get('links')
 
         required = renderer_context.get('required')
+        writable = renderer_context.get('writable')
         status_code = renderer_context['response'].status_code
         response = {
           "status": "success",
           "code": status_code,
           "data": data,
           "message": None,
+          "writable": writable,
           "required": required,
           "_links": links
         }
