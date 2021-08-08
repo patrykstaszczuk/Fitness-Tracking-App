@@ -57,7 +57,7 @@ class RetrieveRecipeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Recipe
-        fields = ('url', 'name', 'portions')
+        fields = ('user', 'slug', 'url', 'name', 'portions')
 
     def get_portions(self, obj):
         """ get portion for given meal-recipe mapping """
@@ -67,6 +67,17 @@ class RetrieveRecipeSerializer(serializers.ModelSerializer):
                                                     meal=meal).portion
         except models.RecipePortion.DoesNotExist:
             return None
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        recipe_slug = ret.pop('slug')
+        request = self.context['request']
+        if ret['user'] != request.user.id:
+            ret['url'] = reverse('recipe:recipe-group-detail',
+                                 kwargs={'pk': ret['user'],
+                                         'slug': recipe_slug},
+                                 request=request)
+        return ret
 
 
 class RetrieveIngredientSerializer(serializers.ModelSerializer):
@@ -152,22 +163,39 @@ class CreateUpdateMealSerializer(MealsTrackerSerializer):
                                              many=True)
     category = serializers.PrimaryKeyRelatedField(queryset=models.MealCategory.objects.all())
 
-    def _validate_objects_permission(self, list_of_obj, entity):
-        if list_of_obj:
-            for item in list_of_obj:
-                if item[f"{entity}"].user != self.context['request'].user:
-                    raise serializers.ValidationError(f'No such {entity}')
+    # def _validate_objects_permission(self, list_of_obj, entity):
+    #     if list_of_obj:
+    #         for item in list_of_obj:
+    #             if entity == 'ingredient':
+    #
+    #             if item[f"{entity}"].user != self.context['request'].user:
+    #                 raise serializers.ValidationError(f'No such {entity}')
 
-    def is_valid(self, raise_exception=False):
-        """ check if recipe is created by requested user """
-        super().is_valid(raise_exception)
-        recipes = self.validated_data.get('recipes', None)
-        ingredients = self.validated_data.get('ingredients', None)
-        if recipes:
-            self._validate_objects_permission(recipes, "recipe")
-        if ingredients:
-            self._validate_objects_permission(ingredients, "ingredient")
-        return True
+    # def is_valid(self, raise_exception=False):
+    #     """ check if recipe is created by requested user """
+    #     super().is_valid(raise_exception)
+    #     recipes = self.validated_data.get('recipes', None)
+    #     ingredients = self.validated_data.get('ingredients', None)
+    #     if recipes:
+    #         for recipe in recipes:
+    #             request_user = self.context['request'].user
+    #             print(recipe['recipe'].user.own_group)
+    #             print(request_user.membership.all())
+    #
+    #             if recipe['recipe'].user != request_user:
+    #                 if not recipe['recipe'].user.own_group in request_user.membership.all():
+    #                     return False
+    #     return True
+
+    def validate_recipes(self, recipes):
+        """ check if user is allowed to use recipes """
+        request_user = self.context['request'].user
+        request_user_groups = request_user.membership.all()
+        for recipe in recipes:
+            if not recipe['recipe'].user.own_group in request_user_groups:
+                raise serializers.ValidationError(f"{recipe['recipe'].id} \
+                No such recipe in your recipes or group recipes")
+        return recipes
 
     def to_internal_value(self, values):
         """ check json structure """

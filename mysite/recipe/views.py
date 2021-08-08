@@ -21,9 +21,11 @@ class BaseRecipeAttrViewSet(RequiredFieldsResponseMessage, viewsets.ModelViewSet
     renderer_classes = [CustomRenderer, ]
     lookup_field = "slug"
 
-    def get_queryset(self):
+    def get_queryset(self, user=None):
         """ return objects for the current authenticated user only """
-        return self.queryset.filter(user=self.request.user). \
+        if user is None:
+            user = self.request.user
+        return self.queryset.filter(user=user). \
             order_by('-name')
 
     def perform_create(self, serializer):
@@ -45,6 +47,21 @@ class IngredientViewSet(BaseRecipeAttrViewSet):
     """ Manage ingredient in the database """
     serializer_class = serializers.IngredientSerializer
     queryset = Ingredient.objects.all()
+
+    def get_queryset(self):
+        """
+        list -> all ingredients in db
+        retrieve -> depends on user in query query
+        non-safe methods -> only requrested user objects
+        """
+
+        if self.action in ['list', ]:
+            return self.queryset
+        elif self.action == 'retrieve':
+            user_in_url = self.request.query_params.get('user', None)
+            if user_in_url:
+                return super().get_queryset(user=user_in_url)
+        return super().get_queryset()
 
     def get_serializer_class(self):
         """ return different serializer if ready_meal flag is True """
@@ -249,7 +266,7 @@ class RecipeDetailViewSet(RequiredFieldsResponseMessage,
         try:
             user_id = int(user_id)
         except ValueError:
-            raise Http404('Identyfikator użytkownika musi być liczbą!')
+            raise Http404('Identity of user must be a number!')
 
         instance = get_object_or_404(Recipe, user=user_id, slug=slug)
         return instance

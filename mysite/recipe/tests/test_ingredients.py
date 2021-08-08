@@ -1,6 +1,7 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from rest_framework.reverse import reverse as rest_reverse
 
 from rest_framework.test import APIClient, APIRequestFactory
 from rest_framework import status
@@ -82,18 +83,56 @@ class PrivateIngredientApiTests(TestCase):
 
         self.assertTrue(res.status_code, status.HTTP_200_OK)
         self.assertTrue(res.data, serializer.data)
+    #
+    # def test_ingredient_limited_to_user(self):
+    #     """ test that ingredients returned are for specific user """
+    #     user2 = sample_user()
+    #     ingredient = sample_ingredient(name='Szpinak', user=self.user)
+    #     sample_ingredient(name='Czosnek', user=user2)
+    #
+    #     res = self.client.get(INGREDIENTS_URL)
+    #
+    #     self.assertEqual(res.status_code, status.HTTP_200_OK)
+    #     self.assertEqual(len(res.data), 1)
+    #     self.assertEqual(res.data[0]['name'], ingredient.name)
 
-    def test_ingredient_limited_to_user(self):
-        """ test that ingredients returned are for specific user """
+    def test_retreiving_ingredient_detail(self):
+        """ test retrieving ingredient detail where multi users created
+        ingredient with the same name """
+
         user2 = sample_user()
-        ingredient = sample_ingredient(name='Szpinak', user=self.user)
-        sample_ingredient(name='Czosnek', user=user2)
+        user2_ing = sample_ingredient(user=user2, name='test')
+        self_user_ing = sample_ingredient(user=self.user, name='test')
 
-        res = self.client.get(INGREDIENTS_URL)
-
+        res = self.client.get(ingredient_detail_url(self_user_ing.slug))
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(res.data), 1)
-        self.assertEqual(res.data[0]['name'], ingredient.name)
+
+    def test_retrieving_other_user_ingredient_detail(self):
+        """ test retrieving ingredient detail created by other user """
+        user2 = sample_user()
+        user2_ing = sample_ingredient(user=user2, name='test', calories='1000')
+        self_user_ing = sample_ingredient(user=self.user, name='test',
+                                          calories='900')
+
+        payload = {
+            'user': user2.id
+        }
+        res = self.client.get(ingredient_detail_url(user2_ing.slug), payload)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.json()['data']['calories'],
+                         float(user2_ing.calories))
+
+    def test_retrieving_proper_url_for_other_user_ingredient(self):
+        """ test that url returned by serializer is user tag in GET
+        query params """
+
+        user2 = sample_user()
+        user2_ing = sample_ingredient(user=user2, name='test',
+                                      calories='1000')
+        res = self.client.get(INGREDIENTS_URL)
+        url = rest_reverse('recipe:ingredient-detail', kwargs={'slug': user2_ing.slug}, request=self.request)
+        url = url + f'?user={user2.id}'
+        self.assertEqual(res.json()['data'][0]['url'], str(url))
 
     def test_retrieve_calories_from_ingredient(self):
         """ test getting amount of calories in 100g of ingredient """
@@ -240,6 +279,16 @@ class PrivateIngredientApiTests(TestCase):
         self.assertFalse(ingredient)
         self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
 
+    def test_delete_other_user_ingredient_failed(self):
+        """ test deleting other user ingredient failed """
+        user2 = sample_user()
+        user2_ing = sample_ingredient(user=user2, name='test')
+        payload = {
+            "user": user2.id
+        }
+        res = self.client.delete(ingredient_detail_url(user2_ing.slug), payload)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
     def test_full_update_ingredient_success(self):
         """ test update ingredient with success """
         ingredient = sample_ingredient(name='Majonez', user=self.user)
@@ -252,6 +301,16 @@ class PrivateIngredientApiTests(TestCase):
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(ingredient.name, payload['name'])
+
+    def test_update_other_user_ingredient_failed(self):
+        """ test updating other user ingredient failed as not found """
+        user2 = sample_user()
+        user2_ing = sample_ingredient(user=user2, name='test')
+        payload = {
+            "name": 'test2'
+        }
+        res = self.client.put(ingredient_detail_url(user2_ing.slug), payload)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_partial_ingredient_update_success(self):
         """ test that partial ingredient update works """

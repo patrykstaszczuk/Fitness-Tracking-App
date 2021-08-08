@@ -143,9 +143,9 @@ class GroupManager(models.Manager):
 class Group(models.Model):
 
     name = models.CharField(max_length=100, blank=False)
-    founder = models.ForeignKey(get_user_model(), on_delete=models.CASCADE,
+    founder = models.OneToOneField(get_user_model(), on_delete=models.CASCADE,
                                 unique=True, null=False, blank=False,
-                                related_name='founder')
+                                related_name='own_group')
     members = models.ManyToManyField('MyUser', related_name='membership')
     pending_membership = models.ManyToManyField('MyUser', related_name=
                                                 'pending_membership')

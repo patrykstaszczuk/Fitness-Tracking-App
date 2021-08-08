@@ -218,6 +218,58 @@ class PrivateMealsTrackerApiTests(TestCase):
         self.assertIn('location', res._headers)
         self.assertEqual(res.json()['data']['calories'], 50)
 
+    def test_create_meal_from_non_own_recipe_nor_group_recipe_failed(self):
+        """ test creating meal from recipe created by other user which is
+        not is group with request user """
+
+        user2 = sample_user()
+        recipe = sample_recipe(user=user2, portions=4)
+
+        ingredient = sample_ingredient(user=self.user, name='jajko',
+                                       calories=100)
+        recipe.ingredients.add(ingredient,
+                               through_defaults={'unit': self.unit,
+                                                 'amount': 200})
+
+        payload = {
+            'category': self.category.id,
+            'recipes': [
+                {
+                    'recipe': recipe.id,
+                    'portion': 1
+                }
+            ],
+        }
+        res = self.client.post(DAILY_MEALS_TRACKER, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_meal_from_recipe_created_by_other_user_in_group(self):
+        """ test creating meal based on other user recipe """
+
+        user2 = sample_user()
+        recipe = sample_recipe(user=user2, portions=4)
+        self.user.membership.add(user2.own_group)
+
+        ingredient = sample_ingredient(user=self.user, name='jajko',
+                                       calories=100)
+        recipe.ingredients.add(ingredient,
+                               through_defaults={'unit': self.unit,
+                                                 'amount': 200})
+
+        payload = {
+            'category': self.category.id,
+            'recipes': [
+                {
+                    'recipe': recipe.id,
+                    'portion': 1
+                }
+            ],
+        }
+        res = self.client.post(DAILY_MEALS_TRACKER, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertIn('location', res._headers)
+        self.assertEqual(res.json()['data']['calories'], 50)
+
     def test_create_meal_from_ingredient(self):
         """ test creating meal only based on ingredient """
 
@@ -388,7 +440,7 @@ class PrivateMealsTrackerApiTests(TestCase):
                             "unit": self.unit.id}]
         }
         res = self.client.post(DAILY_MEALS_TRACKER, payload, format='json')
-        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
 
     def test_create_meal_with_invalid_category_id(self):
         """ test creating meal failed becouse invalid id """
@@ -403,8 +455,14 @@ class PrivateMealsTrackerApiTests(TestCase):
     def test_full_update_meal_success(self):
         """ test updating meal success """
 
-        recipe1 = sample_recipe(user=self.user, name='test', calories=1000)
-        recipe2 = sample_recipe(user=self.user, name='test2', calories=2000)
+        user2 = sample_user()
+        self.user.membership.add(user2.own_group)
+        recipe1 = sample_recipe(user=self.user, name='test')
+        recipe2 = sample_recipe(user=self.user, name='test2')
+        recipe3 = sample_recipe(user=user2, name='test2')
+        ing = sample_ingredient(user=self.user, calories=100)
+        recipe3.ingredients.add(ing, through_defaults={'unit': self.unit,
+                                                       'amount': 100})
         new_category = sample_category(name='Dinner')
 
         meal = models.Meal.objects.create(user=self.user,
@@ -413,13 +471,14 @@ class PrivateMealsTrackerApiTests(TestCase):
 
         payload = {
             'category': new_category.id,
-            'recipes': [{'recipe': recipe2.id, 'portion': 2}],
+            'recipes': [{'recipe': recipe2.id, 'portion': 2}, {'recipe': recipe3.id, 'portion': 2}],
         }
         res = self.client.put(get_meal_detail_view(meal.id), payload,
                               format='json')
         meal.refresh_from_db()
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(new_category, meal.category)
+        self.assertEqual(res.json()['data']['calories'], 200)
         self.assertIn(recipe2, meal.recipes.all())
         self.assertNotIn(recipe1, meal.recipes.all())
 

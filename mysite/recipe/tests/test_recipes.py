@@ -282,6 +282,43 @@ class PrivateRecipeApiTests(APITestCase):
         ).count()
         self.assertEqual(recipe_ingredient, 2)
         ingredients = recipe.ingredients.all()
+        self.assertEqual(len(ingredients), 2)
+        self.assertEqual(len(ingredients), 2)
+        self.assertIn(ingredient1, ingredients)
+        self.assertIn(ingredient2, ingredients)
+
+    def create_recipe_from_ingredients_created_by_other_user(self):
+        """ test creating recipe with at least one ingredient created by
+        other user """
+        user2 = sample_user()
+        ingredient1 = sample_ingredient(user=self.user, name='Krewetki')
+        ingredient2 = sample_ingredient(user=user2, name='Masło')
+        tag = sample_tag(user=self.user, name='Deser')
+        payload = {
+            'name': 'dobry obiad',
+            'tags': [tag.slug, ],
+            "ingredients": [{
+                "ingredient": ingredient1.slug,
+                'amount': '2',
+                'unit': self.unit.id
+            }, {
+                "ingredient": ingredient2.slug,
+                'amount': '2',
+                'unit': self.unit.id
+            }, ],
+            'description': "opis dania",
+        }
+
+        res = self.client.post(RECIPE_URL, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        recipe = models.Recipe.objects.get(slug=res.data['slug'])
+
+        recipe_ingredient = models.Recipe_Ingredient.objects.filter(
+            recipe=recipe
+        ).count()
+        self.assertEqual(recipe_ingredient, 2)
+        ingredients = recipe.ingredients.all()
+        print(ingredients)
 
         self.assertEqual(len(ingredients), 2)
         self.assertEqual(len(ingredients), 2)
@@ -420,15 +457,15 @@ class PrivateRecipeApiTests(APITestCase):
 
     def test_full_update_with_new_ingredient_success(self):
         """ test updating recipe with new ingredient success """
-        new_ingredient = 'Nowy skladnik'
+        new_ingredient = {'name': 'Nowy skladnik'}
         recipe = sample_recipe(self.user)
         tag = sample_tag(self.user, 'Vege')
 
         payload = {
             'name': 'nowa nazwa dla dania',
             'tags': [tag.slug, ],
-            "ingredients": [{
-                "ingredient": 'new_ingredient',
+            "new_ingredients": [{
+                "ingredient": new_ingredient,
                 'amount': '2',
                 'unit': self.unit.id
             }, ],
@@ -523,15 +560,15 @@ class PrivateRecipeApiTests(APITestCase):
     def test_create_recipe_with_new_ingredient(self):
         """ creting recipe with ingredients which are not in database yet """
 
-        new_ingredient_name = 'Nowy Skladnik'
-        new_ingredient2_name = 'Nowy Skladnik2'
+        new_ingredient = {"name": 'Nowy Skladnik', "calories": 1000}
+        new_ingredient2 = {"name": 'Nowy Skladnik2', "calories": 2000}
         payload = {
             'name': "Nowe danie",
             'tags': [self.user_tag.slug, ],
-            'ingredients': [
-                {'ingredient': new_ingredient_name, 'amount': '2',
+            'new_ingredients': [
+                {'ingredient': new_ingredient, 'amount': '2',
                     'unit': self.unit.id},
-                {'ingredient': new_ingredient2_name, 'amount': '2',
+                {'ingredient': new_ingredient2, 'amount': '2',
                     'unit': self.unit.id}
             ]
         }
@@ -542,6 +579,26 @@ class PrivateRecipeApiTests(APITestCase):
         new_ingredients = models.Ingredient.objects.filter(user=self.user)
 
         self.assertEqual(new_ingredients.count(), 2)
+
+    def test_create_recipe_with_new_ingredient_in_invalid_format(self):
+        """ test creating recipe with non existing ingredient, but auto
+        creation cannot be done due to invalid format or data"""
+
+        new_ingredient = {"name": 'Nowy Skladnik', "calories": 1000, "random_data": "xtz"}
+        new_ingredient2 = {"name": 1000, "calories": "As string"}
+        payload = {
+            'name': "Nowe danie",
+            'tags': [self.user_tag.slug, ],
+            'new_ingredients': [
+                {'ingredient': new_ingredient, 'amount': '2',
+                    'unit': self.unit.id,},
+                {'ingredient': new_ingredient2, 'amount': '2',
+                    'unit': self.unit.id}
+            ]
+        }
+
+        res = self.client.post(RECIPE_URL, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_recipe_with_doubled_ingredient_success(self):
         """ test creating recipe with passing new ingredient name which is
@@ -730,6 +787,26 @@ class PrivateRecipeApiTests(APITestCase):
         ing1 = sample_ingredient(user=self.user, name='Testowy 1')
         ing2 = sample_ingredient(user=self.user, name='Testowy 2')
         ing3 = sample_ingredient(user=self.user, name='Testowy 3')
+
+        recipe.ingredients.add(ing1, ing2, ing3)
+
+        ingredients_list = [ing1.slug, ing2.slug]
+
+        url = reverse('recipe:recipe-send-to-nozbe', args=[recipe.slug])
+
+        res = self.client.put(url, ingredients_list, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+    @patch('recipe.models.Ingredient.send_to_nozbe')
+    def test_sending_different_user_ingredients_to_nozbe(self, mock_send_to_nozbe):
+        """ test sending chosen ingredients as shopping list in nozbe
+        project """
+
+        recipe = sample_recipe(self.user)
+        user2 = sample_user()
+        ing1 = sample_ingredient(user=self.user, name='Testowy 1')
+        ing2 = sample_ingredient(user=user2, name='Testowy 2')
+        ing3 = sample_ingredient(user=user2, name='Testowy 3')
 
         recipe.ingredients.add(ing1, ing2, ing3)
 

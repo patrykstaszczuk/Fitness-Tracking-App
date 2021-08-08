@@ -2,6 +2,8 @@ from rest_framework import serializers
 from recipe.models import Ingredient, Tag, Recipe, Recipe_Ingredient, Unit, \
     Ingredient_Unit, ReadyMeals
 from rest_framework import fields
+from rest_framework.reverse import reverse
+from django.core.exceptions import FieldError
 
 
 def raise_validation_error(instance):
@@ -92,6 +94,15 @@ class IngredientSerializer(serializers.ModelSerializer):
         exclude = ('_usage_counter', 'id')
         read_only_fields = ('user', 'slug')
 
+    def to_representation(self, instance):
+
+        ret = super().to_representation(instance)
+        if ret['user'] != self.user.id:
+            ret['url'] = reverse('recipe:ingredient-detail',
+                                 kwargs={'slug': ret['slug']},
+                                 request=self.context['request']) + f"?user={ret['user']}"
+        return ret
+
     def get_available_units(self, obj):
         """ get defined unit for ingredient instance """
         units = Ingredient_Unit.objects.filter(ingredient=obj)
@@ -123,6 +134,14 @@ class IngredientSerializer(serializers.ModelSerializer):
                 )
         return instance
 
+    def __init__(self, *args, **kwargs):
+        """ get user from context """
+        super().__init__(*args, **kwargs)
+        try:
+            self.user = self.context['user']
+        except KeyError:
+            self.user = None
+
 
 class ReadyMealIngredientSerializer(IngredientSerializer):
     """ serialzier for ready meals """
@@ -143,21 +162,21 @@ class ReadyMealIngredientSerializer(IngredientSerializer):
         return super().create(validated_data)
 
 
-
-class IngredientSlugRelatedField(serializers.SlugRelatedField):
-    """ Filter all returned slug ingredients by specyfic user """
-
-    def get_queryset(self):
-        user = self.context['request'].user
-        queryset = Ingredient.objects.filter(user=user)
-        return queryset
+# class IngredientSlugRelatedField(serializers.SlugRelatedField):
+#     """ Filter all returned slug ingredients by specyfic user """
+#
+#     def get_queryset(self):
+#         user = self.context['request'].user
+#         queryset = Ingredient.objects.filter(user=user)
+#         return queryset
 
 
 class RecipeIngredientSerializer(serializers.ModelSerializer):
     """ serializer for intermediate model for recipe and ingredient, with
         field quantity """
 
-    ingredient = IngredientSlugRelatedField(
+    ingredient = serializers.SlugRelatedField(
+            queryset=Ingredient.objects.all(),
             slug_field='slug',
             required=True,
             write_only=True
@@ -233,21 +252,36 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     def to_internal_value(self, data):
         """ create ingredient if does not exists in database """
-        ingredients = data.get('ingredients', None)
-        if ingredients:
-            for list_item in ingredients:
+        new_ingredients = data.get('new_ingredients', None)
+        if new_ingredients:
+            for items_list in new_ingredients:
+                ingredient = items_list['ingredient']
+
                 try:
-                    name = list_item['ingredient']
                     obj, created = Ingredient.objects.get_or_create(user=self.user,
-                                                                    name=name)
-                except TypeError:
+                                                                    **ingredient)
+                except (TypeError, FieldError):
                     raise serializers.ValidationError({'ingredients': 'Invalid request \
                     structure for ingredients. Valid structure: {"ingredients":\
                     ["ingredient: slug, amount, unit"]} '})
 
                 if created:
-                    list_item.update({'ingredient': obj.slug})
+                    items_list.update({'ingredient': obj.slug})
         return super().to_internal_value(data)
+
+        #     for list_item in new_ingredients:
+        #         try:
+        #             name = list_item['ingredient']
+        #             obj, created = Ingredient.objects.get_or_create(user=self.user,
+        #                                                             name=name)
+        #         except TypeError:
+        #             raise serializers.ValidationError({'ingredients': 'Invalid request \
+        #             structure for ingredients. Valid structure: {"ingredients":\
+        #             ["ingredient: slug, amount, unit"]} '})
+        #
+        #         if created:
+        #             list_item.update({'ingredient': obj.slug})
+        # return super().to_internal_value(data)
 
     def validate_name(self, value):
         """ check if recipe with provided name is not already in db """
