@@ -35,7 +35,7 @@ def recipe_image_file_path(instance, filename):
 class Recipe(models.Model):
 
     name = models.CharField(max_length=255, blank=False, verbose_name='Nazwa')
-    user = models.ForeignKey(get_user_model(),
+    user = models.ForeignKey(settings.AUTH_USER_MODEL,
                              on_delete=models.CASCADE,
                              null=False, related_name='recipe')
     calories = models.FloatField(verbose_name='Kalorie', blank=True,
@@ -185,7 +185,7 @@ class Ingredient(models.Model):
     ]
     name = models.CharField(max_length=255, blank=False, unique=False,
                             verbose_name='Nazwa')
-    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE,
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                              null=False, related_name='user')
 
     slug = models.SlugField(blank=False, unique=False)
@@ -226,7 +226,7 @@ class Ingredient(models.Model):
             self.slug = self.slug + "2"
         super().save(*args, **kwargs)
 
-        gram_unit_instance = Unit.objects.get(name='gram')
+        gram_unit_instance, crated = Unit.objects.get_or_create(name='gram')
         self.units.add(gram_unit_instance,
                       through_defaults={'grams_in_one_unit': 100})
 
@@ -303,7 +303,7 @@ class ReadyMeals(Ingredient):
 
 
 class Tag(models.Model):
-    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE,
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                              null=False)
     name = models.CharField(max_length=25)
 

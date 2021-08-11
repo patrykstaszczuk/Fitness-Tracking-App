@@ -1,8 +1,11 @@
 from django.db import models
+from django.contrib.auth import get_user_model
 import datetime
 from django.utils.text import slugify
 from django.conf import settings
+from meals_tracker.models import Meal
 # Create your models here.
+
 
 
 def get_health_model_usable_fields():
@@ -29,7 +32,7 @@ class HealthDiary(models.Model):
     rest_heart_rate = models.PositiveSmallIntegerField(null=True, blank=True,
                                                        default=None,
                                                        verbose_name='tetno')
-    calories = models.PositiveIntegerField(null=True, blank=True, default=None,
+    calories = models.PositiveIntegerField(blank=True, default=0,
                                            verbose_name='kalorie')
     daily_thoughts = models.TextField(max_length=2000, blank=True)
 
@@ -41,5 +44,18 @@ class HealthDiary(models.Model):
 
     def save(self, *args, **kwargs):
         """ override for slug creation """
-        self.slug = slugify(self.date)
+        if not self.id:
+            self.slug = slugify(self.date)
         super().save(*args, **kwargs)
+
+    def _recalculate_calories(self):
+        """ recalculate calories based on meals """
+        self.calories = 0
+        all_meals = Meal.objects.filter(user=self.user, date=self.date)
+        for meal in all_meals:
+            self.calories = meal.calories
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if hasattr(self, 'id'):
+            self._recalculate_calories()

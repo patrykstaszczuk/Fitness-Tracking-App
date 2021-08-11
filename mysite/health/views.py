@@ -70,12 +70,8 @@ class HealthDiary(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
     def get_object(self):
         """ get or create and return object for requested user """
         now = datetime.date.today()
-        try:
-            return models.HealthDiary.objects.filter(user=self.request.user). \
-                get(date=now)
-        except models.HealthDiary.DoesNotExist:
-            # return models.HealthDiary.objects.create(user=self.request.user)
-            return None
+        obj, created = models.HealthDiary.objects.get_or_create(user=self.request.user, date=now)
+        return obj
 
     def get_renderer_context(self):
         """ add links to response """
@@ -97,7 +93,7 @@ class HealthRaport(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
     URL mapping: /fitness/daily
                  /fitness/raports
                  /fitness/raports/2021-05-08 e.g ...
-                 /fitness/raports/weight/history e.g
+                 /fitness/raports/weight e.g
 
     """
     authentication_classes = (authentication.TokenAuthentication, )

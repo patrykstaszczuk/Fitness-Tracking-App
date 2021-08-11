@@ -8,6 +8,9 @@ from rest_framework.test import APIClient, APIRequestFactory
 
 from users import serializers as user_serializers
 from health import serializers as health_serializers
+from health.models import HealthDiary
+from recipe.models import Recipe, Ingredient, Unit
+from meals_tracker.models import Meal, MealCategory
 
 import datetime
 
@@ -93,6 +96,24 @@ class PrivateHealthApiTests(TestCase):
         serializer = health_serializers.HealthDiarySerializer(daily_data)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
+
+    def test_retrieving_proper_calories_amount_based_on_meals(self):
+        """ test auto calculation calories for daily healt statistic
+        based on meals from given day """
+
+        user2 = sample_user()
+        category = MealCategory.objects.create(name='breakfast')
+        recipe = Recipe.objects.create(user=self.user, name='test', calories=1000, portions=4)
+        meal1 = Meal.objects.create(user=self.user, category=category)
+        meal1.recipes.add(recipe, through_defaults={"recipe": recipe, "portion": 1})
+        meal2 = Meal.objects.create(user=self.user, category=category)
+        ingredient = Ingredient.objects.create(user=user2, name='skladnik', calories=500)
+        unit = Unit.objects.get(name='gram')
+        meal2.ingredients.add(ingredient, through_defaults={"amount": 100, "unit": unit})
+        res = self.client.get(USER_DAILY_HEALTH_DASHBOARD)
+        print(res.data)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.json()['data']['calories'], recipe.calories/4 + ingredient.calories)
 
     def test_retrieve_daily_health_statistics_limited_to_user(self):
         """ test retrieving statistics belongs to request user only """

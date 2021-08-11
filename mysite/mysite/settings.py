@@ -55,8 +55,8 @@ INSTALLED_APPS = [
     'core',
     'users',
     'recipe',
-    'health',
-    'meals_tracker'
+    'meals_tracker',
+    'health'
 ]
 
 MIDDLEWARE = [
