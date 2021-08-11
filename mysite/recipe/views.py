@@ -3,12 +3,13 @@ from rest_framework.reverse import reverse
 from rest_framework import viewsets, status, mixins
 from rest_framework.response import Response
 from rest_framework.authentication import TokenAuthentication
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
 from recipe.models import Ingredient, Tag, Recipe, Unit
 from users.models import Group
 from recipe import serializers
 from django.shortcuts import get_object_or_404
 from django.http import Http404
+from rest_framework import permissions
 
 from mysite.renderers import CustomRenderer
 from mysite.views import RequiredFieldsResponseMessage
@@ -21,12 +22,16 @@ class BaseRecipeAttrViewSet(RequiredFieldsResponseMessage, viewsets.ModelViewSet
     renderer_classes = [CustomRenderer, ]
     lookup_field = "slug"
 
-    def get_queryset(self, user=None):
+    def get_queryset(self, extra_action=False):
         """ return objects for the current authenticated user only """
-        if user is None:
-            user = self.request.user
-        return self.queryset.filter(user=user). \
-            order_by('-name')
+
+        if extra_action:
+            user_in_url = self.request.query_params.get('user', None)
+            if user_in_url and self.action == 'retrieve':
+                return self.queryset.filter(user=user_in_url)
+            elif user_in_url and self.action not in permissions.SAFE_METHODS:
+                return self.http_method_not_allowed(self.request)
+        return self.queryset.filter(user=self.request.user)
 
     def perform_create(self, serializer):
         """ create a new object """
@@ -54,14 +59,10 @@ class IngredientViewSet(BaseRecipeAttrViewSet):
         retrieve -> depends on user in query query
         non-safe methods -> only requrested user objects
         """
-
         if self.action in ['list', ]:
             return self.queryset
-        elif self.action == 'retrieve':
-            user_in_url = self.request.query_params.get('user', None)
-            if user_in_url:
-                return super().get_queryset(user=user_in_url)
-        return super().get_queryset()
+        else:
+            return super().get_queryset(extra_action=True)
 
     def get_serializer_class(self):
         """ return different serializer if ready_meal flag is True """
@@ -87,13 +88,11 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
     def get_queryset(self):
         """ Retrieve the recipes for authenticated user with filtering if
         applied """
-        return self._get_filtering(request=self.request)
 
-    def get_object(self):
-        """ return appropriate recipe for requested user """
-        obj = get_object_or_404(self.queryset.filter(user=self.request.user),
-                                **{'slug': self.kwargs['slug']})
-        return obj
+        if self.action == 'list':
+            return self._get_filtering(request=self.request)
+        else:
+            return super().get_queryset(extra_action=True)
 
     def get_serializer_class(self):
         """ return appropriate serializer class """
@@ -237,39 +236,39 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
         return instances_list
 
 
-class RecipeDetailViewSet(RequiredFieldsResponseMessage,
-                          viewsets.GenericViewSet,
-                          mixins.RetrieveModelMixin):
-    """ Detail View for handling group recipes detail. Only GET is allowed,
-    becouse user is not allowed to modify other users recipe. If user wants
-    to modify his own recipe he must go to standard detail recipe url
-    provided by router
-    """
-
-    authentication_classes = (TokenAuthentication, )
-    permission_classes = (IsAuthenticated, )
-    serializer_class = serializers.RecipeDetailSerializer
-    queryset = Recipe.objects.all()
-
-    def get_serializer_context(self):
-        """ set user to context """
-        context = super().get_serializer_context()
-        context['user'] = self.request.user
-        return context
-
-    def get_object(self):
-        """ retrieve object based on pk and slug. Recipes in groups can have
-        same name """
-        user_id = self.kwargs.get('pk')
-        slug = self.kwargs.get('slug')
-
-        try:
-            user_id = int(user_id)
-        except ValueError:
-            raise Http404('Identity of user must be a number!')
-
-        instance = get_object_or_404(Recipe, user=user_id, slug=slug)
-        return instance
+# class RecipeDetailViewSet(RequiredFieldsResponseMessage,
+#                           viewsets.GenericViewSet,
+#                           mixins.RetrieveModelMixin):
+#     """ Detail View for handling group recipes detail. Only GET is allowed,
+#     becouse user is not allowed to modify other users recipe. If user wants
+#     to modify his own recipe he must go to standard detail recipe url
+#     provided by router
+#     """
+#
+#     authentication_classes = (TokenAuthentication, )
+#     permission_classes = (IsAuthenticated, )
+#     serializer_class = serializers.RecipeDetailSerializer
+#     queryset = Recipe.objects.all()
+#
+#     def get_serializer_context(self):
+#         """ set user to context """
+#         context = super().get_serializer_context()
+#         context['user'] = self.request.user
+#         return context
+#
+#     def get_object(self):
+#         """ retrieve object based on pk and slug. Recipes in groups can have
+#         same name """
+#         user_id = self.kwargs.get('pk')
+#         slug = self.kwargs.get('slug')
+#
+#         try:
+#             user_id = int(user_id)
+#         except ValueError:
+#             raise Http404('Identity of user must be a number!')
+#
+#         instance = get_object_or_404(Recipe, user=user_id, slug=slug)
+#         return instance
 
 
 class UnitViewSet(viewsets.GenericViewSet, mixins.ListModelMixin):

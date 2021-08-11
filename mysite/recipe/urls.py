@@ -12,8 +12,8 @@ app_name = 'recipe'
 
 urlpatterns = [
     path('', include(router.urls)),
-    path('group-recipe/<pk>/<slug>', views.RecipeDetailViewSet.
-         as_view({'get': 'retrieve'}), name='recipe-group-detail'),
+    # path('group-recipe/<pk>/<slug>', views.RecipeDetailViewSet.
+    #      as_view({'get': 'retrieve'}), name='recipe-group-detail'),
     path('available-units/', views.UnitViewSet.as_view({'get': 'list'}),
          name='units'),
 ]

@@ -23,8 +23,7 @@ def recipe_detail_url(recipe_slug):
 
 def detail_group_url(recipe_slug, user_id):
     """ return recile detail URL """
-    return reverse('recipe:recipe-group-detail', kwargs={'pk': user_id,
-                                                         'slug': recipe_slug})
+    return reverse('recipe:recipe-detail', kwargs={'slug': recipe_slug}) + f"?user={user_id}"
 
 
 def sample_recipe(user, **params):
@@ -318,7 +317,6 @@ class PrivateRecipeApiTests(APITestCase):
         ).count()
         self.assertEqual(recipe_ingredient, 2)
         ingredients = recipe.ingredients.all()
-        print(ingredients)
 
         self.assertEqual(len(ingredients), 2)
         self.assertEqual(len(ingredients), 2)

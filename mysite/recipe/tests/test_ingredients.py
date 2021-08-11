@@ -74,15 +74,15 @@ class PrivateIngredientApiTests(TestCase):
     def test_retrieve_ingredients(self):
         """ test retrieving ingredients tags """
 
-        sample_ingredient(name="czosnek", user=self.user)
-        sample_ingredient(name="szpinak", user=self.user)
+        ing1 = sample_ingredient(name="czosnek", user=self.user)
+        ing2 = sample_ingredient(name="szpinak", user=self.user)
 
         res = self.client.get(INGREDIENTS_URL)
         ingredients = models.Ingredient.objects.all().order_by('-name')
-        serializer = IngredientSerializer(ingredients, many=True, context={'request': self.request})
 
         self.assertTrue(res.status_code, status.HTTP_200_OK)
-        self.assertTrue(res.data, serializer.data)
+        self.assertIn(ing1.name, res.json()['data'][0]['name'])
+        self.assertIn(ing2.name, res.json()['data'][1]['name'])
     #
     # def test_ingredient_limited_to_user(self):
     #     """ test that ingredients returned are for specific user """
@@ -125,7 +125,8 @@ class PrivateIngredientApiTests(TestCase):
     def test_retrieving_proper_url_for_other_user_ingredient(self):
         """ test that url returned by serializer is user tag in GET
         query params """
-
+        print("\n\n\n")
+        print("self.queryset != Ingredient.objects.alll() ???? ")
         user2 = sample_user()
         user2_ing = sample_ingredient(user=user2, name='test',
                                       calories='1000')
@@ -143,10 +144,7 @@ class PrivateIngredientApiTests(TestCase):
             calories=17)
 
         res = self.client.get(ingredient_detail_url(ingredient.slug))
-
-        serializer = IngredientSerializer(ingredient, context={'request': self.request})
-
-        self.assertEqual(res.data, serializer.data)
+        self.assertEqual(res.json()['data']['calories'], ingredient.calories)
 
     def test_retrieve_nutritional_value_of_ingredient(self):
         """ test getting nutrional value from ingredient """
@@ -168,10 +166,7 @@ class PrivateIngredientApiTests(TestCase):
         )
 
         res = self.client.get(ingredient_detail_url(ingredient.slug))
-
-        serializer = IngredientSerializer(ingredient, context={'request': self.request})
-
-        self.assertEqual(res.data, serializer.data)
+        self.assertIn(ingredient.name, res.json()['data']['name'])
 
     def test_create_ingredient_sucessful(self):
         """ test creating new ingredient """

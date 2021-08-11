@@ -29,8 +29,11 @@ class MealsTrackerViewSet(RequiredFieldsResponseMessage, viewsets.ModelViewSet):
     serializer_class = serializers.MealsTrackerSerializer
     queryset = models.Meal.objects.all()
 
-    def get_serializer_class(self):
+    def get_serializer_class(self, extra_action=False):
         """ return appriopriate serializer for action """
+
+        if extra_action and self.action in ['list', 'retrieve']:
+            return serializers.CreateUpdateMealSerializer
         if self.action in ['create', 'update', 'partial_update']:
             return serializers.CreateUpdateMealSerializer
         return self.serializer_class

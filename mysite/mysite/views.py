@@ -16,7 +16,6 @@ def api_root(request, format=None):
 
 def get_serializer_fields(serializer):
     """ return fields names which are required """
-
     required_fields = []
     writable_fields = []
     for f, v in serializer.get_fields().items():
@@ -25,7 +24,6 @@ def get_serializer_fields(serializer):
             required_fields.append(f)
         if not getattr(v, 'read_only'):
             writable_fields.append({"name": f, "type": field_type})
-
     return required_fields, writable_fields
 
 
@@ -34,6 +32,7 @@ class RequiredFieldsResponseMessage(generics.GenericAPIView):
 
     def get_serializer(self, *args, **kwargs):
         """ set serializers required fields private variable """
+
         serializer_instance = super().get_serializer()
         self._serializer_fields = get_serializer_fields(serializer_instance)
         return super().get_serializer(*args, **kwargs)

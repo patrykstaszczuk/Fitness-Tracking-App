@@ -73,10 +73,9 @@ class RetrieveRecipeSerializer(serializers.ModelSerializer):
         recipe_slug = ret.pop('slug')
         request = self.context['request']
         if ret['user'] != request.user.id:
-            ret['url'] = reverse('recipe:recipe-group-detail',
-                                 kwargs={'pk': ret['user'],
-                                         'slug': recipe_slug},
-                                 request=request)
+            ret['url'] = reverse('recipe:recipe-detail',
+                                 kwargs={'slug': recipe_slug},
+                                 request=request) + f"?user={ret['user']}"
         return ret
 
 
@@ -163,30 +162,6 @@ class CreateUpdateMealSerializer(MealsTrackerSerializer):
                                              many=True)
     category = serializers.PrimaryKeyRelatedField(queryset=models.MealCategory.objects.all())
 
-    # def _validate_objects_permission(self, list_of_obj, entity):
-    #     if list_of_obj:
-    #         for item in list_of_obj:
-    #             if entity == 'ingredient':
-    #
-    #             if item[f"{entity}"].user != self.context['request'].user:
-    #                 raise serializers.ValidationError(f'No such {entity}')
-
-    # def is_valid(self, raise_exception=False):
-    #     """ check if recipe is created by requested user """
-    #     super().is_valid(raise_exception)
-    #     recipes = self.validated_data.get('recipes', None)
-    #     ingredients = self.validated_data.get('ingredients', None)
-    #     if recipes:
-    #         for recipe in recipes:
-    #             request_user = self.context['request'].user
-    #             print(recipe['recipe'].user.own_group)
-    #             print(request_user.membership.all())
-    #
-    #             if recipe['recipe'].user != request_user:
-    #                 if not recipe['recipe'].user.own_group in request_user.membership.all():
-    #                     return False
-    #     return True
-
     def validate_recipes(self, recipes):
         """ check if user is allowed to use recipes """
         request_user = self.context['request'].user
@@ -195,6 +170,8 @@ class CreateUpdateMealSerializer(MealsTrackerSerializer):
             if not recipe['recipe'].user.own_group in request_user_groups:
                 raise serializers.ValidationError(f"{recipe['recipe'].id} \
                 No such recipe in your recipes or group recipes")
+            if 'portion' not in recipe:
+                raise serializers.ValidationError('recipe and portion must be set at the same time')
         return recipes
 
     def to_internal_value(self, values):

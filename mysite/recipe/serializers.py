@@ -97,10 +97,15 @@ class IngredientSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
 
         ret = super().to_representation(instance)
-        if ret['user'] != self.user.id:
-            ret['url'] = reverse('recipe:ingredient-detail',
-                                 kwargs={'slug': ret['slug']},
-                                 request=self.context['request']) + f"?user={ret['user']}"
+        try:
+            user = self.context['user'].id
+        except KeyError:
+            user = None
+        if user:
+            if ret['user'] != self.context['user'].id:
+                ret['url'] = reverse('recipe:ingredient-detail',
+                                     kwargs={'slug': ret['slug']},
+                                     request=self.context['request']) + f"?user={ret['user']}"
         return ret
 
     def get_available_units(self, obj):
@@ -133,14 +138,6 @@ class IngredientSerializer(serializers.ModelSerializer):
                     defaults={'grams_in_one_unit': unit['grams_in_one_unit']}
                 )
         return instance
-
-    def __init__(self, *args, **kwargs):
-        """ get user from context """
-        super().__init__(*args, **kwargs)
-        try:
-            self.user = self.context['user']
-        except KeyError:
-            self.user = None
 
 
 class ReadyMealIngredientSerializer(IngredientSerializer):
@@ -247,7 +244,8 @@ class RecipeSerializer(serializers.ModelSerializer):
         """
         ret = super().to_representation(instance)
         if ret['user'] != self.user.id:
-            ret['url'] = f'http://localhost:8000/food/group-recipe/{ret["user"]}/{ret["slug"]}'
+            # ret['url'] = f'http://localhost:8000/food/group-recipe/{ret["user"]}/{ret["slug"]}'
+            ret['url'] = reverse("recipe:recipe-detail", kwargs={'slug': ret['slug']}, request=self.context['request']) + f"?user={ret['user']}"
         return ret
 
     def to_internal_value(self, data):
