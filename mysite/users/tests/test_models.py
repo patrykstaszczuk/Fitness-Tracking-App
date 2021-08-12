@@ -93,21 +93,17 @@ class ModelTests(TestCase):
         )
         avg_weight = 0
         avg_sleep_length = 0
-        avg_calories = 0
 
         for i in range(1, 8):
             health_models.HealthDiary.objects.create(
                 user=user,
                 weight=i+70,
                 sleep_length=i+7,
-                calories=2000+i,
                 date=datetime.date.today() - datetime.timedelta(days=i+4)
             )
         avg_weight = (71+72+73)/3
         avg_sleep_length = (8+9+10)/3
-        avg_calories = (2001+2002+2003)/3
 
         avg_stats = user.get_weekly_avg_stats()
         self.assertEqual(avg_stats['weight'], avg_weight)
         self.assertEqual(avg_stats['sleep_length'], avg_sleep_length)
-        self.assertEqual(avg_stats['calories'], avg_calories)

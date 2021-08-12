@@ -11,7 +11,7 @@ class HealthDiarySerializer(serializers.ModelSerializer):
     class Meta:
         model = models.HealthDiary
         fields = '__all__'
-        read_only_fields = ('id', 'user', 'date', 'slug')
+        read_only_fields = ('id', 'user', 'date', 'slug', 'calories')
 
     def save(self, **kwargs):
         """ if requested user already have health diary for today, update it
@@ -49,13 +49,6 @@ class HealthDiarySerializer(serializers.ModelSerializer):
                                               spoczynkowego')
         return value
 
-    def validate_calories(self, value):
-        """ validate calories """
-
-        if value is not None and not 0 < value < 20000:
-            raise serializers.ValidationError('Nieporawna liczba kalorii')
-        return value
-
     def validate_daily_thoughts(self, value):
         """ validated length of daily_thoughts """
 
@@ -72,7 +65,7 @@ class HealthRaportSerializer(serializers.ModelSerializer):
 
     class Meta:
         exclude = ('daily_thoughts', )
-        read_only_fields = ('id', 'user', 'date', 'slug')
+        read_only_fields = ('id', 'user', 'date', 'slug', 'calories')
         model = models.HealthDiary
 
 

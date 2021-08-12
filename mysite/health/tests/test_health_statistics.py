@@ -111,7 +111,6 @@ class PrivateHealthApiTests(TestCase):
         unit = Unit.objects.get(name='gram')
         meal2.ingredients.add(ingredient, through_defaults={"amount": 100, "unit": unit})
         res = self.client.get(USER_DAILY_HEALTH_DASHBOARD)
-        print(res.data)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.json()['data']['calories'], recipe.calories/4 + ingredient.calories)
 
@@ -172,7 +171,6 @@ class PrivateHealthApiTests(TestCase):
 
         payload = {
             'weight': '75',
-            'calories': '1882'
         }
 
         res = self.client.put(USER_DAILY_HEALTH_DASHBOARD, payload,
