@@ -2,6 +2,7 @@ from rest_framework import generics, authentication, permissions, status
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework import mixins
 from users import models
 from users import serializers
@@ -255,31 +256,22 @@ class GroupViewSet(RequiredFieldsResponseMessage, GenericViewSet,
                                 headers=headers)
             return Response(data=serializer.errors,
                             status=status.HTTP_400_BAD_REQUEST)
-        #current_groups = request.user.membership.all().exclude(founder=request.user)
         serializer = serializers.LeaveGroupSerializer(instance=request.user, context={'user': request.user})
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
-        # error = 'ID must be an Integer'
-        # headers = {}
-        # data = None
-        # status = None
-        # if request.method == 'POST' and request.data:
-        #     try:
-        #         group_id = int(request.data.pop('id'))
-        #         try:
-        #             self.request.user.leave_group(group_id)
-        #         except models.Group.DoesNotExist:
-        #             data = {'id': "No such group in your membership "},
-        #             status = status.HTTP_400_BAD_REQUEST
-        #     except ValueError:
-        #         data = {'id': error}
-        #         status = status.HTTP_400_BAD_REQUEST
-        #
-        #     headers['Location'] = reverse('users:group-list', request=request)
-        #     status = status.HTTP_200_OK
-        # else:
-        #     current_groups = request.user.membership.all().exclude(founder=request.user)
-        #     data = serializers.GroupSerializer(current_groups, many=True).data
-        #     status = status.HTTP_200_OK
-        # return Response(data=data, status=status,
-        #                 headers=headers)
+
+class StravaCodeApiView(APIView):
+    """ View for retrieving strava code """
+    renderer_classes = [CustomRenderer, ]
+    authentication_classes = (authentication.TokenAuthentication, )
+    permission_classes = (permissions.IsAuthenticated, )
+
+    def get(self, request, *args, **kwargs):
+        """ get the code from url and return response """
+
+        strava_code = request.query_params.get('code')
+        if strava_code:
+            setattr(request.user, 'strava_code', strava_code)
+            if request.user.strava_code is not None:
+                return Response(status=status.HTTP_200_OK)
+        return Response(status=status.HTTP_400_BAD_REQUEST)

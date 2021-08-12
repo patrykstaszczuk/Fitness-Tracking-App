@@ -500,3 +500,14 @@ class PrivateUserApiTests(TestCase):
                                format='json')
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(len(self.user.membership.all()), 1)
+
+    def test_retreiving_strava_code_from_url(self):
+        """ test retreving code needed for token obtaining """
+
+        url = reverse('users:strava-code')
+        payload = {
+            'code': '11b71591faf2ac9c5c2a0135ec1e83e8d1b64835'
+        }
+        res = self.client.get(url, payload)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.user.strava_code, payload['code'])
