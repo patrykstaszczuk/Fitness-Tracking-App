@@ -5,8 +5,10 @@ from django.urls import reverse
 from django.contrib.auth import get_user_model
 from health.models import HealthDiary
 import datetime
-
+import requests
+import os
 from django.core.exceptions import ValidationError
+from mysite import settings
 
 
 class MyManager(BaseUserManager):
@@ -63,8 +65,6 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
 
-    strava_code = models.CharField(max_length=255, null=True)
-
     USERNAME_FIELD = 'email'
     EMAIL_FIELD = 'email'
     REQUIRED_FIELDS = ['name', 'gender', 'age']
@@ -120,6 +120,32 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
 
         return fields_avg_values
 
+    def is_auth_to_strava(self, code):
+        """ retreve strva auth information based on code """
+        try:
+            client_id = os.environ['STRAVA_CLIENT_ID']
+            client_secret = os.environ['STRAVA_CLIENT_SECRET']
+        except KeyError:
+            return False, "Env variables problem, contact with admin"
+
+        payload = {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "code": code,
+            "grant_type": "authorization_code"
+        }
+        res = requests.post(settings.STRAVA_AUTH_URL, payload)
+        if res.status_code != 200:
+            return False, res.json()
+        auth_data = {'expires_at': None, 'refresh_token': None, 'access_token': None}
+        if all(attr in res.json() for attr in auth_data.keys()):
+            for data in auth_data.keys():
+                auth_data[data] = res.json()[data]
+            auth_data.update({'user': self})
+            StravaTokens.objects.create(**auth_data)
+            return True, None
+        return False, "No required data in strava response"
+
     def has_perms(self, perm_list, obj=None):
         return all(self.has_perm(perm, obj) for perm in perm_list)
 
@@ -129,6 +155,17 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
 
     def get_absolute_url(self):
         return reverse('users:profile')
+
+
+class StravaTokens(models.Model):
+    """ model for storing strava tokens """
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL,
+                                on_delete=models.CASCADE,
+                                null=False, related_name='strava')
+    access_token = models.CharField(max_length=255)
+    refresh_token = models.CharField(max_length=255)
+    expires_at = models.PositiveIntegerField()
 
 
 class GroupManager(models.Manager):

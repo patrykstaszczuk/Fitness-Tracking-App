@@ -258,20 +258,3 @@ class GroupViewSet(RequiredFieldsResponseMessage, GenericViewSet,
                             status=status.HTTP_400_BAD_REQUEST)
         serializer = serializers.LeaveGroupSerializer(instance=request.user, context={'user': request.user})
         return Response(data=serializer.data, status=status.HTTP_200_OK)
-
-
-class StravaCodeApiView(APIView):
-    """ View for retrieving strava code """
-    renderer_classes = [CustomRenderer, ]
-    authentication_classes = (authentication.TokenAuthentication, )
-    permission_classes = (permissions.IsAuthenticated, )
-
-    def get(self, request, *args, **kwargs):
-        """ get the code from url and return response """
-
-        strava_code = request.query_params.get('code')
-        if strava_code:
-            setattr(request.user, 'strava_code', strava_code)
-            if request.user.strava_code is not None:
-                return Response(status=status.HTTP_200_OK)
-        return Response(status=status.HTTP_400_BAD_REQUEST)

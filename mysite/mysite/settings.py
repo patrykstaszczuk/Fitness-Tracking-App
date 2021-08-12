@@ -20,6 +20,8 @@ TEMPLATE_DIR = Path(BASE_DIR) / 'templates'
 LOGIN_URL = "/konto/logowanie/"
 LOGOUT_REDIRECT_URL = '/'
 
+STRAVA_AUTH_URL = "https://www.strava.com/oauth/token"
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.1/howto/deployment/checklist/
 

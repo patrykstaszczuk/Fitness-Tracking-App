@@ -18,6 +18,8 @@ PASSWORD_URL = reverse('users:password-change')
 
 GROUP_URL = reverse('users:group-list')
 
+STRAVA_AUTH_URL = 'https://www.strava.com/oauth/token'
+
 
 def send_invitation_url():
     return reverse('users:group-send-invitation')
@@ -501,13 +503,16 @@ class PrivateUserApiTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(len(self.user.membership.all()), 1)
 
-    def test_retreiving_strava_code_from_url(self):
-        """ test retreving code needed for token obtaining """
-
-        url = reverse('users:strava-code')
-        payload = {
-            'code': '11b71591faf2ac9c5c2a0135ec1e83e8d1b64835'
-        }
-        res = self.client.get(url, payload)
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(self.user.strava_code, payload['code'])
+    # def test_retreiving_strava_auth_information(self):
+    #     """ test retreving code, tokens and expire date """
+    #
+    #     url = reverse('strava-auth')
+    #
+    #     payload = {
+    #         'code': 'accf7a173306f79d9ed09cc08ef0b7b3a5d724c6'
+    #     }
+    #     res = self.client.get(url, payload)
+    #     self.assertEqual(res.status_code, status.HTTP_200_OK)
+    #     self.assertTrue(self.user.strava.access_token)
+    #     self.assertTrue(self.user.strava.refresh_token)
+    #     self.assertTrue(self.user.strava.expires_at)
