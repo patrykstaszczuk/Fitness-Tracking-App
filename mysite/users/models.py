@@ -7,6 +7,7 @@ from health.models import HealthDiary
 import datetime
 import requests
 import os
+import time
 import json
 from django.core.exceptions import ValidationError
 from mysite import settings
@@ -129,10 +130,17 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
 
     def is_auth_to_strava(self):
         """ check if user has associated strava info """
-        return hasattr(self, 'strava')
+        try:
+            obj = StravaTokens.objects.get(user=self.id)
+            if obj.valid:
+                return True
+        except StravaTokens.DoesNotExist:
+            StravaTokens.objects.create(user=self, valid=False)
+        return False
 
     def authorize_to_strava(self, code):
         """ authorize to strava with provided code and save info in db """
+
         try:
             client_id, client_secret = self.get_environ_variables()
         except KeyError:
@@ -143,11 +151,9 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
             "code": code,
             "grant_type": "authorization_code"
         }
-        StravaTokens.objects.create(user=self)
         res = self.strava.authorize(payload)
         if res.status_code != 200:
             print(res.json())
-            self.strava.delete()
             return False
         auth_data = {'expires_at': None, 'refresh_token': None, 'access_token': None}
         if all(attr in res.json() for attr in auth_data.keys()):
@@ -155,7 +161,6 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
                 setattr(self.strava, data, res.json()[data])
             self.strava.save()
             return True
-        self.strava.delete()
         return False
 
     def has_perms(self, perm_list, obj=None):
@@ -178,13 +183,19 @@ class StravaTokens(models.Model):
     access_token = models.CharField(max_length=255)
     refresh_token = models.CharField(max_length=255)
     expires_at = models.PositiveIntegerField(null=True)
+    last_update = models.FloatField(default=0, null=False)
+    valid = models.BooleanField(default=False)
 
     def __str__(self):
         return str(self.user) + str(self.expires_at)
 
     def authorize(self, payload):
         """ send authorization request to strava """
+        self.last_update = time.time()
         return requests.post(settings.STRAVA_AUTH_URL, payload)
+
+    def get_last_update_time(self):
+        return self.last_update
 
     def get_burned_calories_for_given_day(self, date):
         """ return burned calories from strava activities """

@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework import authentication, permissions, status
 from mysite.renderers import CustomRenderer
 from rest_framework.views import APIView
+import time
 
 
 @api_view(['GET'])
@@ -74,11 +75,17 @@ class StravaCodeApiView(APIView):
         """ get the code from url and return response """
 
         strava_code = request.query_params.get('code')
+        response_message = {'status': 'No Strava code provided in url or other problem occured. Contact site administrator'}
+        response_status = status.HTTP_400_BAD_REQUEST
         if strava_code:
             if request.user.is_auth_to_strava():
-                return Response(data={"status": 'Already connected'},
-                                status=status.HTTP_200_OK)
-            if request.user.authorize_to_strava(strava_code):
-                return Response(data={'status': 'Ok'}, status=status.HTTP_200_OK)
-        return Response(data={'status': "No Strava code provided in url or other problem occured. Contact site administrator"},
-                        status=status.HTTP_400_BAD_REQUEST)
+                response_message['status'] = 'Already connected'
+                response_status = status.HTTP_200_OK
+            else:
+                last_time_update_delta = time.time() - request.user.strava.get_last_update_time()
+                if last_time_update_delta < 60:
+                    response_message['status'] = 'To many requests try again soon'
+                elif request.user.authorize_to_strava(strava_code):
+                    response_message['status'] = 'Ok'
+                    response_status = status.HTTP_200_OK
+        return Response(data=response_message, status=response_status)

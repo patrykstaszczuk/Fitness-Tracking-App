@@ -4,7 +4,7 @@ from django.urls import reverse
 
 from rest_framework.test import APIClient
 from rest_framework import status
-
+import time
 from users import serializers
 from users import models
 from unittest.mock import patch, MagicMock
@@ -549,6 +549,51 @@ class PrivateUserApiTests(TestCase):
         payload = {
             'code': 'accf7a173306f79d9ed09cc08ef0b7b3a5d724c6'
         }
+        res = self.client.get(url, payload)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.json()['data']['status'], 'Ok')
+
+    @patch('users.models.StravaTokens.get_last_update_time')
+    @patch('users.models.StravaTokens.authorize')
+    def test_authorize_to_strava_timeout(self, mock_auth, mock_time):
+        """ test trying to authorize to strava multile times with wrong code
+        implies timeout """
+
+        mock_auth.return_value = MagicMock(status_code=400,
+                                           json=lambda: {'error': 'error'})
+        mock_time.return_value = time.time() - 1
+        url = reverse('strava-auth')
+        payload = {
+            'code': 'wrong code'
+        }
+        res = self.client.get(url, payload)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        for i in range(3):
+            res = self.client.get(url, payload)
+            self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+            self.assertEqual(res.json()['data']['status'],
+                             'To many requests try again soon')
+
+    @patch('users.models.StravaTokens.get_last_update_time')
+    @patch('users.models.StravaTokens.authorize')
+    def test_authorize_to_strava_after_third_attempt(self, mock_auth, mock_time):
+        """ test timeout system works as expected """
+
+        data = {'expires_at': 123, 'refresh_token': 123,
+                'access_token': 123}
+        mock_auth.return_value = MagicMock(status_code=200,
+                                           json=lambda: data)
+        mock_time.side_effect = [time.time()-1, time.time()-35, time.time()-61]
+
+        url = reverse('strava-auth')
+        payload = {
+            'code': 'wrong code'
+        }
+        for i in range(2):
+            res = self.client.get(url, payload)
+            self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+            self.assertEqual(res.json()['data']['status'],
+                             'To many requests try again soon')
         res = self.client.get(url, payload)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.json()['data']['status'], 'Ok')
