@@ -135,11 +135,10 @@ class ModelTests(TestCase):
             height=188,
             gender='Male'
         )
-
-        obj = models.StravaTokens.objects.create(user=user,
-                                           access_token='2342142141',
-                                           refresh_token='23123213123',
-                                           expires_at=12345)
+        obj = models.StravaTokens.objects.get(user=user)
+        obj.expires_at = 1234
+        obj.token = '123'
+        obj.access_token = '123'
         self.assertEqual(str(obj), str(user) + str(obj.expires_at))
 
     @patch('users.models.MyUser.get_environ_variables')
@@ -168,6 +167,7 @@ class ModelTests(TestCase):
         user = sample_user()
         self.assertEqual(user.authorize_to_strava(code='1234'), True)
         self.assertEqual(user.strava.expires_at, 123)
+        self.assertEqual(user.strava.valid, True)
 
     @patch('users.models.StravaTokens.authorize')
     def test_authorize_to_strava_failed_no_needed_info(self, mock):
@@ -179,3 +179,21 @@ class ModelTests(TestCase):
                                       json=lambda: data)
         user = sample_user()
         self.assertEqual(user.authorize_to_strava(code='1234'), False)
+
+    def test_auth_token_valid_function(self):
+        """ test if authentication token is valid """
+        user = sample_user()
+        self.assertFalse(user.strava.is_token_valid())
+
+    @patch('users.models.StravaTokens._send_request_to_strava')
+    def test_refreshing_token_when_expired(self, mock):
+        """ test refreshing token when expired_at time is in past """
+        data = {
+            'access_token': '321',
+            'refresh_token': '543',
+            'expires_at': 987
+        }
+        mock.return_value = MagicMock(status_code=200, json=lambda: data)
+        user = sample_user()
+        self.assertTrue(user.strava.get_new_token())
+        self.assertEqual(user.strava.access_token, '321')

@@ -28,6 +28,7 @@ class MyManager(BaseUserManager):
         user.save(using=self.db)
 
         Group.objects.create(founder=user)
+        StravaTokens.objects.create(user=user, valid=False)
 
         return user
 
@@ -151,6 +152,8 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
             "code": code,
             "grant_type": "authorization_code"
         }
+        if not hasattr(self, 'strava'):
+            StravaTokens.objects.create(user=self, valid=False)
         res = self.strava.authorize(payload)
         if res.status_code != 200:
             print(res.json())
@@ -159,6 +162,7 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
         if all(attr in res.json() for attr in auth_data.keys()):
             for data in auth_data.keys():
                 setattr(self.strava, data, res.json()[data])
+            self.strava.valid = True
             self.strava.save()
             return True
         return False
@@ -182,7 +186,7 @@ class StravaTokens(models.Model):
                                 null=False, related_name='strava')
     access_token = models.CharField(max_length=255)
     refresh_token = models.CharField(max_length=255)
-    expires_at = models.PositiveIntegerField(null=True)
+    expires_at = models.PositiveIntegerField(null=True, default=0)
     last_update = models.FloatField(default=0, null=False)
     valid = models.BooleanField(default=False)
 
@@ -192,7 +196,46 @@ class StravaTokens(models.Model):
     def authorize(self, payload):
         """ send authorization request to strava """
         self.last_update = time.time()
-        return requests.post(settings.STRAVA_AUTH_URL, payload)
+        return self._send_request_to_strava(url=settings.STRAVA_AUTH_URL,
+                                            type='POST',
+                                            payload=payload)
+
+    def _send_request_to_strava(self, url, payload, type='GET'):
+        """ send request to strava API """
+        if type == 'GET':
+            pass
+        elif type == 'POST':
+            return requests.post(url, payload)
+        else:
+            return False
+
+    def is_token_valid(self):
+        """ check is valid time for token expired """
+        return self.expires_at > time.time()
+
+    def get_new_token(self):
+        """ request new token """
+
+        try:
+            client_id, client_secret = self.user.get_environ_variables()
+            payload = {
+                'client_id': client_id,
+                'client_secret': client_secret,
+                'refresh_token': self.refresh_token,
+                'grant_type': 'refresh_token'
+            }
+            res = self._send_request_to_strava(settings.STRAVA_AUTH_URL,
+                                               payload,
+                                               'POST')
+            if res.status_code == 200:
+                self.access_token = res.json()['access_token']
+                self.refresh_token = res.json()['refresh_token']
+                self.expires_at = res.json()['expires_at']
+                return True
+            print(res.json())
+            return False
+        except KeyError:
+            return False
 
     def get_last_update_time(self):
         return self.last_update

@@ -520,8 +520,8 @@ class PrivateUserApiTests(TestCase):
         """ test trying to associate user to strava account,
         when its already done """
 
-        models.StravaTokens.objects.create(user=self.user, access_token='123',
-                                           refresh_token='123', expires_at=123)
+        self.user.strava.valid = True
+        self.user.strava.save()
         url = reverse('strava-auth')
         payload = {
             'code': 'accf7a173306f79d9ed09cc08ef0b7b3a5d724c6'
@@ -552,6 +552,7 @@ class PrivateUserApiTests(TestCase):
         res = self.client.get(url, payload)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.json()['data']['status'], 'Ok')
+        self.assertTrue(self.user.strava.valid)
 
     @patch('users.models.StravaTokens.get_last_update_time')
     @patch('users.models.StravaTokens.authorize')
@@ -596,4 +597,5 @@ class PrivateUserApiTests(TestCase):
                              'To many requests try again soon')
         res = self.client.get(url, payload)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertTrue(self.user.strava.valid)
         self.assertEqual(res.json()['data']['status'], 'Ok')
