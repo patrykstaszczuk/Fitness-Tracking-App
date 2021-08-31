@@ -1,9 +1,24 @@
 
 from django.test import TestCase
+from rest_framework.response import Response
+from django.http import HttpResponse
 from django.contrib.auth import get_user_model
 from users import models
 from health import models as health_models
 import datetime
+from unittest.mock import patch, Mock, MagicMock
+
+
+def sample_user():
+    return get_user_model().objects.create_user(
+        email='test@gmail.com',
+        name='Patryk',
+        password='test',
+        age=25,
+        weight=88,
+        height=188,
+        gender='Male'
+    )
 
 
 class ModelTests(TestCase):
@@ -107,3 +122,60 @@ class ModelTests(TestCase):
         avg_stats = user.get_weekly_avg_stats()
         self.assertEqual(avg_stats['weight'], avg_weight)
         self.assertEqual(avg_stats['sleep_length'], avg_sleep_length)
+
+    def test_strava_tokens_str_representation(self):
+        """ test string representation StravaTokens model """
+
+        user = get_user_model().objects.create_user(
+            email='test@gmail.com',
+            name='Patryk',
+            password='test',
+            age=25,
+            weight=88,
+            height=188,
+            gender='Male'
+        )
+
+        obj = models.StravaTokens.objects.create(user=user,
+                                           access_token='2342142141',
+                                           refresh_token='23123213123',
+                                           expires_at=12345)
+        self.assertEqual(str(obj), str(user) + str(obj.expires_at))
+
+    @patch('users.models.MyUser.get_environ_variables')
+    def test_authozie_to_strava_with_no_environ(self, mock):
+        """ test authorize_to_strava func failed due to no environ variables
+        """
+        user = sample_user()
+        mock.side_effect = KeyError()
+        self.assertEqual(user.authorize_to_strava(code='1234'), False)
+
+    @patch('users.models.StravaTokens.authorize')
+    def test_authorize_to_strava_failed_wrong_response(self, mock):
+        """ test authorizing to strava failed with status different than 200
+        """
+        user = sample_user()
+        mock.return_value = Mock(status_code=400, json=lambda: {'error': 'error_message'})
+        self.assertEqual(user.authorize_to_strava(code='1234'), False)
+
+    @patch('users.models.StravaTokens.authorize')
+    def test_authorize_to_strava_func(self, mock):
+        """ test authorizing to strava user function """
+        data = {'expires_at': 123, 'refresh_token': 123,
+                'access_token': 123}
+        mock.return_value = MagicMock(spec=Response, status_code=200,
+                                      json=lambda: data)
+        user = sample_user()
+        self.assertEqual(user.authorize_to_strava(code='1234'), True)
+        self.assertEqual(user.strava.expires_at, 123)
+
+    @patch('users.models.StravaTokens.authorize')
+    def test_authorize_to_strava_failed_no_needed_info(self, mock):
+        """ test authorization failed due to no needed information in strava
+        response """
+
+        data = {'ble ble': 123, 'wrong info': 123}
+        mock.return_value = MagicMock(spec=HttpResponse, status_code=200,
+                                      json=lambda: data)
+        user = sample_user()
+        self.assertEqual(user.authorize_to_strava(code='1234'), False)

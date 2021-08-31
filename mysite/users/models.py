@@ -7,8 +7,10 @@ from health.models import HealthDiary
 import datetime
 import requests
 import os
+import json
 from django.core.exceptions import ValidationError
 from mysite import settings
+from rest_framework import status
 
 
 class MyManager(BaseUserManager):
@@ -120,31 +122,41 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
 
         return fields_avg_values
 
-    def is_auth_to_strava(self, code):
-        """ retreve strva auth information based on code """
-        try:
-            client_id = os.environ['STRAVA_CLIENT_ID']
-            client_secret = os.environ['STRAVA_CLIENT_SECRET']
-        except KeyError:
-            return False, "Env variables problem, contact with admin"
+    def get_environ_variables(self):
+        """ get client id and cliend secret needed for user app
+        authorization """
+        return os.environ['STRAVA_CLIENT_ID'], os.environ['STRAVA_CLIENT_SECRET']
 
+    def is_auth_to_strava(self):
+        """ check if user has associated strava info """
+        return hasattr(self, 'strava')
+
+    def authorize_to_strava(self, code):
+        """ authorize to strava with provided code and save info in db """
+        try:
+            client_id, client_secret = self.get_environ_variables()
+        except KeyError:
+            return False
         payload = {
             "client_id": client_id,
             "client_secret": client_secret,
             "code": code,
             "grant_type": "authorization_code"
         }
-        res = requests.post(settings.STRAVA_AUTH_URL, payload)
+        StravaTokens.objects.create(user=self)
+        res = self.strava.authorize(payload)
         if res.status_code != 200:
-            return False, res.json()
+            print(res.json())
+            self.strava.delete()
+            return False
         auth_data = {'expires_at': None, 'refresh_token': None, 'access_token': None}
         if all(attr in res.json() for attr in auth_data.keys()):
             for data in auth_data.keys():
-                auth_data[data] = res.json()[data]
-            auth_data.update({'user': self})
-            StravaTokens.objects.create(**auth_data)
-            return True, None
-        return False, "No required data in strava response"
+                setattr(self.strava, data, res.json()[data])
+            self.strava.save()
+            return True
+        self.strava.delete()
+        return False
 
     def has_perms(self, perm_list, obj=None):
         return all(self.has_perm(perm, obj) for perm in perm_list)
@@ -165,7 +177,22 @@ class StravaTokens(models.Model):
                                 null=False, related_name='strava')
     access_token = models.CharField(max_length=255)
     refresh_token = models.CharField(max_length=255)
-    expires_at = models.PositiveIntegerField()
+    expires_at = models.PositiveIntegerField(null=True)
+
+    def __str__(self):
+        return str(self.user) + str(self.expires_at)
+
+    def authorize(self, payload):
+        """ send authorization request to strava """
+        return requests.post(settings.STRAVA_AUTH_URL, payload)
+
+    def get_burned_calories_for_given_day(self, date):
+        """ return burned calories from strava activities """
+        pass
+    # def check_expiration_date(self):
+    #     """ check if expiration date < today """
+    #     today = datetime.date.today()
+    #     if
 
 
 class GroupManager(models.Manager):

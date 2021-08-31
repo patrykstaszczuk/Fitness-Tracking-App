@@ -2,13 +2,12 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 
-from rest_framework.test import APIClient, APIRequestFactory
+from rest_framework.test import APIClient
 from rest_framework import status
 
 from users import serializers
 from users import models
-
-from rest_framework.authtoken.models import Token
+from unittest.mock import patch, MagicMock
 
 
 CREATE_USER_URL = reverse('users:create')
@@ -516,3 +515,40 @@ class PrivateUserApiTests(TestCase):
     #     self.assertTrue(self.user.strava.access_token)
     #     self.assertTrue(self.user.strava.refresh_token)
     #     self.assertTrue(self.user.strava.expires_at)
+
+    def test_strava_already_associated_with_user(self):
+        """ test trying to associate user to strava account,
+        when its already done """
+
+        models.StravaTokens.objects.create(user=self.user, access_token='123',
+                                           refresh_token='123', expires_at=123)
+        url = reverse('strava-auth')
+        payload = {
+            'code': 'accf7a173306f79d9ed09cc08ef0b7b3a5d724c6'
+        }
+        res = self.client.get(url, payload)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.json()['data']['status'], 'Already connected')
+
+    def test_strava_code_not_provided_in_url(self):
+        """ test strava code not provided in url """
+
+        url = reverse('strava-auth')
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(res.json()['data']['status'],
+                         'No Strava code provided in url or other problem occured. Contact site administrator')
+
+    @patch('users.models.StravaTokens.authorize')
+    def test_associate_user_with_strava(self, mock):
+        """ test associating user with strava via provided code in url """
+        data = {'expires_at': 123, 'refresh_token': 123,
+                'access_token': 123}
+        mock.return_value = MagicMock(status_code=200, json=lambda: data)
+        url = reverse('strava-auth')
+        payload = {
+            'code': 'accf7a173306f79d9ed09cc08ef0b7b3a5d724c6'
+        }
+        res = self.client.get(url, payload)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.json()['data']['status'], 'Ok')

@@ -7,13 +7,14 @@ from rest_framework import status
 from rest_framework.test import APIClient, APIRequestFactory
 
 from users import serializers as user_serializers
+from users import models as user_models
 from health import serializers as health_serializers
 from health.models import HealthDiary
 from recipe.models import Recipe, Ingredient, Unit
 from meals_tracker.models import Meal, MealCategory
 
 import datetime
-
+import time
 USER_DAILY_HEALTH_DASHBOARD = reverse('health:health-diary')
 USER_HEALTH_STATISTIC_RAPORT = reverse('health:health-list')
 USER_HEALTH_STATISTIC_WEEKLY_SUMMARY = reverse('health:weekly-summary')
@@ -491,3 +492,41 @@ class PrivateHealthApiTests(TestCase):
         res = self.user2.get(user_health_specific_stat_raport('weight'))
 
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_get_url_for_strava_auth_initialization(self):
+        """ test getting link to strava site if no strava information
+        associated with user """
+
+        url = 'https://www.strava.com/oauth/authorize?client_id=69302&response_type=code&redirect_uri=http://localhost:8000/strava-auth&approval_prompt=force&scope=activity:read_all&'
+        res = self.client.get(USER_DAILY_HEALTH_DASHBOARD)
+        self.assertIn(url, res.json()['_links']['connect-strava'], url)
+
+    # def test_refreshing_strava_token(self):
+    #     """ test refreshing strava token when expiration time expired """
+    #
+    #     expires_at = int(time.time())
+    #     user_models.StravaTokens.objects.create(user=self.user,
+    #                                             access_token='123',
+    #                                             refresh_token='123',
+    #                                             expires_at=expires_at)
+    #     res =
+
+    def test_retrieve_burned_calories_and_calories_delta(self):
+        """ test retreving calories burned, eaten and delta """
+
+        recipe = Recipe.objects.create(user=self.user, name='test', portions=4)
+        unit = Unit.objects.create(name='gram')
+        category = MealCategory.objects.create(name='breakfast')
+        ingredient = Ingredient.objects.create(user=self.user, name='ing',
+                                               calories=1000)
+        recipe.ingredients.add(ingredient, through_defaults={"unit": unit,
+                                                             "amount": 100})
+        meal = Meal.objects.create(user=self.user, category=category)
+        meal.recipes.add(recipe, through_defaults={"portion": 1})
+        res = self.client.get(USER_DAILY_HEALTH_DASHBOARD)
+        data = HealthDiary.objects.get(date=datetime.date.today(), user=self.user)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.json()['data']['calories'], data.calories)
+        self.assertEqual(res.json()['data']['burned_calories'], 1000)
+        self.assertEqual(res.json()['data']['calories_delta'],
+                         data.calories - 1000)

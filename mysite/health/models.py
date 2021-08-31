@@ -1,11 +1,11 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 import datetime
+import time
 from django.utils.text import slugify
 from django.conf import settings
 from meals_tracker.models import Meal
 # Create your models here.
-
 
 
 def get_health_model_usable_fields():
@@ -34,6 +34,7 @@ class HealthDiary(models.Model):
                                                        verbose_name='tetno')
     calories = models.PositiveIntegerField(blank=True, default=0,
                                            verbose_name='kalorie')
+    last_update = models.PositiveIntegerField(default=time.time())
     daily_thoughts = models.TextField(max_length=2000, blank=True)
 
     def __str__(self):
@@ -50,12 +51,22 @@ class HealthDiary(models.Model):
 
     def _recalculate_calories(self):
         """ recalculate calories based on meals """
-        self.calories = 0
         all_meals = Meal.objects.filter(user=self.user, date=self.date)
+        calories = 0
         for meal in all_meals:
-            self.calories = meal.calories
+            calories += meal.calories
+        return calories
+
+    def _get_burned_calories(self):
+        """ get burned calories from strava activities """
+        now = int(time.time())
+        if (self.last_update - now) > 1800:
+            return self.user.strava.get_burned_calories_for_given_day(self.date)
+        return self.burned_calories
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if hasattr(self, 'id'):
-            self._recalculate_calories()
+        today = datetime.date.today()
+        if hasattr(self, 'id') and self.date == today:
+            self.calories = self._recalculate_calories()
+            # self.burned_calories = self._get_burned_calories()

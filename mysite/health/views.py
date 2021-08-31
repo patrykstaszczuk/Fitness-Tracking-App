@@ -81,6 +81,18 @@ class HealthDiary(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
             'weekly-summary': reverse('health:weekly-summary',
                                       request=self.request)
         }
+        if not hasattr(self.request.user, 'strava'):
+            url = 'https://www.strava.com/oauth/authorize?'
+            params = [
+                'client_id=69302',
+                'response_type=code',
+                'redirect_uri=http://localhost:8000/strava-auth',
+                'approval_prompt=force',
+                'scope=activity:read_all'
+            ]
+            for param in params:
+                url += param + '&'
+            links.update({"connect-strava": url})
         context['links'] = links
         context['required'] = self._serializer_fields
         return context
