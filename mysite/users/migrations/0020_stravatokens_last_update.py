@@ -11,7 +11,7 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AddField(
-            model_name='stravatokens',
+            model_name='StravaTokens',
             name='last_update',
             field=models.FloatField(default=0),
         ),

@@ -505,7 +505,7 @@ class PrivateHealthApiTests(TestCase):
     #     """ test refreshing strava token when expiration time expired """
     #
     #     expires_at = int(time.time())
-    #     user_models.StravaTokens.objects.create(user=self.user,
+    #     user_models.StravaApi.objects.create(user=self.user,
     #                                             access_token='123',
     #                                             refresh_token='123',
     #                                             expires_at=expires_at)

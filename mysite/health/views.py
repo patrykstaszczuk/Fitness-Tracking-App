@@ -81,7 +81,7 @@ class HealthDiary(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
             'weekly-summary': reverse('health:weekly-summary',
                                       request=self.request)
         }
-        if not hasattr(self.request.user, 'strava'):
+        if not self.request.user.is_auth_to_strava():
             url = 'https://www.strava.com/oauth/authorize?'
             params = [
                 'client_id=69302',

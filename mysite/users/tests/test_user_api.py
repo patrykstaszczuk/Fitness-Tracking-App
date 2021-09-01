@@ -153,6 +153,7 @@ class PublicUserApiTests(TestCase):
         get_user_model().objects.create_user(**payload)
 
         res = self.client.post(TOKEN_URL, payload)
+        print(vars(res))
         self.assertIn('token', res.data)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
 
@@ -516,12 +517,12 @@ class PrivateUserApiTests(TestCase):
     #     self.assertTrue(self.user.strava.refresh_token)
     #     self.assertTrue(self.user.strava.expires_at)
 
-    def test_strava_already_associated_with_user(self):
+    @patch('users.models.MyUser.authorize_to_strava')
+    @patch('users.models.StravaApi.is_valid')
+    def test_strava_already_associated_with_user(self, mock, mock_validation):
         """ test trying to associate user to strava account,
         when its already done """
-
-        self.user.strava.valid = True
-        self.user.strava.save()
+        mock_validation.return_value = True
         url = reverse('strava-auth')
         payload = {
             'code': 'accf7a173306f79d9ed09cc08ef0b7b3a5d724c6'
@@ -539,7 +540,7 @@ class PrivateUserApiTests(TestCase):
         self.assertEqual(res.json()['data']['status'],
                          'No Strava code provided in url or other problem occured. Contact site administrator')
 
-    @patch('users.models.StravaTokens.authorize')
+    @patch('users.models.StravaApi.authorize')
     def test_associate_user_with_strava(self, mock):
         """ test associating user with strava via provided code in url """
         data = {'expires_at': 123, 'refresh_token': 123,
@@ -554,8 +555,8 @@ class PrivateUserApiTests(TestCase):
         self.assertEqual(res.json()['data']['status'], 'Ok')
         self.assertTrue(self.user.strava.valid)
 
-    @patch('users.models.StravaTokens.get_last_update_time')
-    @patch('users.models.StravaTokens.authorize')
+    @patch('users.models.StravaApi.get_last_update_time')
+    @patch('users.models.StravaApi.authorize')
     def test_authorize_to_strava_timeout(self, mock_auth, mock_time):
         """ test trying to authorize to strava multile times with wrong code
         implies timeout """
@@ -575,8 +576,8 @@ class PrivateUserApiTests(TestCase):
             self.assertEqual(res.json()['data']['status'],
                              'To many requests try again soon')
 
-    @patch('users.models.StravaTokens.get_last_update_time')
-    @patch('users.models.StravaTokens.authorize')
+    @patch('users.models.StravaApi.get_last_update_time')
+    @patch('users.models.StravaApi.authorize')
     def test_authorize_to_strava_after_third_attempt(self, mock_auth, mock_time):
         """ test timeout system works as expected """
 

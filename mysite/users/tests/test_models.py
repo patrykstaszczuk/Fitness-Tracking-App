@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from users import models
 from health import models as health_models
 import datetime
+import time
 from unittest.mock import patch, Mock, MagicMock
 
 
@@ -124,7 +125,7 @@ class ModelTests(TestCase):
         self.assertEqual(avg_stats['sleep_length'], avg_sleep_length)
 
     def test_strava_tokens_str_representation(self):
-        """ test string representation StravaTokens model """
+        """ test string representation StravaApi model """
 
         user = get_user_model().objects.create_user(
             email='test@gmail.com',
@@ -135,7 +136,7 @@ class ModelTests(TestCase):
             height=188,
             gender='Male'
         )
-        obj = models.StravaTokens.objects.get(user=user)
+        obj = models.StravaApi.objects.get(user=user)
         obj.expires_at = 1234
         obj.token = '123'
         obj.access_token = '123'
@@ -149,7 +150,7 @@ class ModelTests(TestCase):
         mock.side_effect = KeyError()
         self.assertEqual(user.authorize_to_strava(code='1234'), False)
 
-    @patch('users.models.StravaTokens.authorize')
+    @patch('users.models.StravaApi.authorize')
     def test_authorize_to_strava_failed_wrong_response(self, mock):
         """ test authorizing to strava failed with status different than 200
         """
@@ -157,7 +158,7 @@ class ModelTests(TestCase):
         mock.return_value = Mock(status_code=400, json=lambda: {'error': 'error_message'})
         self.assertEqual(user.authorize_to_strava(code='1234'), False)
 
-    @patch('users.models.StravaTokens.authorize')
+    @patch('users.models.StravaApi.authorize')
     def test_authorize_to_strava_func(self, mock):
         """ test authorizing to strava user function """
         data = {'expires_at': 123, 'refresh_token': 123,
@@ -169,7 +170,7 @@ class ModelTests(TestCase):
         self.assertEqual(user.strava.expires_at, 123)
         self.assertEqual(user.strava.valid, True)
 
-    @patch('users.models.StravaTokens.authorize')
+    @patch('users.models.StravaApi.authorize')
     def test_authorize_to_strava_failed_no_needed_info(self, mock):
         """ test authorization failed due to no needed information in strava
         response """
@@ -180,12 +181,26 @@ class ModelTests(TestCase):
         user = sample_user()
         self.assertEqual(user.authorize_to_strava(code='1234'), False)
 
-    def test_auth_token_valid_function(self):
+    def test_auth_token_valid_function_failed(self):
         """ test if authentication token is valid """
         user = sample_user()
         self.assertFalse(user.strava.is_token_valid())
 
-    @patch('users.models.StravaTokens._send_request_to_strava')
+    def test_strava_info_valid(self):
+        """ test is_valid function when there is stava information availabe"""
+        user = sample_user()
+        user.strava.access_token = '123',
+        user.strava.refresh_token = '123',
+        user.strava.expires_at = 123
+        self.assertTrue(user.strava.is_valid())
+
+    def test_strava_info_invalid(self):
+        """ test is_valid function when there is not strava
+        information available"""
+        user = sample_user()
+        self.assertFalse(user.strava.is_valid())
+
+    @patch('users.models.StravaApi._send_request_to_strava')
     def test_refreshing_token_when_expired(self, mock):
         """ test refreshing token when expired_at time is in past """
         data = {
@@ -195,5 +210,100 @@ class ModelTests(TestCase):
         }
         mock.return_value = MagicMock(status_code=200, json=lambda: data)
         user = sample_user()
-        self.assertTrue(user.strava.get_new_token())
+        self.assertTrue(user.strava.get_new_strava_access_token())
         self.assertEqual(user.strava.access_token, '321')
+        strava_info = models.StravaApi.objects.all()[0]
+        self.assertEqual(strava_info.access_token, data['access_token'])
+        self.assertEqual(strava_info.refresh_token, data['refresh_token'])
+        self.assertEqual(strava_info.expires_at, data['expires_at'])
+
+    @patch('users.models.StravaApi._send_request_to_strava')
+    def test_refreshing_token_failed(self, mock):
+        """ test refrehsing token when not needed information available in
+        db """
+        mock.return_value = MagicMock(status_code=400,
+                                      json=lambda: {'status': 'error'})
+        user = sample_user()
+        self.assertFalse(user.strava.get_new_strava_access_token())
+
+    @patch('users.models.StravaApi._send_request_to_strava')
+    @patch('users.models.StravaApi.is_token_valid')
+    def test_get_list_of_activities_when_token_valid(self, mock_token, mock_send):
+        """ test getting list of activities for today """
+
+        data = [
+                {
+                'id': 1,
+                'name': 'test'
+                },
+                {
+                'id': 2,
+                'name': 'test2'
+                },
+            ]
+
+        mock_send.return_value = MagicMock(status_code=200, json=lambda: data)
+        mock_token.return_value = True
+        today = datetime.date.today()
+        user = sample_user()
+        res = user.strava.get_strava_activities(today)
+        self.assertIn(data[0], res.json())
+        self.assertIn(data[1], res.json())
+
+    @patch('users.models.StravaApi.get_new_strava_access_token')
+    @patch('users.models.StravaApi._send_request_to_strava')
+    @patch('users.models.StravaApi.is_valid')
+    def test_get_list_of_activities_when_token_invalid(self, mock_valid,
+                                                        mock_request,
+                                                        mock_token):
+        """ test getting list of activities when token is expired """
+
+        user = sample_user()
+        data = [
+                {
+                'id': 1,
+                'name': 'test'
+                },
+                {
+                'id': 2,
+                'name': 'test2'
+                },
+            ]
+        mock_request.return_value = MagicMock(status_code=200,
+                                              json=lambda: data)
+        mock_valid.return_value = True
+        mock_token.return_value = True
+        today = datetime.date.today()
+        res = user.strava.get_strava_activities(today)
+        self.assertEqual(data, res.json())
+
+    @patch('users.models.StravaApi.is_token_valid')
+    @patch('users.models.StravaApi._send_request_to_strava')
+    def test_get_strava_activity(self, mock, mock_token):
+        """ test getting information about specific activity """
+
+        activity = {
+            'id': 1,
+            'name': 'test',
+            'calories': 1000
+        }
+        mock.return_value = MagicMock(status_code=200, json=lambda: activity)
+        mock_token.return_value = True
+        user = sample_user()
+
+        self.assertEqual(user.strava.get_strava_activities(activity['id']).json(),
+                                                            activity)
+
+    # @patch('users.models.StravaApi.get_strava_activities')
+    # def test_save_strava_activity(self, mock):
+    #     """ test saving strava activity in db """
+    #
+    #     activity = {
+    #         'name': 'test',
+    #         'id': 1
+    #     }
+    #     mock.return_value = MagicMock()
+    #     user = sample_user()
+    #     user.strava.save_strava_activity()
+    #     activity = models.StravaActivity.objects.get(user=user)
+    #     self.assertEqual(activity.name, activity.name)
