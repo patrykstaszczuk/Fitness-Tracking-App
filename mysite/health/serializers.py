@@ -1,17 +1,35 @@
 from rest_framework import serializers
 from health import models
 import datetime
-from users.serializers import DynamicFieldsModelSerializer
+from users.serializers import DynamicFieldsModelSerializer, \
+                             StravaActivitySerializer
+from users.models import StravaActivity
 from django.contrib.auth import get_user_model
-
 
 class HealthDiarySerializer(serializers.ModelSerializer):
     """ serializer for health diary """
+
+    activities = serializers.SerializerMethodField()
+    calories_delta = serializers.SerializerMethodField()
 
     class Meta:
         model = models.HealthDiary
         fields = '__all__'
         read_only_fields = ('id', 'user', 'date', 'slug', 'calories')
+
+    def get_activities(self, obj):
+        """ get activities for given day """
+        year = obj.date.year
+        month = obj.date.month
+        day = obj.date.day
+        activities = StravaActivity.objects.filter(user=obj.user, date__date=datetime.date(year, month, day))
+        for activity in activities:
+            obj.burned_calories += activity.calories
+        return StravaActivitySerializer(activities, many=True).data
+
+    def get_calories_delta(self, obj):
+        """ get calories delta for calories intake and calories burned """
+        return obj.calories - obj.burned_calories
 
     def save(self, **kwargs):
         """ if requested user already have health diary for today, update it

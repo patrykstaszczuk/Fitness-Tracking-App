@@ -13,8 +13,10 @@ from health.models import HealthDiary
 from recipe.models import Recipe, Ingredient, Unit
 from meals_tracker.models import Meal, MealCategory
 
+from unittest.mock import patch, MagicMock
 import datetime
 import time
+
 USER_DAILY_HEALTH_DASHBOARD = reverse('health:health-diary')
 USER_HEALTH_STATISTIC_RAPORT = reverse('health:health-list')
 USER_HEALTH_STATISTIC_WEEKLY_SUMMARY = reverse('health:weekly-summary')
@@ -43,6 +45,19 @@ def sample_user(email='test2@gmail.com', name='test2'):
         gender='Male'
     )
 
+
+def sample_meal(user=sample_user()):
+    """ create and return meal object """
+    recipe = Recipe.objects.create(user=user, name='test', portions=4)
+    unit = Unit.objects.create(name='gram')
+    category = MealCategory.objects.create(name='breakfast')
+    ingredient = Ingredient.objects.create(user=user, name='ing',
+                                           calories=1000)
+    recipe.ingredients.add(ingredient, through_defaults={"unit": unit,
+                                                         "amount": 100})
+    meal = Meal.objects.create(user=user, category=category)
+    meal.recipes.add(recipe, through_defaults={"portion": 1})
+    return meal
 
 class PrivateHealthApiTests(TestCase):
     """ TestCases for health testing """
@@ -420,9 +435,8 @@ class PrivateHealthApiTests(TestCase):
                 date=f'2021-05-{i}',
                 weight=70+i
             )
-        res = self.client.get(user_health_specific_stat_raport('waga'),
+        res = self.client.get(user_health_specific_stat_raport('weigth'),
                               format='json')
-
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(len(res.data), 5)
 
@@ -501,31 +515,23 @@ class PrivateHealthApiTests(TestCase):
         res = self.client.get(USER_DAILY_HEALTH_DASHBOARD)
         self.assertIn(url, res.json()['_links']['connect-strava'], url)
 
-    # def test_refreshing_strava_token(self):
-    #     """ test refreshing strava token when expiration time expired """
-    #
-    #     expires_at = int(time.time())
-    #     user_models.StravaApi.objects.create(user=self.user,
-    #                                             access_token='123',
-    #                                             refresh_token='123',
-    #                                             expires_at=expires_at)
-    #     res =
-
-    def test_retrieve_burned_calories_and_calories_delta(self):
+    @patch('users.models.StravaApi.get_strava_activities')
+    def test_retrieve_burned_calories_and_calories_delta(self, mock):
         """ test retreving calories burned, eaten and delta """
 
-        recipe = Recipe.objects.create(user=self.user, name='test', portions=4)
-        unit = Unit.objects.create(name='gram')
-        category = MealCategory.objects.create(name='breakfast')
-        ingredient = Ingredient.objects.create(user=self.user, name='ing',
-                                               calories=1000)
-        recipe.ingredients.add(ingredient, through_defaults={"unit": unit,
-                                                             "amount": 100})
-        meal = Meal.objects.create(user=self.user, category=category)
-        meal.recipes.add(recipe, through_defaults={"portion": 1})
+        meal = sample_meal(user=self.user)
+        today = datetime.date.today()
+        start_date_local = f'{today}T06:52:54'
+        mock.return_value = [{
+            'strava_id': 1,
+            'name': 'test',
+            'calories': 1000,
+            'start_date_local': start_date_local
+        },]
         res = self.client.get(USER_DAILY_HEALTH_DASHBOARD)
         data = HealthDiary.objects.get(date=datetime.date.today(), user=self.user)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(data.calories, meal.calories)
         self.assertEqual(res.json()['data']['calories'], data.calories)
         self.assertEqual(res.json()['data']['burned_calories'], 1000)
         self.assertEqual(res.json()['data']['calories_delta'],

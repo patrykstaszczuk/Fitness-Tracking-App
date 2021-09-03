@@ -133,7 +133,7 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
         """ check if user has associated strava info """
         try:
             obj = StravaApi.objects.get(user=self.id)
-            if obj.is_valid():
+            if obj.has_needed_informations():
                 return True
         except StravaApi.DoesNotExist:
             StravaApi.objects.create(user=self, valid=False)
@@ -187,14 +187,18 @@ class StravaApi(models.Model):
     access_token = models.CharField(max_length=255)
     refresh_token = models.CharField(max_length=255)
     expires_at = models.PositiveIntegerField(null=True, default=0)
-    last_update = models.FloatField(default=0, null=False)
+    last_request_epoc_time = models.FloatField(default=0, null=False)
 
     def __str__(self):
         return str(self.user) + str(self.expires_at)
 
+    def create_strava_header_token(self):
+        """ create proper hedader with strava token """
+        return f'Authorization: Bearer [[{self.access_token}]]'
+
     def authorize(self, payload):
         """ send authorization request to strava """
-        self.last_update = time.time()
+        self.last_request_epoc_time = time.time()
         return self._send_request_to_strava(url=settings.STRAVA_AUTH_URL,
                                             type='POST',
                                             payload=payload)
@@ -208,7 +212,7 @@ class StravaApi(models.Model):
         else:
             return False
 
-    def is_valid(self):
+    def has_needed_informations(self):
         """ check if information are in db """
         if not all([self.access_token, self.refresh_token, self.expires_at]):
             return False
@@ -247,28 +251,57 @@ class StravaApi(models.Model):
         self.expires_at = res.json()['expires_at']
         self.save()
 
-    def get_strava_activities(self, day=datetime.date.today(), id=None):
-        """ get strava activities list for given date """
+    def get_strava_activities(self, date=datetime.date.today()):
+        """ get strava activities list for given date or activity
+         detail if id probided """
+        params = [
+            f'before{date}',
+            'after=',
+            'page=',
+            'per_page='
+        ]
+        url = self._prepare_strava_request_url(id=None, params=params)
+        header = self.create_strava_header_token()
 
-        header = None
+        if self.can_request_be_send():
+            return self._send_request_to_strava(url, header, 'GET').json()
+        return None
+
+    def get_strava_activity(self, id=None):
+        """ get detailed information about strava activity """
         if id:
             url = self._prepare_strava_request_url(id=id)
-        else:
-            params = [
-                f'before{day}',
-                'after=',
-                'page=',
-                'per_page='
-            ]
-            url = self._prepare_strava_request_url(id=None, params=params)
-            header = f'Authorization: Bearer [[{self.access_token}]]'
-
-        if self.is_token_valid():
-            return self._send_request_to_strava(url, header, 'GET')
-        else:
-            if self.is_valid() and self.get_new_strava_access_token():
-                return self._send_request_to_strava(url, header, 'GET')
+            header = self.create_strava_header_token()
+            if self.can_request_be_send():
+                return self._send_request_to_strava(url, header, 'GET').json()
         return None
+
+    def process_and_save_strava_activities(self, raw_activities):
+        """ convert raw strava API response with activities to
+        StravaActivity objects"""
+        if raw_activities and isinstance(raw_activities, list):
+            defaults = {}
+            activities = []
+            for activity in raw_activities:
+                strava_id = activity.get('strava_id', None)
+                if not strava_id:
+                    continue
+                try:
+                    strava_id = activity['strava_id']
+                    defaults['name'] = activity['name']
+                    defaults['calories'] = activity['calories']
+                    defaults['date'] = activity['start_date_local']
+                except KeyError:
+                    pass
+                obj, created = StravaActivity.objects.update_or_create(
+                    strava_id=strava_id, user=self.user, **defaults)
+                activities.append(obj)
+            return activities
+        return None
+
+    def can_request_be_send(self):
+        """ check if request can be send with given information """
+        return (self.is_token_valid() or self.has_needed_informations() and self.get_new_strava_access_token())
 
     def _prepare_strava_request_url(self, id=None, params=None):
         """ prepare strava url for request """
@@ -280,16 +313,26 @@ class StravaApi(models.Model):
                 url += param + '&'
         return url
 
-    def get_last_update_time(self):
-        return self.last_update
+    def get_last_request_epoc_time(self):
+        return self.last_request_epoc_time
 
     def get_burned_calories_for_given_day(self, date):
         """ return burned calories from strava activities """
         pass
-    # def check_expiration_date(self):
-    #     """ check if expiration date < today """
-    #     today = datetime.date.today()
-    #     if
+
+
+class StravaActivity(models.Model):
+    """ model for strava activities """
+    user = models.ForeignKey(settings.AUTH_USER_MODEL,
+                             on_delete=models.CASCADE, null=False,
+                             related_name='stava_activity')
+    date = models.DateTimeField(default=datetime.datetime.now)
+    strava_id = models.PositiveIntegerField(null=False)
+    name = models.CharField(max_length=255, null=True)
+    calories = models.PositiveIntegerField(null=True)
+
+    def __str__(self):
+        return self.name
 
 
 class GroupManager(models.Manager):

@@ -82,7 +82,7 @@ class StravaCodeApiView(APIView):
                 response_message['status'] = 'Already connected'
                 response_status = status.HTTP_200_OK
             else:
-                last_time_update_delta = time.time() - request.user.strava.get_last_update_time()
+                last_time_update_delta = time.time() - request.user.strava.get_last_request_epoc_time()
                 if last_time_update_delta < 60:
                     response_message['status'] = 'To many requests try again soon'
                 elif request.user.authorize_to_strava(strava_code):

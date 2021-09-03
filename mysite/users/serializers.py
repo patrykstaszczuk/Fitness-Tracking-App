@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework import serializers
-from users.models import Group
+from users.models import Group, StravaActivity
 from django.core.validators import ValidationError
 
 
@@ -273,3 +273,11 @@ class LeaveGroupSerializer(serializers.Serializer):
         group = self.validated_data.pop('id')
         if group:
             self.instance.membership.remove(group)
+
+
+class StravaActivitySerializer(serializers.ModelSerializer):
+    """ serializer for Strava activity model """
+
+    class Meta:
+        model = StravaActivity
+        fields = '__all__'

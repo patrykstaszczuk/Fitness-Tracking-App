@@ -26,14 +26,15 @@ class HealthDiary(models.Model):
     slug = models.SlugField(blank=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     weight = models.FloatField(null=True, blank=True, default=None,
-                               verbose_name='waga')
+                               verbose_name='weigth')
     sleep_length = models.FloatField(null=True, blank=True, default=None,
-                                     verbose_name='sen')
+                                     verbose_name='sleep')
     rest_heart_rate = models.PositiveSmallIntegerField(null=True, blank=True,
                                                        default=None,
-                                                       verbose_name='tetno')
+                                                       verbose_name='heart rate')
     calories = models.PositiveIntegerField(blank=True, default=0,
-                                           verbose_name='kalorie')
+                                           verbose_name='calories')
+    burned_calories = models.PositiveSmallIntegerField(blank=True, default=0)
     last_update = models.PositiveIntegerField(default=time.time())
     daily_thoughts = models.TextField(max_length=2000, blank=True)
 
@@ -56,13 +57,6 @@ class HealthDiary(models.Model):
         for meal in all_meals:
             calories += meal.calories
         return calories
-
-    def _get_burned_calories(self):
-        """ get burned calories from strava activities """
-        now = int(time.time())
-        if (self.last_update - now) > 1800:
-            return self.user.strava.get_burned_calories_for_given_day(self.date)
-        return self.burned_calories
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

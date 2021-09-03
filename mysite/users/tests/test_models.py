@@ -187,18 +187,18 @@ class ModelTests(TestCase):
         self.assertFalse(user.strava.is_token_valid())
 
     def test_strava_info_valid(self):
-        """ test is_valid function when there is stava information availabe"""
+        """ test has_needed_informations function when there is stava information availabe"""
         user = sample_user()
         user.strava.access_token = '123',
         user.strava.refresh_token = '123',
         user.strava.expires_at = 123
-        self.assertTrue(user.strava.is_valid())
+        self.assertTrue(user.strava.has_needed_informations())
 
     def test_strava_info_invalid(self):
-        """ test is_valid function when there is not strava
+        """ test has_needed_informations function when there is not strava
         information available"""
         user = sample_user()
-        self.assertFalse(user.strava.is_valid())
+        self.assertFalse(user.strava.has_needed_informations())
 
     @patch('users.models.StravaApi._send_request_to_strava')
     def test_refreshing_token_when_expired(self, mock):
@@ -247,12 +247,12 @@ class ModelTests(TestCase):
         today = datetime.date.today()
         user = sample_user()
         res = user.strava.get_strava_activities(today)
-        self.assertIn(data[0], res.json())
-        self.assertIn(data[1], res.json())
+        self.assertIn(data[0], res)
+        self.assertIn(data[1], res)
 
     @patch('users.models.StravaApi.get_new_strava_access_token')
     @patch('users.models.StravaApi._send_request_to_strava')
-    @patch('users.models.StravaApi.is_valid')
+    @patch('users.models.StravaApi.has_needed_informations')
     def test_get_list_of_activities_when_token_invalid(self, mock_valid,
                                                         mock_request,
                                                         mock_token):
@@ -275,7 +275,7 @@ class ModelTests(TestCase):
         mock_token.return_value = True
         today = datetime.date.today()
         res = user.strava.get_strava_activities(today)
-        self.assertEqual(data, res.json())
+        self.assertEqual(data, res)
 
     @patch('users.models.StravaApi.is_token_valid')
     @patch('users.models.StravaApi._send_request_to_strava')
@@ -291,19 +291,94 @@ class ModelTests(TestCase):
         mock_token.return_value = True
         user = sample_user()
 
-        self.assertEqual(user.strava.get_strava_activities(activity['id']).json(),
-                                                            activity)
+        self.assertEqual(user.strava.get_strava_activity(activity['id']),
+                                                         activity)
 
-    # @patch('users.models.StravaApi.get_strava_activities')
-    # def test_save_strava_activity(self, mock):
-    #     """ test saving strava activity in db """
-    #
-    #     activity = {
-    #         'name': 'test',
-    #         'id': 1
-    #     }
-    #     mock.return_value = MagicMock()
-    #     user = sample_user()
-    #     user.strava.save_strava_activity()
-    #     activity = models.StravaActivity.objects.get(user=user)
-    #     self.assertEqual(activity.name, activity.name)
+    def test_process_and_save_strava_activities(self):
+        """ test process_and_save_strava_activities function """
+        user = sample_user()
+        raw_activities = [
+            {
+                'strava_id': 1,
+                'name': 'test',
+                'calories': 100,
+                'start_date_local': '2018-02-16T06:52:54'
+            },
+            {
+                'strava_id': 2,
+                'name': 'test2',
+                'calories': 100,
+                'start_date_local': '2019-02-16T06:52:54'
+            },
+            ]
+        user.strava.process_and_save_strava_activities(raw_activities)
+        activities = models.StravaActivity.objects.filter(user=user)
+        self.assertEqual(activities[0].strava_id,
+                         raw_activities[0]['strava_id'])
+        self.assertEqual(activities[1].strava_id,
+                         raw_activities[1]['strava_id'])
+
+    def test_process_and_save_strava_activities_failed_no_list(self):
+        """ test processing strava activities when raw_activities is non
+        list """
+        user = sample_user()
+        raw_activities = {
+            'strava_id': 1,
+            'name': 'test',
+            'calories': 100,
+            'start_date_local': '2018-02-16T06:52:54'
+        }
+
+        user.strava.process_and_save_strava_activities(raw_activities)
+        activities = models.StravaActivity.objects.filter(user=user)
+        self.assertEqual(len(activities), 0)
+
+    def test_process_and_save_strava_activities_with_key_error(self):
+        """ test saving strava acitivities when there is no such key in
+        raw_activities, by omiting that value """
+        user = sample_user()
+        raw_activities_with_no_calories = [
+            {
+                'strava_id': 1,
+                'name': 'test',
+                'start_date_local': '2018-02-16T06:52:54'
+            },
+            {
+                'strava_id': 2,
+                'name': 'test2',
+                'start_date_local': '2019-02-16T06:52:54'
+            },
+            ]
+
+        user.strava.process_and_save_strava_activities(raw_activities_with_no_calories)
+        activities = models.StravaActivity.objects.filter(user=user)
+        self.assertEqual(len(activities), 2)
+
+    def test_process_and_save_strava_activities_faild_no_strava_id(self):
+        """ test processing and saving strava activiti not possible when
+         no strava_id in response """
+        user = sample_user()
+        activities = [
+             {
+                 'name': 'test',
+                 'start_date_local': '2018-02-16T06:52:54'
+             }
+             ]
+
+        user.strava.process_and_save_strava_activities(activities)
+        activities = models.StravaActivity.objects.filter(user=user)
+        self.assertEqual(len(activities), 0)
+
+    def test_strava_activity_str(self):
+        """ test string representation of StravaActivity model """
+        user = sample_user()
+
+        payload = {
+            'user': user,
+            'strava_id': 1,
+            'name': 'test',
+            'calories': 1000
+        }
+        activity = models.StravaActivity.objects.create(**payload)
+
+        self.assertEqual(str(activity), payload['name'])

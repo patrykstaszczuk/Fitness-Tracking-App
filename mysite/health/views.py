@@ -14,6 +14,7 @@ from rest_framework.reverse import reverse
 from mysite.views import RequiredFieldsResponseMessage
 
 import re
+import time
 from rest_framework.exceptions import ValidationError
 
 
@@ -96,6 +97,19 @@ class HealthDiary(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
         context['links'] = links
         context['required'] = self._serializer_fields
         return context
+
+    def retrieve(self, request, *args, **kwargs):
+        """ retrieve health objects, download strava activities for given day
+        and save them in database """
+        instance = self.get_object()
+        now = time.time()
+        strava_api_instance = request.user.strava
+        if now - strava_api_instance.get_last_request_epoc_time() > 60:
+            raw_strava_activities = strava_api_instance.get_strava_activities(date=instance.date)
+            if raw_strava_activities and isinstance(raw_strava_activities, list):
+                strava_api_instance.process_and_save_strava_activities(raw_strava_activities)
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
 
 
 class HealthRaport(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
