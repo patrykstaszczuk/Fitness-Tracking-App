@@ -46,7 +46,7 @@ def sample_user(email='test2@gmail.com', name='test2'):
     )
 
 
-def sample_meal(user=sample_user()):
+def sample_meal(user):
     """ create and return meal object """
     recipe = Recipe.objects.create(user=user, name='test', portions=4)
     unit = Unit.objects.create(name='gram')
@@ -342,14 +342,12 @@ class PrivateHealthApiTests(TestCase):
 
     def test_retrieving_health_statistic_detail(self):
         """ test retrieving health statistic history detail """
-
-        models.HealthDiary.objects.create(user=self.user, date='2021-03-22')
+        test = models.HealthDiary.objects.create(user=self.user, date=datetime.date(2021, 3, 22))
         models.HealthDiary.objects.create(user=self.user)
         diary = models.HealthDiary.objects.create(user=self.user,
-                                                  date='2021-05-22', weight=65)
+                                                  date=datetime.date(2021, 5, 22), weight=65)
 
         res = self.client.get(user_healh_statistic_raport_detail(diary.slug))
-
         serializer = health_serializers.HealthDiarySerializer(diary)
 
         self.assertEqual(res.data, serializer.data)
@@ -361,12 +359,11 @@ class PrivateHealthApiTests(TestCase):
 
         models.HealthDiary.objects.create(user=user2, date='2021-05-30')
         diary = models.HealthDiary.objects.create(user=self.user,
-                                                  date='2021-05-30')
+                                                  date='2021-205-330')
 
         res = self.client.get(user_healh_statistic_raport_detail(diary.slug))
 
         serializer = health_serializers.HealthDiarySerializer(diary)
-
         self.assertEqual(res.data, serializer.data)
 
     def test_delete_health_statistic_not_allowed(self):
@@ -516,18 +513,21 @@ class PrivateHealthApiTests(TestCase):
         self.assertIn(url, res.json()['_links']['connect-strava'], url)
 
     @patch('users.models.StravaApi.get_strava_activities')
-    def test_retrieve_burned_calories_and_calories_delta(self, mock):
+    @patch('users.models.StravaApi._send_request_to_strava')
+    def test_retrieve_burned_calories_and_calories_delta(self, mock, mock2):
         """ test retreving calories burned, eaten and delta """
 
         meal = sample_meal(user=self.user)
         today = datetime.date.today()
-        start_date_local = f'{today}T06:52:54'
-        mock.return_value = [{
-            'strava_id': 1,
+        start_date_local = f'{today}T06:52:54Z'
+        activities = [{
+            'id': 1,
             'name': 'test',
             'calories': 1000,
             'start_date_local': start_date_local
         },]
+        mock2.return_value = activities
+        mock.return_value = activities[0]
         res = self.client.get(USER_DAILY_HEALTH_DASHBOARD)
         data = HealthDiary.objects.get(date=datetime.date.today(), user=self.user)
         self.assertEqual(res.status_code, status.HTTP_200_OK)

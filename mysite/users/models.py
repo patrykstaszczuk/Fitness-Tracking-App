@@ -194,23 +194,30 @@ class StravaApi(models.Model):
 
     def create_strava_header_token(self):
         """ create proper hedader with strava token """
-        return f'Authorization: Bearer [[{self.access_token}]]'
+        return {'Authorization': f'Bearer {self.access_token}'}
 
     def authorize(self, payload):
         """ send authorization request to strava """
-        self.last_request_epoc_time = time.time()
         return self._send_request_to_strava(url=settings.STRAVA_AUTH_URL,
                                             type='POST',
                                             payload=payload)
 
     def _send_request_to_strava(self, url, payload, type='GET'):
         """ send request to strava API """
+        self.last_request_epoc_time = time.time()
+        self.save()
         if type == 'GET':
-            pass
+            res = requests.get(url, headers=payload)
+            if res.status_code == 200:
+                return res.json()
         elif type == 'POST':
-            return requests.post(url, payload)
-        else:
-            return False
+            res = requests.post(url, payload)
+            if res.status_code == 200:
+                return res.json()
+        if res:
+            """ print error """
+            print(res.json())
+        return None
 
     def has_needed_informations(self):
         """ check if information are in db """
@@ -241,7 +248,6 @@ class StravaApi(models.Model):
         if res.status_code == 200:
             self._save_new_strava_auth_information(res)
             return True
-        print(res.json())
         return False
 
     def _save_new_strava_auth_information(self, res):
@@ -254,17 +260,19 @@ class StravaApi(models.Model):
     def get_strava_activities(self, date=datetime.date.today()):
         """ get strava activities list for given date or activity
          detail if id probided """
+
+        after_epoch = int(time.mktime(time.strptime(date.strftime('%Y-%m-%d'),
+                          '%Y-%m-%d')))
+        before_epoch = after_epoch + 86400
         params = [
-            f'before{date}',
-            'after=',
-            'page=',
-            'per_page='
+            f'after={after_epoch}',
+            f'before={before_epoch}',
         ]
         url = self._prepare_strava_request_url(id=None, params=params)
         header = self.create_strava_header_token()
 
         if self.can_request_be_send():
-            return self._send_request_to_strava(url, header, 'GET').json()
+            return self._send_request_to_strava(url, header, 'GET')
         return None
 
     def get_strava_activity(self, id=None):
@@ -273,7 +281,7 @@ class StravaApi(models.Model):
             url = self._prepare_strava_request_url(id=id)
             header = self.create_strava_header_token()
             if self.can_request_be_send():
-                return self._send_request_to_strava(url, header, 'GET').json()
+                return self._send_request_to_strava(url, header, 'GET')
         return None
 
     def process_and_save_strava_activities(self, raw_activities):
@@ -283,19 +291,24 @@ class StravaApi(models.Model):
             defaults = {}
             activities = []
             for activity in raw_activities:
-                strava_id = activity.get('strava_id', None)
+                strava_id = activity.get('id', None)
                 if not strava_id:
                     continue
-                try:
-                    strava_id = activity['strava_id']
-                    defaults['name'] = activity['name']
-                    defaults['calories'] = activity['calories']
-                    defaults['date'] = activity['start_date_local']
-                except KeyError:
-                    pass
-                obj, created = StravaActivity.objects.update_or_create(
-                    strava_id=strava_id, user=self.user, **defaults)
-                activities.append(obj)
+                url = self._prepare_strava_request_url(id=strava_id)
+                header = self.create_strava_header_token()
+                activity_details = self._send_request_to_strava(url, header,
+                                                                'GET')
+                if activity_details:
+                    try:
+                        defaults['name'] = activity_details['name']
+                        defaults['calories'] = activity_details['calories']
+                        date_without_tz = activity_details['start_date_local'][:-1]
+                        defaults['date'] = date_without_tz
+                    except KeyError:
+                        pass
+                    obj, created = StravaActivity.objects.update_or_create(
+                        strava_id=strava_id, user=self.user, **defaults)
+                    activities.append(obj)
             return activities
         return None
 
@@ -327,7 +340,7 @@ class StravaActivity(models.Model):
                              on_delete=models.CASCADE, null=False,
                              related_name='stava_activity')
     date = models.DateTimeField(default=datetime.datetime.now)
-    strava_id = models.PositiveIntegerField(null=False)
+    strava_id = models.PositiveBigIntegerField(unique=True, null=False)
     name = models.CharField(max_length=255, null=True)
     calories = models.PositiveIntegerField(null=True)
 

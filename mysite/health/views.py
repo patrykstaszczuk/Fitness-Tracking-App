@@ -82,7 +82,8 @@ class HealthDiary(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
             'weekly-summary': reverse('health:weekly-summary',
                                       request=self.request)
         }
-        if not self.request.user.is_auth_to_strava():
+        user = self.request.user
+        if user.is_authenticated and not user.is_auth_to_strava():
             url = 'https://www.strava.com/oauth/authorize?'
             params = [
                 'client_id=69302',
@@ -104,7 +105,7 @@ class HealthDiary(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
         instance = self.get_object()
         now = time.time()
         strava_api_instance = request.user.strava
-        if now - strava_api_instance.get_last_request_epoc_time() > 60:
+        if now - strava_api_instance.get_last_request_epoc_time() > 10:
             raw_strava_activities = strava_api_instance.get_strava_activities(date=instance.date)
             if raw_strava_activities and isinstance(raw_strava_activities, list):
                 strava_api_instance.process_and_save_strava_activities(raw_strava_activities)

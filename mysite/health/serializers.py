@@ -5,6 +5,7 @@ from users.serializers import DynamicFieldsModelSerializer, \
                              StravaActivitySerializer
 from users.models import StravaActivity
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 
 class HealthDiarySerializer(serializers.ModelSerializer):
     """ serializer for health diary """
@@ -15,14 +16,22 @@ class HealthDiarySerializer(serializers.ModelSerializer):
     class Meta:
         model = models.HealthDiary
         fields = '__all__'
-        read_only_fields = ('id', 'user', 'date', 'slug', 'calories')
+        read_only_fields = ('id', 'user', 'date', 'slug', 'calories',
+                            'last_update', 'burned_calories')
 
     def get_activities(self, obj):
         """ get activities for given day """
-        year = obj.date.year
-        month = obj.date.month
-        day = obj.date.day
-        activities = StravaActivity.objects.filter(user=obj.user, date__date=datetime.date(year, month, day))
+
+        if isinstance(obj.date, str):
+            try:
+                obj.date = datetime.date.fromisoformat(obj.date)
+            except ValidationError:
+                return None
+
+        activities = StravaActivity.objects.filter(user=obj.user,
+                                                   date__date=datetime.date(obj.date.year,
+                                                                            obj.date.month,
+                                                                            obj.date.day))
         for activity in activities:
             obj.burned_calories += activity.calories
         return StravaActivitySerializer(activities, many=True).data
@@ -83,7 +92,8 @@ class HealthRaportSerializer(serializers.ModelSerializer):
 
     class Meta:
         exclude = ('daily_thoughts', )
-        read_only_fields = ('id', 'user', 'date', 'slug', 'calories')
+        read_only_fields = ('id', 'user', 'date', 'slug',
+                            'calories', 'last_update', 'burned_calories')
         model = models.HealthDiary
 
 

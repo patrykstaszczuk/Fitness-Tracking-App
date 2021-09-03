@@ -242,7 +242,7 @@ class ModelTests(TestCase):
                 },
             ]
 
-        mock_send.return_value = MagicMock(status_code=200, json=lambda: data)
+        mock_send.return_value = data
         mock_token.return_value = True
         today = datetime.date.today()
         user = sample_user()
@@ -269,8 +269,7 @@ class ModelTests(TestCase):
                 'name': 'test2'
                 },
             ]
-        mock_request.return_value = MagicMock(status_code=200,
-                                              json=lambda: data)
+        mock_request.return_value = data
         mock_valid.return_value = True
         mock_token.return_value = True
         today = datetime.date.today()
@@ -287,36 +286,38 @@ class ModelTests(TestCase):
             'name': 'test',
             'calories': 1000
         }
-        mock.return_value = MagicMock(status_code=200, json=lambda: activity)
+        mock.return_value = activity
         mock_token.return_value = True
         user = sample_user()
 
         self.assertEqual(user.strava.get_strava_activity(activity['id']),
                                                          activity)
 
-    def test_process_and_save_strava_activities(self):
+    @patch('users.models.StravaApi._send_request_to_strava')
+    def test_process_and_save_strava_activities(self, mock):
         """ test process_and_save_strava_activities function """
         user = sample_user()
         raw_activities = [
             {
-                'strava_id': 1,
+                'id': 1,
                 'name': 'test',
                 'calories': 100,
                 'start_date_local': '2018-02-16T06:52:54'
             },
             {
-                'strava_id': 2,
+                'id': 2,
                 'name': 'test2',
                 'calories': 100,
                 'start_date_local': '2019-02-16T06:52:54'
             },
             ]
+        mock.side_effect = [raw_activities[0], raw_activities[1]]
         user.strava.process_and_save_strava_activities(raw_activities)
         activities = models.StravaActivity.objects.filter(user=user)
         self.assertEqual(activities[0].strava_id,
-                         raw_activities[0]['strava_id'])
+                         raw_activities[0]['id'])
         self.assertEqual(activities[1].strava_id,
-                         raw_activities[1]['strava_id'])
+                         raw_activities[1]['id'])
 
     def test_process_and_save_strava_activities_failed_no_list(self):
         """ test processing strava activities when raw_activities is non
@@ -333,23 +334,25 @@ class ModelTests(TestCase):
         activities = models.StravaActivity.objects.filter(user=user)
         self.assertEqual(len(activities), 0)
 
-    def test_process_and_save_strava_activities_with_key_error(self):
+    @patch('users.models.StravaApi._send_request_to_strava')
+    def test_process_and_save_strava_activities_with_key_error(self, mock):
         """ test saving strava acitivities when there is no such key in
         raw_activities, by omiting that value """
         user = sample_user()
         raw_activities_with_no_calories = [
             {
-                'strava_id': 1,
+                'id': 1,
                 'name': 'test',
                 'start_date_local': '2018-02-16T06:52:54'
             },
             {
-                'strava_id': 2,
+                'id': 2,
                 'name': 'test2',
                 'start_date_local': '2019-02-16T06:52:54'
             },
             ]
-
+        mock.side_effect = [raw_activities_with_no_calories[0],
+                            raw_activities_with_no_calories[1]]
         user.strava.process_and_save_strava_activities(raw_activities_with_no_calories)
         activities = models.StravaActivity.objects.filter(user=user)
         self.assertEqual(len(activities), 2)
