@@ -359,7 +359,7 @@ class PrivateHealthApiTests(TestCase):
 
         models.HealthDiary.objects.create(user=user2, date='2021-05-30')
         diary = models.HealthDiary.objects.create(user=self.user,
-                                                  date='2021-205-330')
+                                                  date='2021-05-30')
 
         res = self.client.get(user_healh_statistic_raport_detail(diary.slug))
 
@@ -513,7 +513,7 @@ class PrivateHealthApiTests(TestCase):
         self.assertIn(url, res.json()['_links']['connect-strava'], url)
 
     @patch('users.models.StravaApi.get_strava_activities')
-    @patch('users.models.StravaApi._send_request_to_strava')
+    @patch('users.models.StravaApi._process_request')
     def test_retrieve_burned_calories_and_calories_delta(self, mock, mock2):
         """ test retreving calories burned, eaten and delta """
 

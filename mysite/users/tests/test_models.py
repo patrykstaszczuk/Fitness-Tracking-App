@@ -150,41 +150,39 @@ class ModelTests(TestCase):
         mock.side_effect = KeyError()
         self.assertEqual(user.authorize_to_strava(code='1234'), False)
 
-    @patch('users.models.StravaApi.authorize')
+    @patch('users.models.StravaApi._process_request')
     def test_authorize_to_strava_failed_wrong_response(self, mock):
         """ test authorizing to strava failed with status different than 200
         """
         user = sample_user()
-        mock.return_value = Mock(status_code=400, json=lambda: {'error': 'error_message'})
+        mock.return_value = {'error': 'error_message'}
         self.assertEqual(user.authorize_to_strava(code='1234'), False)
 
-    @patch('users.models.StravaApi.authorize')
+    @patch('users.models.StravaApi._process_request')
     def test_authorize_to_strava_func(self, mock):
         """ test authorizing to strava user function """
         data = {'expires_at': 123, 'refresh_token': 123,
                 'access_token': 123}
-        mock.return_value = MagicMock(spec=Response, status_code=200,
-                                      json=lambda: data)
+        mock.return_value = data
         user = sample_user()
         self.assertEqual(user.authorize_to_strava(code='1234'), True)
         self.assertEqual(user.strava.expires_at, 123)
         self.assertEqual(user.strava.valid, True)
 
-    @patch('users.models.StravaApi.authorize')
+    @patch('users.models.StravaApi._process_request')
     def test_authorize_to_strava_failed_no_needed_info(self, mock):
         """ test authorization failed due to no needed information in strava
         response """
 
         data = {'ble ble': 123, 'wrong info': 123}
-        mock.return_value = MagicMock(spec=HttpResponse, status_code=200,
-                                      json=lambda: data)
+        mock.return_value = data
         user = sample_user()
         self.assertEqual(user.authorize_to_strava(code='1234'), False)
 
     def test_auth_token_valid_function_failed(self):
         """ test if authentication token is valid """
         user = sample_user()
-        self.assertFalse(user.strava.is_token_valid())
+        self.assertFalse(user.strava._is_token_valid())
 
     def test_strava_info_valid(self):
         """ test has_needed_informations function when there is stava information availabe"""
@@ -192,13 +190,13 @@ class ModelTests(TestCase):
         user.strava.access_token = '123',
         user.strava.refresh_token = '123',
         user.strava.expires_at = 123
-        self.assertTrue(user.strava.has_needed_informations())
+        self.assertTrue(user.strava._has_needed_informations())
 
     def test_strava_info_invalid(self):
         """ test has_needed_informations function when there is not strava
         information available"""
         user = sample_user()
-        self.assertFalse(user.strava.has_needed_informations())
+        self.assertFalse(user.strava._has_needed_informations())
 
     @patch('users.models.StravaApi._send_request_to_strava')
     def test_refreshing_token_when_expired(self, mock):
@@ -226,8 +224,8 @@ class ModelTests(TestCase):
         user = sample_user()
         self.assertFalse(user.strava.get_new_strava_access_token())
 
-    @patch('users.models.StravaApi._send_request_to_strava')
-    @patch('users.models.StravaApi.is_token_valid')
+    @patch('users.models.StravaApi._process_request')
+    @patch('users.models.StravaApi._is_token_valid')
     def test_get_list_of_activities_when_token_valid(self, mock_token, mock_send):
         """ test getting list of activities for today """
 
@@ -251,8 +249,8 @@ class ModelTests(TestCase):
         self.assertIn(data[1], res)
 
     @patch('users.models.StravaApi.get_new_strava_access_token')
-    @patch('users.models.StravaApi._send_request_to_strava')
-    @patch('users.models.StravaApi.has_needed_informations')
+    @patch('users.models.StravaApi._process_request')
+    @patch('users.models.StravaApi._has_needed_informations')
     def test_get_list_of_activities_when_token_invalid(self, mock_valid,
                                                         mock_request,
                                                         mock_token):
@@ -276,8 +274,8 @@ class ModelTests(TestCase):
         res = user.strava.get_strava_activities(today)
         self.assertEqual(data, res)
 
-    @patch('users.models.StravaApi.is_token_valid')
-    @patch('users.models.StravaApi._send_request_to_strava')
+    @patch('users.models.StravaApi._is_token_valid')
+    @patch('users.models.StravaApi._process_request')
     def test_get_strava_activity(self, mock, mock_token):
         """ test getting information about specific activity """
 
@@ -293,7 +291,7 @@ class ModelTests(TestCase):
         self.assertEqual(user.strava.get_strava_activity(activity['id']),
                                                          activity)
 
-    @patch('users.models.StravaApi._send_request_to_strava')
+    @patch('users.models.StravaApi._process_request')
     def test_process_and_save_strava_activities(self, mock):
         """ test process_and_save_strava_activities function """
         user = sample_user()
@@ -334,7 +332,7 @@ class ModelTests(TestCase):
         activities = models.StravaActivity.objects.filter(user=user)
         self.assertEqual(len(activities), 0)
 
-    @patch('users.models.StravaApi._send_request_to_strava')
+    @patch('users.models.StravaApi._process_request')
     def test_process_and_save_strava_activities_with_key_error(self, mock):
         """ test saving strava acitivities when there is no such key in
         raw_activities, by omiting that value """

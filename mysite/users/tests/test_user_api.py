@@ -517,7 +517,7 @@ class PrivateUserApiTests(TestCase):
     #     self.assertTrue(self.user.strava.expires_at)
 
     @patch('users.models.MyUser.authorize_to_strava')
-    @patch('users.models.StravaApi.has_needed_informations')
+    @patch('users.models.StravaApi._has_needed_informations')
     def test_strava_already_associated_with_user(self, mock, mock_validation):
         """ test trying to associate user to strava account,
         when its already done """
@@ -539,12 +539,12 @@ class PrivateUserApiTests(TestCase):
         self.assertEqual(res.json()['data']['status'],
                          'No Strava code provided in url or other problem occured. Contact site administrator')
 
-    @patch('users.models.StravaApi.authorize')
+    @patch('users.models.StravaApi._process_request')
     def test_associate_user_with_strava(self, mock):
         """ test associating user with strava via provided code in url """
         data = {'expires_at': 123, 'refresh_token': 123,
                 'access_token': 123}
-        mock.return_value = MagicMock(status_code=200, json=lambda: data)
+        mock.return_value = data
         url = reverse('strava-auth')
         payload = {
             'code': 'accf7a173306f79d9ed09cc08ef0b7b3a5d724c6'
@@ -555,13 +555,12 @@ class PrivateUserApiTests(TestCase):
         self.assertTrue(self.user.strava.valid)
 
     @patch('users.models.StravaApi.get_last_request_epoc_time')
-    @patch('users.models.StravaApi.authorize')
+    @patch('users.models.StravaApi._send_request_to_strava')
     def test_authorize_to_strava_timeout(self, mock_auth, mock_time):
         """ test trying to authorize to strava multile times with wrong code
         implies timeout """
 
-        mock_auth.return_value = MagicMock(status_code=400,
-                                           json=lambda: {'error': 'error'})
+        mock_auth.return_value = {'error': 'error'}
         mock_time.return_value = time.time() - 1
         url = reverse('strava-auth')
         payload = {
@@ -576,14 +575,13 @@ class PrivateUserApiTests(TestCase):
                              'To many requests try again soon')
 
     @patch('users.models.StravaApi.get_last_request_epoc_time')
-    @patch('users.models.StravaApi.authorize')
+    @patch('users.models.StravaApi._process_request')
     def test_authorize_to_strava_after_third_attempt(self, mock_auth, mock_time):
         """ test timeout system works as expected """
 
         data = {'expires_at': 123, 'refresh_token': 123,
                 'access_token': 123}
-        mock_auth.return_value = MagicMock(status_code=200,
-                                           json=lambda: data)
+        mock_auth.return_value = data
         mock_time.side_effect = [time.time()-1, time.time()-35, time.time()-61]
 
         url = reverse('strava-auth')
