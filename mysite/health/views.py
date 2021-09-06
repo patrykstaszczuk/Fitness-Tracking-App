@@ -105,7 +105,8 @@ class HealthDiary(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
         instance = self.get_object()
         now = time.time()
         strava_api_instance = request.user.strava
-        if now - strava_api_instance.get_last_request_epoc_time() > 10:
+        hour = 3600
+        if now - strava_api_instance.get_last_request_epoc_time() > hour:
             raw_strava_activities = strava_api_instance.get_strava_activities(date=instance.date)
             if raw_strava_activities and isinstance(raw_strava_activities, list):
                 strava_api_instance.process_and_save_strava_activities(raw_strava_activities)

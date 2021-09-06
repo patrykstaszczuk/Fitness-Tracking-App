@@ -15,9 +15,13 @@ from rest_framework import status
 
 
 class MyManager(BaseUserManager):
+    """ custom manager providing create_user and create_superuser
+    custom methods """
 
     def create_user(self, email, password=None, **extra_fields):
-        """ Create and saves a new user """
+        """ Create, save and return new user, aditionally create related Group
+        and StravaApi object """
+
         if not email:
             raise ValueError('Email must be provided!')
         user = self.model(
@@ -33,6 +37,7 @@ class MyManager(BaseUserManager):
         return user
 
     def create_superuser(self, email, password=None, **extra_fields):
+        """ create standard user with additional parameters """
 
         user = self.create_user(
             email=email,
@@ -76,53 +81,86 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
     objects = MyManager()
 
     def get_bmi(self):
-        """ return calculated bmi """
+        """ calcualte and return BMI
+        -------
+        Returns:
+        - bmi: float
+        -------
+        """
         return round(self.weight/(self.height/100)**2, 1)
 
     def get_memberships(self):
+        """ get user groups membership
+        -------
+        Returns (exist):
+        - queryset: Group object
+        Returns (non-exists):
+        - None
+        -------
+        """
         return self.membership.all()
 
-    # def leave_group(self, group_id):
-    #     """ leave group """
-    #     try:
-    #         group = Group.objects.get(id=group_id, members=self)
-    #         if group.founder == self:
-    #             raise Group.DoesNotExist
-    #         self.membership.remove(group)
-    #     except Group.DoesNotExist as error:
-    #         raise error
-
     def get_weekly_avg_stats(self):
-        """ get weekly avg weight """
-        week_ago = datetime.date.today() - datetime.timedelta(days=7)
+        """ calculate and return weekly avarage statistics
+        -------
+        Returns (exist):
+        - queryset: Group object
+        Returns (non-exists):
+        - empty dict
+        -------
+        """
+        week_ago_date = datetime.date.today() - datetime.timedelta(days=7)
         queryset = HealthDiary.objects.filter(user=self.id) \
-            .filter(date__gte=week_ago)
+            .filter(date__gte=week_ago_date)
 
-        fields_avg_values = {}
-        if queryset:
-            fields_value_counter = {}
-            for instance in queryset:
-                for field in instance._meta.get_fields():
-                    allowed_fields = (models.FloatField,
-                                      models.PositiveIntegerField,
-                                      models.SmallIntegerField)
-                    if isinstance(field, allowed_fields):
-                        current_value = fields_avg_values.get(field.name, 0)
-                        current_counter = fields_value_counter.get(field.name,
-                                                                   0)
-                        getattr_value = getattr(instance, field.name, None)
-                        if getattr_value is not None:
-                            fields_avg_values.update(
-                                    {field.name: current_value +
-                                     getattr_value})
-                            fields_value_counter.update({field.name:
-                                                        current_counter + 1})
+        fields_total_value_and_counter = {}
 
-            for key, value in fields_avg_values.items():
-                value = value/fields_value_counter[key]
-                fields_avg_values.update({key: value})
+        for instance in queryset:
+            all_instance_fields = instance._meta.get_fields()
+            allowed_fields = self._get_allowed_fields(all_instance_fields)
+            for field in allowed_fields:
+                field_value = getattr(instance, field.name, None)
+                if field_value is not None:
+                    if fields_total_value_and_counter.get(field.name, None):
+                        current_value = fields_total_value_and_counter[field.name]['value']
+                        current_counter = fields_total_value_and_counter[field.name]['counter']
+                    else:
+                        current_value = 0
+                        current_counter = 0
+                    fields_total_value_and_counter.update({field.name:
+                                                          {'value': current_value + field_value,
+                                                           'counter': current_counter + 1}})
 
-        return fields_avg_values
+        return self._calculate_avg_values(fields_total_value_and_counter)
+
+    def _get_allowed_fields(self, all_fields):
+        """
+        return only that fields which are allwod for calculations
+
+        Returns:
+        - model fields: type
+
+        """
+        allowed_fields_types = (models.FloatField, models.PositiveIntegerField,
+                                models.SmallIntegerField)
+        ommited_fields = ['last_update']
+        allowed_fields = []
+        for field in all_fields:
+            if isinstance(field, allowed_fields_types) and field.name not in ommited_fields:
+                allowed_fields.append(field)
+        return allowed_fields
+
+    def _calculate_avg_values(self, field_values_and_counter):
+        """
+        caclulate avarage value for given fields
+
+        Return:
+        - field, avg_value pair: dict
+        """
+        for key, value in field_values_and_counter.items():
+            value = value['value']/value['counter']
+            field_values_and_counter.update({key: value})
+        return field_values_and_counter
 
     def get_environ_variables(self):
         """ get client id and cliend secret needed for user app
@@ -223,7 +261,7 @@ class StravaApi(models.Model):
                 print(response.json())
         return None
 
-    def _send_request_to_strava(url, payload, type=None):
+    def _send_request_to_strava(self, url, payload, type=None):
         """
         Send request to strava based on parameters
 
