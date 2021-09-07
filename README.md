@@ -1,29 +1,30 @@
 # Fitness Tracking App
 
-Manage you recipes, track your health statistics, activities and more.
+Manage you food recipes, track your health statistics, activities and more.
 
 ## Status
 
 Application is in continuous developement as we planning to use it daily for health and sport activities analysis. 
-Frontend for this app is been developing by other person. 
+Frontend for this app is being developing by other person. 
 
 ## General info
 
 Key features:
  - Create and manage your recipes
- - Send recipe ingredients to nozbe as shopping list
+ - Send recipe ingredients to nozbe as shopping list via Nozbe API
  - Invite and join to groups to share your recipes with others
  - Track your health statistics (weight, sleep length, mood and more) in daily dashboard
  - Calculate BMI based on current health condition 
  - Analysis your health progess with statistics history, weekly summaries and detailed information about your tracked stats
+ - Get your recent activities from Strava via Strava API
+ - Track your daily calories intake and calories delta, based on what you eat and your activities. Intake calories are auto calculated.
  
  To be implemented:
- - STRAVA Api support for getting infrmation about workouts (Unfortunetly Garmin does not share their API for common use) 
- - Calories analysis based on information from MyFitnessPal API
+ - More traning features based on data from StravaApi
  - Sub App for daily food quallity calculator. Get points for eating healthy food and lose point for eating junk food! (some junk food allowed, as one of the main athlete rule is EAT EVERYTHING :) ) 
  - Weekly menu planner 
  - Workout planner with google calendar API support
- - Weather checker for location where we usually do cycling traning 
+ - Weather checker for location where we usually do cycling training 
   
 
 ## Technologies
@@ -51,6 +52,10 @@ Additionally you can specify nozbe information in order to connect your app with
 NOZBE_CLIENT_ID = yournozbeclientid <br>
 NOZBE_SECRET = nozbesecretkey <br>
 NOZBE_PROJECT_ID = nozbeprojectid <br>
+
+For strava connection:
+STRAVA_CLIENT_ID= yourstravaclientid
+STRAVA_CLIENT_SECRET= yourstravasecret
   
 
 * .env.db (information needed for mysql to startup): <br /> 
