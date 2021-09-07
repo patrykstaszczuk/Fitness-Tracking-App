@@ -5,7 +5,7 @@ Manage you recipes, track your health statistics, activities and more.
 ## Status
 
 Application is in continuous developement as we planning to use it daily for health and sport activities analysis. 
-Frontend for this app is developing by other person. 
+Frontend for this app is been developing by other person. 
 
 ## General info
 
