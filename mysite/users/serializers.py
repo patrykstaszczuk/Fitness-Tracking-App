@@ -19,9 +19,9 @@ class DynamicFieldsModelSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(DynamicFieldsModelSerializer):
-    """ Serializer form the users object """
+    """ serializer for MyUser instances handling """
 
-    password2 = serializers.CharField(label='Potwierdź hasło', write_only=True)
+    password2 = serializers.CharField(label='Confirm password', write_only=True)
 
     class Meta:
         model = get_user_model()
@@ -41,41 +41,39 @@ class UserSerializer(DynamicFieldsModelSerializer):
         password2 = values.get('password2')
 
         if password != password2:
-            raise serializers.ValidationError('Hasła różnią się!')
+            raise serializers.ValidationError('Password do not match!')
         return values
 
     def validate_password(self, password):
         """ validate password length """
-
         if len(password) < 5:
-            raise serializers.ValidationError('Hasło jest za krótkie!')
+            raise serializers.ValidationError('Password is too short')
         return password
 
     def validate_name(self, name):
         """ validate name length """
         if len(name) < 3:
-            raise serializers.ValidationError('Za krótka nazwa użytkownika')
+            raise serializers.ValidationError('Username is to short')
         return name
 
     def validate_age(self, age):
         """ validate age """
-
         if not 0 < age <= 150:
-            raise serializers.ValidationError('Niepoprawny wiek')
+            raise serializers.ValidationError('Incorrect age')
         return age
 
     def validate_height(self, height):
         """ validate height """
 
         if not 40 < height <= 300:
-            raise serializers.ValidationError('Niepoprawny wzrost')
+            raise serializers.ValidationError('Incorrect height')
         return height
 
     def validate_weight(self, weight):
         """ validate weight """
 
         if not 5 < weight <= 600:
-            raise serializers.ValidationError('Niepoprawna waga')
+            raise serializers.ValidationError('Incorrect weight')
         return weight
 
 
@@ -101,7 +99,6 @@ class UserChangePasswordSerializer(serializers.Serializer):
         password = validated_data.pop('password', None)
         instance.set_password(password)
         instance.save()
-
         return instance
 
 
@@ -124,18 +121,16 @@ class AuthTokenSerializer(serializers.Serializer):
             username=email,
             password=password
         )
-
         if not user:
             msg = ('Unable to authenticate with provided credentials')
             raise serializers.ValidationError(msg, code='authentication')
 
         attrs['user'] = user
-
         return attrs
 
 
 class MembershipSerializer(serializers.ModelSerializer):
-
+    """ serializer for handling memberships """
     class Meta:
         model = get_user_model()
         fields = ('membership', )
@@ -143,31 +138,12 @@ class MembershipSerializer(serializers.ModelSerializer):
 
 
 class GroupSerializer(serializers.ModelSerializer):
-    """ Serializer for group object """
+    """ Serializer for handling groups """
 
     class Meta:
         model = Group
         fields = ('id', 'name', 'founder',)
         read_only_fields = ('id', 'name', 'founder',)
-
-    def save(self, **kwargs):
-        """ check if user have already own gorup, if yes raise error """
-        founder = kwargs.get('founder')
-
-        exist = Group.objects.filter(founder=founder)
-
-        if exist:
-            raise serializers.ValidationError('Możesz założyć tylko \
-                                              jedną grupę')
-        return super().save(**kwargs)
-
-    def create(self, validated_data):
-        """ override create to provide value's for name and members """
-        instance = super().create(validated_data)
-        instance.name = instance.founder.name + 's group'
-        instance.members.add(instance.founder)
-        instance.save()
-        return instance
 
 
 class SendInvitationSerializer(serializers.ModelSerializer):
@@ -177,22 +153,20 @@ class SendInvitationSerializer(serializers.ModelSerializer):
         model = Group
         fields = ('pending_membership', )
         extra_kwargs = {'pending_membership': {'error_messages':
-                        {'does_not_exist': 'Taki użytkownik nie istnieje!'}}}
+                        {'does_not_exist': 'User with provided id does not exits'}}}
 
     def validate_pending_membership(self, users):
-        """ check if there is not requested user id """
-
-        for user in users:
-            if user == self.context['request'].user:
-                raise serializers.ValidationError("Nie możesz zaprosić \
-                                              samego siebie!")
+        """ check if founder id is in invated users list """
+        if self.context['request'].user in users:
+            raise serializers.ValidationError("You cannot invite yourself!")
         return users
 
 
 class ManageInvitationSerializer(serializers.ModelSerializer):
-    """ serializer for managing groups invitation and request acceptance """
+    """ serializer for managing groups invitation and acctepting/denying group
+    invitations with action field """
 
-    action = serializers.IntegerField()
+    action = serializers.IntegerField(write_only=True, required=True)
 
     class Meta:
         model = get_user_model()
@@ -201,7 +175,7 @@ class ManageInvitationSerializer(serializers.ModelSerializer):
     def validate_action(self, action):
         """ validate action value """
         if action not in range(2):
-            raise ValidationError('Niepoprawna wartość')
+            raise ValidationError('Incorrect value for action')
         self.fields.pop('action')
         return action
 
@@ -210,10 +184,9 @@ class ManageInvitationSerializer(serializers.ModelSerializer):
         relation """
 
         for group in groups:
-            try:
-                get_user_model().objects.filter(pending_membership=group.id)
-            except ValidationError:
-                raise ValidationError("Taka grupa nie istnieje!")
+            if group not in self.instance.pending_membership.all():
+                raise ValidationError(f"{group.id} such group does \
+                        not exists in your pending membership")
         return groups
 
     def save(self, **kwargs):
@@ -222,7 +195,6 @@ class ManageInvitationSerializer(serializers.ModelSerializer):
         groups = self.validated_data.get('pending_membership')
         action = self.validated_data.pop('action')
         groups_ids = [group.id for group in groups]
-
         if action:
             user.membership.add(*groups_ids)
             user.pending_membership.remove(*groups_ids)
@@ -230,18 +202,6 @@ class ManageInvitationSerializer(serializers.ModelSerializer):
             user.pending_membership.remove(*groups_ids)
 
         return self.instance
-
-    def __init__(self, *args, **kwargs):
-        """ pop 'action' from fields if request is get
-            pop groups when post, becouse it cause OrderedDict mutated error
-            despite its read only field. To future investigation
-        """
-        request = kwargs['context'].get('request')
-        if request.method == 'GET':
-            self.fields.pop('action')
-        # elif request.method == 'POST':
-        #     self.fields.pop('groups')
-        super().__init__(*args, **kwargs)
 
 
 class LeaveGroupSerializer(serializers.Serializer):
@@ -257,19 +217,16 @@ class LeaveGroupSerializer(serializers.Serializer):
 
     def validate_id(self, value):
         """ check if user accually belongs to provided group """
-
         try:
             group = Group.objects.get(id=value)
         except Group.DoesNotExist:
             raise serializers.ValidationError('Group does not exists')
-
         if group.founder == self.instance:
             raise serializers.ValidationError('You cannot leave your own group')
         return value
 
     def save(self, **kwargs):
         """ remove user from group """
-
         group = self.validated_data.pop('id')
         if group:
             self.instance.membership.remove(group)

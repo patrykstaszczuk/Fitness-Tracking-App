@@ -231,14 +231,13 @@ class PrivateUserApiTests(TestCase):
         res = self.client.post(ME_URL, {})
         self.assertEqual(res.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
-    # def test_redirect_to_profile_page_when_access_create_page(self):
-    #     """ test redirecting to profile page when already authenticated user
-    #      trying to access create new user page """
-    #
-    #     token = Token.objects.create(key='123456', user=self.user)
-    #     res = self.client.get(CREATE_USER_URL, headers={'HTTP_AUTHORIZATION': f'Token {token}'})
-    #     self.assertEqual(res.status_code, status.HTTP_303_SEE_OTHER)
-    #     self.assertIn('location', res._headers)
+    def test_redirect_to_profile_page_when_access_create_page(self):
+        """ test redirecting to profile page when already authenticated user
+         trying to access create new user page """
+
+        res = self.client.get(CREATE_USER_URL)
+        self.assertEqual(res.status_code, status.HTTP_303_SEE_OTHER)
+        self.assertIn('location', res._headers)
     #
     # def test_redirect_to_profile_page_when_access_create_page_post(self):
     #     """ test redirecting authenticated user to profile page when trying
@@ -413,8 +412,6 @@ class PrivateUserApiTests(TestCase):
         res = self.client.post(send_invitation_url(), payload,
                                format='json')
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('Taki użytkownik nie istnieje!',
-                      res.data['pending_membership'])
 
     def test_show_group_invitation(self):
         """ test listing group ivitation send by other users """
@@ -502,6 +499,12 @@ class PrivateUserApiTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(len(self.user.membership.all()), 1)
 
+    def test_leaving_non_existing_group_failed(self):
+        """ test leaving non existing group failed """
+        res = self.client.post(leave_group_url(), {'id': 312321},
+                               format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(len(self.user.membership.all()), 1)
     # def test_retreiving_strava_auth_information(self):
     #     """ test retreving code, tokens and expire date """
     #
@@ -552,7 +555,7 @@ class PrivateUserApiTests(TestCase):
         res = self.client.get(url, payload)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.json()['data']['status'], 'Ok')
-        self.assertTrue(self.user.strava.valid)
+        self.assertTrue(self.user.strava._has_needed_informations())
 
     @patch('users.models.StravaApi.get_last_request_epoc_time')
     @patch('users.models.StravaApi._send_request_to_strava')
@@ -595,5 +598,5 @@ class PrivateUserApiTests(TestCase):
                              'To many requests try again soon')
         res = self.client.get(url, payload)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertTrue(self.user.strava.valid)
+        self.assertTrue(self.user.strava._has_needed_informations())
         self.assertEqual(res.json()['data']['status'], 'Ok')

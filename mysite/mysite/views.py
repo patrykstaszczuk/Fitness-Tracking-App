@@ -19,7 +19,7 @@ def api_root(request, format=None):
     })
 
 
-def get_serializer_fields(serializer):
+def get_serializer_required_fields(serializer):
     """ return fields names which are required """
     required_fields = []
     writable_fields = []
@@ -39,15 +39,15 @@ class RequiredFieldsResponseMessage(generics.GenericAPIView):
         """ set serializers required fields private variable """
 
         serializer_instance = super().get_serializer()
-        self._serializer_fields = get_serializer_fields(serializer_instance)
+        self._serializer_required_fields = get_serializer_required_fields(serializer_instance)
         return super().get_serializer(*args, **kwargs)
 
     def get_renderer_context(self):
         """ add links to response """
         context = super().get_renderer_context()
-        if self._serializer_fields:
-            context['required'] = self._serializer_fields[0]
-            context['writable'] = self._serializer_fields[1]
+        if self._serializer_required_fields:
+            context['required'] = self._serializer_required_fields[0]
+            context['writable'] = self._serializer_required_fields[1]
         app_name = self.request.resolver_match.app_name
         if hasattr(self, 'action') and self.basename is not None:
             if self.action == 'retrieve':
@@ -61,7 +61,7 @@ class RequiredFieldsResponseMessage(generics.GenericAPIView):
         return context
 
     def __init__(self, *args, **kwargs):
-        self._serializer_fields = None
+        self._serializer_required_fields = None
         super().__init__(*args, **kwargs)
 
 

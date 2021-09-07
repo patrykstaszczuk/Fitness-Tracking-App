@@ -96,7 +96,7 @@ class HealthDiary(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
                 url += param + '&'
             links.update({"connect-strava": url})
         context['links'] = links
-        context['required'] = self._serializer_fields
+        context['required'] = self._serializer_required_fields
         return context
 
     def retrieve(self, request, *args, **kwargs):
@@ -181,7 +181,7 @@ class HealthRaport(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
                          reverse('health:health-detail',
                           kwargs={'slug': field.name}, request=self.request)})
         context['links'] = links
-        context['required'] = self._serializer_fields
+        context['required'] = self._serializer_required_fields
         return context
 
     def _map_slug_to_model_field(self, field_name):

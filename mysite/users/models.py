@@ -31,7 +31,7 @@ class MyManager(BaseUserManager):
         user.set_password(password)
         user.save(using=self.db)
 
-        Group.objects.create(founder=user)
+        Group.objects.create(founder=user, name=f'{user.name} group')
         StravaApi.objects.create(user=user)
 
         return user
@@ -163,22 +163,41 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
         return field_values_and_counter
 
     def get_environ_variables(self):
-        """ get client id and cliend secret needed for user app
-        authorization """
+        """ return enviromental variables needed for strava authentication
+
+        Returns:
+        - cliend_id, cliend_secret: string
+        """
         return os.environ['STRAVA_CLIENT_ID'], os.environ['STRAVA_CLIENT_SECRET']
 
     def is_auth_to_strava(self):
-        """ check if user has associated strava info """
+        """ check if there is associated and valid StravaApi instance.
+
+        Returns (success):
+        - True: bool
+        Returns (failure):
+        - False: bool
+
+        See also:
+        - Create empty StravaApi instance if not exists
+        """
         try:
             obj = StravaApi.objects.get(user=self.id)
             if obj._has_needed_informations():
                 return True
         except StravaApi.DoesNotExist:
-            StravaApi.objects.create(user=self, valid=False)
+            StravaApi.objects.create(user=self)
         return False
 
     def authorize_to_strava(self, code):
-        """ authorize to strava with provided code and save info in db """
+        """
+        send authorization request to strava and save response data in StravApi
+
+        Returns (success):
+        - True: bool
+        Returns (failure):
+        - False: bool
+        """
 
         try:
             client_id, client_secret = self.get_environ_variables()
@@ -193,18 +212,15 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
         if not hasattr(self, 'strava'):
             StravaApi.objects.create(user=self)
         url = settings.STRAVA_AUTH_URL
-        res = self.strava._process_request(url=url, payload=payload,
-                                                  type='POST')
-        if not res:
-            print(res.json())
-            return False
-        auth_data = {'expires_at': None, 'refresh_token': None, 'access_token': None}
-        if all(attr in res for attr in auth_data.keys()):
-            for data in auth_data.keys():
-                setattr(self.strava, data, res[data])
-            self.strava.valid = True
-            self.strava.save()
-            return True
+        res = self.strava._process_request(url=url, payload=payload, type='POST')
+        if res:
+            important_auth_data = {'expires_at': None, 'refresh_token': None,
+                                   'access_token': None}
+            if all(attr in res for attr in important_auth_data.keys()):
+                for data in important_auth_data.keys():
+                    setattr(self.strava, data, res[data])
+                self.strava.save()
+                return True
         return False
 
     def has_perms(self, perm_list, obj=None):

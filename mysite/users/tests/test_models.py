@@ -167,7 +167,7 @@ class ModelTests(TestCase):
         user = sample_user()
         self.assertEqual(user.authorize_to_strava(code='1234'), True)
         self.assertEqual(user.strava.expires_at, 123)
-        self.assertEqual(user.strava.valid, True)
+        self.assertEqual(user.strava._has_needed_informations(), True)
 
     @patch('users.models.StravaApi._process_request')
     def test_authorize_to_strava_failed_no_needed_info(self, mock):

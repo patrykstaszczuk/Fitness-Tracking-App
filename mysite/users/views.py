@@ -1,59 +1,35 @@
-from rest_framework import generics, authentication, permissions, status
+from rest_framework import generics, authentication, permissions, status, mixins
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework import mixins
-from users import models
-from users import serializers
+from users import models, serializers
 from rest_framework.reverse import reverse
-from users.serializers import UserSerializer, AuthTokenSerializer, \
-                             UserChangePasswordSerializer
 from rest_framework.decorators import action
-from rest_framework.authtoken.models import Token
+from django.shortcuts import get_object_or_404
 
 from mysite.renderers import CustomRenderer
-from mysite.views import RequiredFieldsResponseMessage, get_serializer_fields
+from mysite.views import RequiredFieldsResponseMessage, get_serializer_required_fields
 
 
-class CreateUserView(RequiredFieldsResponseMessage, generics.CreateAPIView,
-                     ):
-    """ Create a new user in the system """
-    serializer_class = UserSerializer
+class CreateUserView(RequiredFieldsResponseMessage, generics.CreateAPIView):
+    """ create a new user in the system """
+    serializer_class = serializers.UserSerializer
     renderer_classes = [CustomRenderer, ]
 
-    def create(self, request, *args, **kwargs):
-        """ overide response header """
-        response = super().create(request, *args, **kwargs)
-        response['Location'] = reverse('users:token', request=request)
-        return response
-
     def get(self, request, *args, **kwargs):
-        """ redirect to profile page if token provided and valid """
-        if self._check_if_token_provided(request):
+        """ handle get request and extra check if user is authenticated """
+        if self.request.user.is_authenticated:
             return self._redirect_to_profile_page()
         self.get_serializer()
         return Response(data=None, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
-        """ redirect to profile page if token provided and valid """
-        if self._check_if_token_provided(request):
+        """ hande post request and extra check if user is authenticated """
+        if self.request.user.is_authenticated:
             return self._redirect_to_profile_page()
-        return self.create(request, *args, **kwargs)
-
-    def _check_if_token_provided(self, request):
-        """ redirect user to profile page when accesing as authenticated
-        user """
-        token_provided = request.META.get('HTTP_AUTHORIZATION')
-        if token_provided:
-            token = request.META['HTTP_AUTHORIZATION']
-            try:
-                token = token.split(" ")
-                Token.objects.select_related('user').get(key=token[1])
-                return True
-            except authentication.Token.DoesNotExist:
-                pass
-        return False
+        response = super().create(request, *args, **kwargs)
+        response['Location'] = reverse('users:token', request=request)
+        return response
 
     def _redirect_to_profile_page(self):
         """ redirect to profile page """
@@ -65,25 +41,25 @@ class CreateUserView(RequiredFieldsResponseMessage, generics.CreateAPIView,
 
 class CreateTokenView(RequiredFieldsResponseMessage, ObtainAuthToken):
     """ create a new auth token for user """
-    serializer_class = AuthTokenSerializer
+    serializer_class = serializers.AuthTokenSerializer
     renderer_classes = [CustomRenderer, ]
 
     def post(self, request, *args, **kwargs):
-        """ override response header """
+        """ add location to response header """
         response = super().post(request, *args, **kwargs)
         response['Location'] = reverse('users:profile', request=request)
         return response
 
     def get(self, request, *args, **kwargs):
-        """ return custom response format based on serializer """
+        """ return standard response but in custom format that is initiated
+         when accessing get_serializer method """
         self.get_serializer()
         return Response(data=None, status=status.HTTP_200_OK)
 
 
-class ManageUserView(RequiredFieldsResponseMessage,
-                      generics.RetrieveUpdateAPIView):
-    """ manage the authenticated user """
-    serializer_class = UserSerializer
+class ManageUserView(RequiredFieldsResponseMessage, generics.RetrieveUpdateAPIView):
+    """ manage the authenticated user profile page """
+    serializer_class = serializers.UserSerializer
     authentication_classes = (authentication.TokenAuthentication, )
     permission_classes = (permissions.IsAuthenticated, )
     renderer_classes = [CustomRenderer, ]
@@ -93,30 +69,31 @@ class ManageUserView(RequiredFieldsResponseMessage,
         return self.request.user
 
     def get_serializer(self, *args, **kwargs):
+        """ return serializer with dynamically set fields """
         serializer_class = self.get_serializer_class()
         fields = ('email', 'name', 'age', 'gender', 'height', 'weight')
         kwargs['context'] = self.get_serializer_context()
         kwargs['fields'] = fields
         serializer = serializer_class(*args, **kwargs)
-        self._serializer_fields = get_serializer_fields(serializer)
+        self._serializer_required_fields = get_serializer_required_fields(serializer)
         return serializer
 
     def get_renderer_context(self):
-        """ add links to response """
+        """ return renderer context withh extra links in response """
         context = super().get_renderer_context()
         links = {
             'new-password': reverse('users:password-change', request=self.request),
             'groups': reverse('users:group-list', request=self.request)
         }
         context['links'] = links
-        context['required'] = self._serializer_fields
+        context['required'] = self._serializer_required_fields
         return context
 
 
 class ChangeUserPasswordView(RequiredFieldsResponseMessage,
                              generics.UpdateAPIView):
     """ update user password view """
-    serializer_class = UserChangePasswordSerializer
+    serializer_class = serializers.UserChangePasswordSerializer
     authentication_classes = (authentication.TokenAuthentication, )
     permission_classes = (permissions.IsAuthenticated, )
     renderer_classes = [CustomRenderer, ]
@@ -126,13 +103,15 @@ class ChangeUserPasswordView(RequiredFieldsResponseMessage,
         return self.request.user
 
     def update(self, request, *args, **kwargs):
-        """ override response location """
+        """ handle update request and return response with location in header
+        """
         response = super().update(request, *args, **kwargs)
         response['Location'] = reverse('users:profile', request=request)
         return response
 
     def get(self, request, *args, **kwargs):
-        """ return custom message format based on serializer """
+        """ return standard response but in custom format that is initiated
+         when accessing get_serializer method """
         self.get_serializer()
         return Response(data=None, status=status.HTTP_200_OK)
 
@@ -146,12 +125,8 @@ class GroupViewSet(RequiredFieldsResponseMessage, GenericViewSet,
     authentication_classes = (authentication.TokenAuthentication, )
     permission_classes = (permissions.IsAuthenticated, )
 
-    def perform_create(self, serializer):
-        serializer.save(founder=self.request.user)
-
     def get_serializer_class(self):
-        """ get specific serializer for specific action """
-
+        """ get specific serializer based on action """
         if self.action == 'send_invitation':
             return serializers.SendInvitationSerializer
         elif self.action == 'manage_invitation':
@@ -159,14 +134,12 @@ class GroupViewSet(RequiredFieldsResponseMessage, GenericViewSet,
         return self.serializer_class
 
     def get_object(self):
-        """ get group for requested user """
-        return models.Group.objects.get(founder=self.request.user)
+        """ get group for requested user. Group is automatically created
+        when user is created """
+        return get_object_or_404(self.queryset, founder=self.request.user)
 
     def list(self, request, *args, **kwargs):
-        """ get the user's group name or return status 204, check if users
-         belong to specyfic group or has own group
-        """
-
+        """ return all user's groups or return HTTP 204"""
         user_groups = self.request.user.membership.all()
         if user_groups.exists():
             serializer = self.get_serializer(user_groups, many=True)
@@ -174,36 +147,32 @@ class GroupViewSet(RequiredFieldsResponseMessage, GenericViewSet,
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def get_renderer_context(self):
-        """ add links to response """
+        """ return rendered context and add extra informations to response """
 
         context = super().get_renderer_context()
-
+        availabe_links = [
+            {'send-group-invitation': reverse('users:group-send-invitation',
+                                              request=self.request)},
+            {'groups': reverse('users:group-list', request=self.request)},
+            {'manage-invitation': reverse('users:group-manage-invitation',
+                                          request=self.request)},
+            {'leave-group': reverse('users:group-leave-group',
+                                    request=self.request)}
+        ]
         links = {}
         if self.action == 'manage_invitation':
-            links.update(
-                {'send-group-invitation': reverse('users:group-send-invitation',
-                                                 request=self.request),
-                'groups': reverse('users:group-list', request=self.request)}
-            )
+            links.update(availabe_links[0])
+            links.update(availabe_links[1])
         elif self.action == 'send_invitation':
-            links.update(
-                {'manage-invitation': reverse('users:group-manage-invitation',
-                                                 request=self.request),
-                'groups': reverse('users:group-list', request=self.request)}
-            )
+            links.update(availabe_links[2])
+            links.update(availabe_links[1])
         elif self.action == 'leave_group':
             context['required'] = ['id', ]
         else:
-            links.update(
-                {'manage-invitation': reverse('users:group-manage-invitation', request=self.request),
-                'send-group-invitation': reverse('users:group-send-invitation',
-                                                 request=self.request),
-                 'leave-group': reverse('users:group-leave-group',
-                                                  request=self.request)}
-            )
+            links.update(availabe_links[2])
+            links.update(availabe_links[0])
+            links.update(availabe_links[3])
         context['links'] = links
-
-
         return context
 
     @action(methods=['GET', 'POST'], detail=False,
@@ -214,10 +183,8 @@ class GroupViewSet(RequiredFieldsResponseMessage, GenericViewSet,
         if not request.data:
             serializer = self.get_serializer()
             return Response(status=status.HTTP_200_OK)
-
         group = self.get_object()
         serializer = self.get_serializer(group, request.data)
-
         if serializer.is_valid():
             serializer.save()
             return Response(data=serializer.data, status=status.HTTP_200_OK)
@@ -226,7 +193,7 @@ class GroupViewSet(RequiredFieldsResponseMessage, GenericViewSet,
 
     @action(methods=['GET', 'POST'], detail=False, url_path='manage-invitation')
     def manage_invitation(self, request):
-        """ show invitation and accept pending memberships """
+        """ show invitation or accept pending memberships """
 
         if not request.data:
             serializer = self.get_serializer(instance=request.user)
@@ -256,5 +223,6 @@ class GroupViewSet(RequiredFieldsResponseMessage, GenericViewSet,
                                 headers=headers)
             return Response(data=serializer.errors,
                             status=status.HTTP_400_BAD_REQUEST)
-        serializer = serializers.LeaveGroupSerializer(instance=request.user, context={'user': request.user})
+        serializer = serializers.LeaveGroupSerializer(instance=request.user,
+                                                      context={'user': request.user})
         return Response(data=serializer.data, status=status.HTTP_200_OK)
