@@ -24,7 +24,8 @@ class HealthDiary(models.Model):
 
     date = models.DateField(default=datetime.date.today)
     slug = models.SlugField(blank=False)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL,
+                             on_delete=models.PROTECT)
     weight = models.FloatField(null=True, blank=True, default=None,
                                verbose_name='weigth')
     sleep_length = models.FloatField(null=True, blank=True, default=None,
@@ -35,7 +36,7 @@ class HealthDiary(models.Model):
     calories = models.PositiveIntegerField(blank=True, default=0,
                                            verbose_name='calories')
     burned_calories = models.PositiveSmallIntegerField(blank=True, default=0)
-    last_update = models.PositiveIntegerField(default=time.time())
+    last_update = models.PositiveIntegerField(default=time.time)
     daily_thoughts = models.TextField(max_length=2000, blank=True)
 
     def __str__(self):

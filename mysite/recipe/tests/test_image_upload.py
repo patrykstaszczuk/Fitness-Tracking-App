@@ -45,6 +45,7 @@ class PrivateTestCases(TestCase):
         }
         self.sample_recipe = models.Recipe.objects.create(user=self.user,
                                                           **defaults)
+
     def tearDown(self):
         self.sample_recipe.photo1.delete()
         self.sample_recipe.photo2.delete()
@@ -55,8 +56,8 @@ class PrivateTestCases(TestCase):
         """ test that image is saved in the correct location """
         uuid = 'test-uuid'
         mock_uuid.return_value = uuid
-        file_path = models.recipe_image_file_path(self.sample_recipe,
-                                                  'myimage.jpg')
+        file_path = models.generate_image_file_path(self.sample_recipe,
+                                                    'myimage.jpg')
 
         exp_path = f'recipes/{self.user.name}/{self.sample_recipe.slug}/{uuid}.jpg'
         self.assertEqual(file_path, exp_path)

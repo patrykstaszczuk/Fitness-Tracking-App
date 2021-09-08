@@ -71,7 +71,8 @@ class HealthDiary(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
     def get_object(self):
         """ get or create and return object for requested user """
         now = datetime.date.today()
-        obj, created = models.HealthDiary.objects.get_or_create(user=self.request.user, date=now)
+        obj, created = models.HealthDiary.objects.get_or_create(
+            user=self.request.user, date=now)
         return obj
 
     def get_renderer_context(self):
@@ -107,9 +108,11 @@ class HealthDiary(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
         strava_api_instance = request.user.strava
         hour = 3600
         if now - strava_api_instance.get_last_request_epoc_time() > hour:
-            raw_strava_activities = strava_api_instance.get_strava_activities(date=instance.date)
+            raw_strava_activities = strava_api_instance.get_strava_activities(
+                date=instance.date)
             if raw_strava_activities and isinstance(raw_strava_activities, list):
-                strava_api_instance.process_and_save_strava_activities(raw_strava_activities)
+                strava_api_instance.process_and_save_strava_activities(
+                    raw_strava_activities)
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
@@ -178,8 +181,8 @@ class HealthRaport(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
         links = {}
         for field in approved_fields:
             links.update({f'{field.name}-history':
-                         reverse('health:health-detail',
-                          kwargs={'slug': field.name}, request=self.request)})
+                          reverse('health:health-detail',
+                                  kwargs={'slug': field.name}, request=self.request)})
         context['links'] = links
         context['required'] = self._serializer_required_fields
         return context
@@ -190,7 +193,8 @@ class HealthRaport(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
         for field in approved_fields:
             if field_name in [field.name, field.verbose_name]:
                 return field.name
-        raise ValidationError("No such field in model approved fields for history viewing")
+        raise ValidationError(
+            "No such field in model approved fields for history viewing")
 
 
 class HealthWeeklySummary(APIView):

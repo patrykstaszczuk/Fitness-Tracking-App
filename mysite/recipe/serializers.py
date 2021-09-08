@@ -58,6 +58,7 @@ class TagSerializer(serializers.ModelSerializer):
 
     url = serializers.HyperlinkedIdentityField(view_name='recipe:tag-detail',
                                                lookup_field='slug')
+
     class Meta:
         model = Tag
         exclude = ('id',)
@@ -86,7 +87,8 @@ class IngredientSerializer(serializers.ModelSerializer):
                                                lookup_field='slug')
     tag_information = TagSerializer(many=True, source="tags", read_only=True)
 
-    units = IngredientUnitSerializer(many=True, write_only=True, required=False)
+    units = IngredientUnitSerializer(
+        many=True, write_only=True, required=False)
     available_units = serializers.SerializerMethodField()
 
     class Meta:
@@ -112,7 +114,7 @@ class IngredientSerializer(serializers.ModelSerializer):
         """ get defined unit for ingredient instance """
         units = Ingredient_Unit.objects.filter(ingredient=obj)
         return IngredientUnitSerializer(units, many=True, context={'request':
-                                        self.context['request']}).data
+                                                                   self.context['request']}).data
 
     def validate_name(self, value):
         """ check if ingredient with provided name is not already in db """
@@ -245,7 +247,8 @@ class RecipeSerializer(serializers.ModelSerializer):
         ret = super().to_representation(instance)
         if ret['user'] != self.user.id:
             # ret['url'] = f'http://localhost:8000/food/group-recipe/{ret["user"]}/{ret["slug"]}'
-            ret['url'] = reverse("recipe:recipe-detail", kwargs={'slug': ret['slug']}, request=self.context['request']) + f"?user={ret['user']}"
+            ret['url'] = reverse("recipe:recipe-detail", kwargs={
+                                 'slug': ret['slug']}, request=self.context['request']) + f"?user={ret['user']}"
         return ret
 
     def to_internal_value(self, data):
@@ -291,7 +294,8 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         """ Overrided for neasted serializers handling """
-        validated_ingredients = validated_data.pop('ingredients_quantity', None)
+        validated_ingredients = validated_data.pop(
+            'ingredients_quantity', None)
         recipe = super().create(validated_data)
         if validated_ingredients:
             for ingredient in validated_ingredients:
@@ -327,7 +331,8 @@ class RecipeDetailSerializer(RecipeSerializer):
     def update(self, instance, validated_data):
         """ Overrided for neasted serializers handling """
 
-        validated_ingredients = validated_data.pop('ingredients_quantity', None)
+        validated_ingredients = validated_data.pop(
+            'ingredients_quantity', None)
         recipe = super().update(instance, validated_data)
 
         if getattr(self.root, 'partial', False) is False:
@@ -341,8 +346,8 @@ class RecipeDetailSerializer(RecipeSerializer):
                 ingredient.update({'recipe': recipe})
                 recipe.ingredients.add(ingredient['ingredient'],
                                        through_defaults={'amount':
-                                       ingredient['amount'],
-                                       'unit': ingredient['unit']})
+                                                         ingredient['amount'],
+                                                         'unit': ingredient['unit']})
         return recipe
 
 

@@ -16,20 +16,12 @@ import requests
 from rest_framework import status
 
 
-def recipe_image_file_path(instance, filename):
+def generate_image_file_path(recipe_instance, filename):
     """ generate file path for new recipe image """
-    ext = filename.split('.')[-1]
-    filename = f'{uuid.uuid4()}.{ext}'
-
-    return os.path.join('recipes/', instance.user.name, instance.slug,
-                        filename)
-
-# class CustomRecipeManager(models.Manager):
-#     """ override save method for automate calories calculation """
-#
-#     def save(self):
-#         instance = super().save()
-#         print(instance)
+    extention = filename.split('.')[-1]
+    filename = f'{uuid.uuid4()}.{extention}'
+    return os.path.join('recipes/', recipe_instance.user.name,
+                        recipe_instance.slug, filename)
 
 
 class Recipe(models.Model):
@@ -38,22 +30,27 @@ class Recipe(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL,
                              on_delete=models.CASCADE,
                              null=False, related_name='recipe')
-    calories = models.FloatField(verbose_name='Kalorie', blank=True,
-                                   null=True, default=0)
-    proteins = models.FloatField(blank=True, null=True, default=0)
-    carbohydrates = models.FloatField(blank=True, null=True, default=0)
-    fats = models.FloatField(blank=True, null=True, default=0)
-    portions = models.IntegerField(verbose_name='Porcje', blank=True,
-                                   null=True)
-    prepare_time = models.IntegerField(verbose_name='Czas przygotowania',
-                                       blank=True, null=True, default=0)
+    calories = models.FloatField(verbose_name='Kalorie', blank=True, null=True,
+                                 default=0, validators=[MinValue(0)])
+    proteins = models.FloatField(blank=True, null=True, default=0,
+                                 validators=[MinValue(0)])
+    carbohydrates = models.FloatField(blank=True, null=True, default=0,
+                                      validators=[MinValue(0)])
+    fats = models.FloatField(blank=True, null=True,
+                             default=0, validators=[MinValue(0)])
+    portions = models.PositiveSmallIntegerField(
+        verbose_name='Porcje', blank=False, null=False,
+        default=1, validators=[MinValue(1)])
+    prepare_time = models.PositiveSmallIntegerField(
+        verbose_name='Czas przygotowania', blank=True, null=True, default=0,
+        validators=[MinValue(0)])
     slug = models.SlugField(blank=False)
 
-    photo1 = models.ImageField(upload_to=recipe_image_file_path, blank=True,
+    photo1 = models.ImageField(upload_to=generate_image_file_path, blank=True,
                                verbose_name='Zdjęcie 1', null=True)
-    photo2 = models.ImageField(upload_to=recipe_image_file_path, blank=True,
+    photo2 = models.ImageField(upload_to=generate_image_file_path, blank=True,
                                verbose_name='Zdjęcie 2', null=True)
-    photo3 = models.ImageField(upload_to=recipe_image_file_path, blank=True,
+    photo3 = models.ImageField(upload_to=generate_image_file_path, blank=True,
                                verbose_name='Zdjęcie 3', null=True)
 
     tags = models.ManyToManyField('Tag')
@@ -66,47 +63,47 @@ class Recipe(models.Model):
 
     orginal_photos = []
 
-    # objects = CustomRecipeManager()
-
     class Meta:
         unique_together = ('user', 'slug')
-
-    def __init__(self, *args, **kwargs):
-        """ save curently used photos in list, to be used later in comparsion,
-        set self.portions to 1 if is None or 0 """
-
-        super().__init__(*args, **kwargs)
-        self.orginal_photos = [self.photo1, self.photo2, self.photo3]
-
-        if self.portions is None or self.portions == 0:
-            self.portions = 1
 
     def __str__(self):
         return self.name
 
     def save(self, *args, **kwargs):
-        """ check if there is existing slug for different recipe """
+        """ save object with appropriate slug """
 
         self.slug = slugify(unidecode(self.name))
-        if self.check_if_slug_exists(self.slug) and not self.id:
-            self.slug = self.slug + "2"
-
+        number_of_recipes_with_same_name = self._check_if_name_exists(
+            self.name)
+        if number_of_recipes_with_same_name > 0:
+            self.slug = self.slug + str(number_of_recipes_with_same_name + 1)
         if self.id:
-            """ check if images change after upload """
             new_photos = [self.photo1, self.photo2, self.photo3]
-            for old, new in zip(self.orginal_photos, new_photos):
-                if new != old and old not in ('', None):
+            self._delete_old_photos(new_photos, self.orginal_photos)
+        super().save(*args, **kwargs)
+        self._recalculate_nutritions_values()
+
+    def _check_if_name_exists(self, name):
+        """ check if and how many recipes with provided name exists """
+        return Recipe.objects.filter(user=self.user) \
+            .filter(name=name).exclude(id=self.id).count()
+
+    def _delete_old_photos(self, new_photos, old_photos):
+        """ check if images change after upload and delete old from folder
+        if so """
+        for old, new in zip(old_photos, new_photos):
+            if new != old and old not in ('', None):
+                try:
                     path = old.path
                     if os.path.exists(path):
                         os.remove(path)
-        super().save(*args, **kwargs)
-        self._recalculate_nutritions_values()
-        kwargs['force_insert'] = False
-        super().save(*args, **kwargs, update_fields=['proteins', 'carbohydrates',
-                                                     'fats', 'calories'])
+                except AttributeError:
+                    pass
 
     def _recalculate_nutritions_values(self):
-        """ recalculating nutritions values based on ingredients """
+        """ recalculating recipe nutritions values based on ingredients """
+
+        nutritional_fields = ['proteins', 'carbohydrates', 'fats', 'calories']
         self.proteins = 0
         self.carbohydrates = 0
         self.fats = 0
@@ -114,58 +111,54 @@ class Recipe(models.Model):
         for ingredient in self.ingredients.all():
             obj = Recipe_Ingredient.objects.get(recipe=self,
                                                 ingredient=ingredient)
-            if None not in [obj.amount, obj.unit]:
-                for field in ['proteins', 'carbohydrates', 'fats', 'calories']:
-                    recipe_field_value = getattr(self, field)
-                    ingredient_field_value = getattr(ingredient, field)
-                    if ingredient_field_value is not None:
-                        grams = ingredient.get_unit_weight(obj.unit, obj.amount)
-                        # if obj.unit.name != 'gram':
-                        #     weight_in_grams = ingredient.get_unit_weight(obj.unit,
-                        #                                                  obj.amount)
-                        # else:
-                        #     weight_in_grams = obj.amount
-                        setattr(self, field, round((recipe_field_value +
-                                              (grams/100)*ingredient_field_value), 2))
+            unit = obj.unit
+            amount = obj.amount
+            if not all([unit, amount]):
+                continue
+            for field in nutritional_fields:
+                current_recipe_field_value = getattr(self, field)
+                ingredient_field_value = getattr(ingredient, field)
+                if ingredient_field_value is None:
+                    ingredient_field_value = 0
+                grams = ingredient.convert_unit_to_grams(unit, amount)
+                setattr(self, field, round((current_recipe_field_value
+                                            + (grams/100)*ingredient_field_value), 2))
+        kwargs = {'force_insert': False}
+        super().save(**kwargs, update_fields=['proteins', 'carbohydrates',
+                                                     'fats', 'calories'])
 
     def get_absolute_url(self):
         return reverse('recipe:recipe_detail', kwargs={'slug': self.slug})
 
-    def check_if_slug_exists(self, slug):
-        """ check if slug already exists in db """
-
-        return Recipe.objects.filter(user=self.user). \
-            filter(slug=slug).count()
-
     def delete(self, *args, **kwargs):
-        """ delete all photos belong to specific recipe """
-
+        """ delete all whole photo folder related to specific user and
+        recipe """
         path = str(settings.MEDIA_ROOT) + \
             "/recipes/" + self.user.name + "/" + self.slug
         if os.path.exists(path):
             shutil.rmtree(path)
-        else:
-            print(f"No such filepath {path}")
         super().delete(*args, **kwargs)
 
     def get_calories(self, number_of_portions):
         """ return calories based on portions """
-        if self.calories is None:
-            self.calories = 0
-        if number_of_portions == 0:
-            number_of_portions = 1
         return (self.calories/self.portions) * number_of_portions
 
-    def set_calories(self):
-        """ recalcualte calories based on ingredients """
-        self.calories = 0
-        for ingredient in self.ingredients.all():
-            obj = Recipe_Ingredient.objects.get(recipe=self, ingredient=ingredient)
-            if None not in [ingredient.calories, obj.amount, obj.unit]:
-                self.calories = ingredient.calculate_calories(unit=obj.unit,
-                                                              amount=obj.amount)
+    # def set_calories(self):
+    #     """ recalcualte calories based on ingredients """
+    #     self.calories = 0
+    #     for ingredient in self.ingredients.all():
+    #         obj = Recipe_Ingredient.objects.get(
+    #             recipe=self, ingredient=ingredient)
+    #         if None not in [ingredient.calories, obj.amount, obj.unit]:
+    #             self.calories = ingredient.calculate_calories(unit=obj.unit,
+    #                                                           amount=obj.amount)
+    #
+    #     self.save()
 
-        self.save()
+    def __init__(self, *args, **kwargs):
+        """ save curently used photos in list for latter comparsion """
+        super().__init__(*args, **kwargs)
+        self.orginal_photos = [self.photo1, self.photo2, self.photo3]
 
 
 class Ingredient(models.Model):
@@ -228,7 +221,7 @@ class Ingredient(models.Model):
 
         gram_unit_instance, crated = Unit.objects.get_or_create(name='gram')
         self.units.add(gram_unit_instance,
-                      through_defaults={'grams_in_one_unit': 100})
+                       through_defaults={'grams_in_one_unit': 100})
 
     @property
     def usage_counter(self):
@@ -262,7 +255,7 @@ class Ingredient(models.Model):
     def get_unit(self):
         return self.unit
 
-    def get_unit_weight(self, unit, amount):
+    def convert_unit_to_grams(self, unit, amount):
         """ return the unit and amount in grams/mililiters defined for
         ingredient """
 
@@ -277,7 +270,7 @@ class Ingredient(models.Model):
 
     def calculate_calories(self, unit, amount):
         """ calculate calories based on unit and amount """
-        return (self.get_unit_weight(unit, amount)/100) * \
+        return (self.convert_unit_to_grams(unit, amount)/100) * \
             self.get_default_calories()
 
 
@@ -293,7 +286,7 @@ class ReadyMeals(Ingredient):
         if not self.id:
             super().save(*args, **kwargs)
             tag, created = Tag.objects.get_or_create(name='Ready Meal',
-                                            defaults={"user": self.user})
+                                                     defaults={"user": self.user})
             self.tags.add(tag)
         else:
             super().save(*args, **kwargs)
@@ -340,20 +333,6 @@ class Recipe_Ingredient(models.Model):
         return self.recipe.name + '_' + self.ingredient.name
 
 
-@receiver(post_save, sender=Ingredient)
-@receiver(m2m_changed, sender=Recipe_Ingredient)
-def _count_calories_based_on_ingredients(sender, instance, action=None,
-                                         **kwargs):
-    """ sum up calories from all recipe ingredients """
-
-    if action in ['post_add', 'post_remove', 'post_clear']:
-        instance.set_calories()
-    elif sender == Ingredient:
-        recipes = Recipe.objects.filter(ingredients=instance.id)
-        for recipe in recipes:
-            recipe.set_calories()
-
-
 class Unit(models.Model):
 
     name = models.CharField(max_length=10)
@@ -373,4 +352,19 @@ class Ingredient_Unit(models.Model):
                                                          default=100)
 
     def __str__(self):
-        return self.ingredient.name + ' ' + self.unit.name + '(' + str(self.grams_in_one_unit) + ')'
+        return self.ingredient.name + ' ' + self.unit.name + \
+            '(' + str(self.grams_in_one_unit) + ')'
+
+
+@receiver(post_save, sender=Ingredient)
+@receiver(m2m_changed, sender=Recipe_Ingredient)
+def _count_calories_based_on_ingredients(sender, instance, action=None,
+                                         **kwargs):
+    """ sum up calories from all recipe ingredients """
+
+    if action in ['post_add', 'post_remove', 'post_clear']:
+        instance._recalculate_nutritions_values()
+    elif sender == Ingredient:
+        recipes = Recipe.objects.filter(ingredients=instance.id)
+        for recipe in recipes:
+            recipe._recalculate_nutritions_values()

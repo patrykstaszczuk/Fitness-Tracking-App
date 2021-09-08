@@ -24,7 +24,7 @@ def sample_tag(name, user):
     return models.Tag.objects.create(name=name, user=user)
 
 
-class PrivateRecipeApiTests(TestCase):
+class ModelTests(TestCase):
 
     def setUp(self):
         self.user = sample_user()
@@ -143,3 +143,9 @@ class PrivateRecipeApiTests(TestCase):
         tag = models.Tag.objects.get(name='ready meal')
 
         self.assertIn(tag.name, rmeal.tags.all().values()[0]['name'])
+
+    def test_robustness_of_delete_old_photos_method(self):
+        """ test if _delete_old_photos_methods raise any exceptions with
+        incorrect arguments """
+        recipe = models.Recipe.objects.create(user=self.user, name='test')
+        self.assertFalse(recipe._delete_old_photos([1, 2], [3, 4]))

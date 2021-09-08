@@ -14,16 +14,19 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='recipe',
             name='photo1',
-            field=models.ImageField(blank=True, null=True, upload_to=recipe.models.recipe_image_file_path, verbose_name='Zdjęcie 1'),
+            field=models.ImageField(
+                blank=True, null=True, upload_to=recipe.models.generate_image_file_path, verbose_name='Zdjęcie 1'),
         ),
         migrations.AlterField(
             model_name='recipe',
             name='photo2',
-            field=models.ImageField(blank=True, null=True, upload_to=recipe.models.recipe_image_file_path, verbose_name='Zdjęcie 2'),
+            field=models.ImageField(
+                blank=True, null=True, upload_to=recipe.models.generate_image_file_path, verbose_name='Zdjęcie 2'),
         ),
         migrations.AlterField(
             model_name='recipe',
             name='photo3',
-            field=models.ImageField(blank=True, null=True, upload_to=recipe.models.recipe_image_file_path, verbose_name='Zdjęcie 3'),
+            field=models.ImageField(
+                blank=True, null=True, upload_to=recipe.models.generate_image_file_path, verbose_name='Zdjęcie 3'),
         ),
     ]
