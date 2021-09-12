@@ -1,4 +1,6 @@
 .env
+.history/
+docs
 .env.db
 media/
 mysql/

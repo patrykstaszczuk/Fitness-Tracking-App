@@ -221,7 +221,7 @@ class GroupManager(models.Manager):
 class Group(models.Model):
     """ store group informations """
     name = models.CharField(max_length=100, blank=False)
-    founder = models.OneToOneField(get_user_model(), on_delete=models.CASCADE,
+    founder = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                                 unique=True, null=False, blank=False,
                                 related_name='own_group')
     members = models.ManyToManyField('MyUser', related_name='membership')

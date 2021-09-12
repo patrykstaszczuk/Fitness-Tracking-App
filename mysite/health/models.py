@@ -14,12 +14,10 @@ class HealthDiary(models.Model):
     slug = models.SlugField(blank=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL,
                              on_delete=models.PROTECT)
-    weight = models.FloatField(null=True, blank=True, default=None,
+    weight = models.FloatField(null=True, blank=True, default=0,
                                verbose_name='weigth')
     sleep_length = models.TimeField(null=True, blank=True)
-    rest_heart_rate = models.PositiveSmallIntegerField(null=True, blank=True,
-                                                       default=None,
-                                                       verbose_name='heart rate')
+    rest_heart_rate = models.PositiveSmallIntegerField(null=True, blank=True, default=0, verbose_name='heart rate')
     calories = models.PositiveIntegerField(blank=True, default=0,
                                            verbose_name='calories')
     burned_calories = models.PositiveSmallIntegerField(blank=True, default=0)

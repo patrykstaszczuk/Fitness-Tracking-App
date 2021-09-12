@@ -102,7 +102,6 @@ class PrivateHealthApiTests(TestCase):
 
         daily_data = models.HealthDiary.objects.create(
             user=self.user,
-            calories=1000,
             weight=70,
             sleep_length='07:14:00'
         )
@@ -156,7 +155,7 @@ class PrivateHealthApiTests(TestCase):
 
         res = self.client.get(USER_DAILY_HEALTH_DASHBOARD)
 
-        serializer = health_serializers.HealthDiarySerializer(diary)
+        serializer = health_serializers.HealthDiaryOutputSerializer(diary)
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
@@ -173,7 +172,7 @@ class PrivateHealthApiTests(TestCase):
                                format='json')
         daily_data = models.HealthDiary.objects.filter(user=self.user). \
             get(date=datetime.date.today())
-        serializer = health_serializers.HealthDiaryInputSerializer(daily_data)
+        serializer = health_serializers.HealthDiaryOutputSerializer(daily_data)
 
         self.assertEqual(res.data, serializer.data)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
@@ -193,8 +192,6 @@ class PrivateHealthApiTests(TestCase):
                                 format='json')
         diary.refresh_from_db()
         serializer = health_serializers.HealthDiaryOutputSerializer(diary)
-        print(res.json()['data'])
-        print(serializer.data)
         self.assertEqual(res.json()['data'], serializer.data)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
 
@@ -220,7 +217,7 @@ class PrivateHealthApiTests(TestCase):
             'date': '2020-03-30'
         }
 
-        res = self.client.post(USER_DAILY_HEALTH_DASHBOARD, payload,
+        res = self.client.patch(USER_DAILY_HEALTH_DASHBOARD, payload,
                                format='json')
         self.assertNotEqual(res.json()['data']['date'], payload['date'])
 
@@ -231,13 +228,13 @@ class PrivateHealthApiTests(TestCase):
 
         payload = {
             'weight': None,
-            'sleep_length': '7',
+            'sleep_length': '7:00:00',
             'daily_thoughts': ''
             }
-        res = self.client.put(USER_DAILY_HEALTH_DASHBOARD, payload,
+        res = self.client.patch(USER_DAILY_HEALTH_DASHBOARD, payload,
                               format='json')
         diary.refresh_from_db()
-        serializer = health_serializers.HealthDiarySerializer(diary)
+        serializer = health_serializers.HealthDiaryOutputSerializer(diary)
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
@@ -256,9 +253,7 @@ class PrivateHealthApiTests(TestCase):
                             date='2021-05-24', weight=73.2))
 
         res = self.client.get(USER_HEALTH_STATISTIC_RAPORT)
-        serializer = health_serializers.HealthRaportSerializer(diaries_list,
-                                                               many=True,
-                                                               context={'request': self.request})
+        serializer = health_serializers.HealthDiaryOutputSerializer(diaries_list,  many=True,)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
 
@@ -276,11 +271,8 @@ class PrivateHealthApiTests(TestCase):
 
         res = self.client.get(USER_HEALTH_STATISTIC_RAPORT)
 
-        u2_serializer = health_serializers.HealthRaportSerializer(user2_diary,
-                                                                  context={'request': self.request})
-        serializer = health_serializers.HealthRaportSerializer(diaries,
-                                                               many=True,
-                                                               context={'request': self.request})
+        u2_serializer = health_serializers.HealthDiaryOutputSerializer(user2_diary)
+        serializer = health_serializers.HealthDiaryOutputSerializer(diaries, many=True)
         self.assertNotIn(u2_serializer, res.data)
         self.assertEqual(res.data, serializer.data)
 
@@ -314,7 +306,7 @@ class PrivateHealthApiTests(TestCase):
                                                   date=datetime.date(2021, 5, 22), weight=65)
 
         res = self.client.get(user_healh_statistic_raport_detail(diary.slug))
-        serializer = health_serializers.HealthDiarySerializer(diary)
+        serializer = health_serializers.HealthDiaryOutputSerializer(diary)
 
         self.assertEqual(res.data, serializer.data)
 
@@ -329,7 +321,7 @@ class PrivateHealthApiTests(TestCase):
 
         res = self.client.get(user_healh_statistic_raport_detail(diary.slug))
 
-        serializer = health_serializers.HealthDiarySerializer(diary)
+        serializer = health_serializers.HealthDiaryOutputSerializer(diary)
         self.assertEqual(res.data, serializer.data)
 
     def test_delete_health_statistic_not_allowed(self):
@@ -351,12 +343,12 @@ class PrivateHealthApiTests(TestCase):
         payload = {
             'weight': '74',
             'rest_heart_rate': None,
-            'sleep_length': '5'
+            'sleep_length': '5:00'
         }
         res = self.client.put(user_healh_statistic_raport_detail(diary.slug),
                               payload, format='json')
         diary.refresh_from_db()
-        serializer = health_serializers.HealthDiarySerializer(diary)
+        serializer = health_serializers.HealthDiaryOutputSerializer(diary)
 
         self.assertEqual(res.data, serializer.data)
 
@@ -381,6 +373,7 @@ class PrivateHealthApiTests(TestCase):
             diary = models.HealthDiary.objects.create(
                 user=self.user,
                 weight=70+i,
+                sleep_length='7:30:00',
                 date=datetime.date.today() - datetime.timedelta(days=i)
             )
             avg_weight += diary.weight
@@ -404,13 +397,13 @@ class PrivateHealthApiTests(TestCase):
         self.assertEqual(len(res.data), 5)
 
     def test_retrieving_sleep_length_history(self):
-        """ test retrieving all sleep length entries """
+        """ test retrieving all sleep length ntries """
 
         for i in range(1, 6):
             models.HealthDiary.objects.create(
                 user=self.user,
                 date=f'2021-05-{i}',
-                sleep_length=7
+                sleep_length='7:00'
             )
 
         res = self.client.get(user_health_specific_stat_raport('sleep_length'),
@@ -426,7 +419,7 @@ class PrivateHealthApiTests(TestCase):
             models.HealthDiary.objects.create(
                 user=self.user,
                 date=f'2021-05-{i}',
-                sleep_length=7
+                sleep_length='7:00'
             )
 
         res = self.client.get(user_health_specific_stat_raport('user'))
@@ -447,7 +440,7 @@ class PrivateHealthApiTests(TestCase):
             models.HealthDiary.objects.create(
                 user=self.user,
                 date=f'2021-05-{i}',
-                sleep_length=7
+                sleep_length='7:00'
             )
 
         res = self.client.get(user_health_specific_stat_raport('nonexisting'))
@@ -478,8 +471,8 @@ class PrivateHealthApiTests(TestCase):
         res = self.client.get(USER_DAILY_HEALTH_DASHBOARD)
         self.assertIn(url, res.json()['_links']['connect-strava'], url)
 
-    @patch('users.models.StravaApi.get_strava_activities')
-    @patch('users.models.StravaApi._process_request')
+    @patch('users.selectors.get_activities_from_strava')
+    @patch('users.selectors.process_request')
     def test_retrieve_burned_calories_and_calories_delta(self, mock, mock2):
         """ test retreving calories burned, eaten and delta """
 

@@ -1,14 +1,13 @@
-from users.selectors import get_strava_last_request_epoc_time, get_activities_from_strava, prepare_strava_request_url, prepare_authorization_header, process_request, get_activity_properties
+from users import selectors
 import datetime
 import time
 from mysite import settings
 from django.contrib.auth import get_user_model
 from users.models import StravaActivity, StravaApi
-from users.selectors import get_environ_variables, process_request
 
 def authorize_to_strava(user: get_user_model, strava_code: str) -> bool:
     try:
-        client_id, client_secret = get_environ_variables()
+        client_id, client_secret = selectors.get_environ_variables()
     except KeyError:
         return False
     payload = {
@@ -19,7 +18,7 @@ def authorize_to_strava(user: get_user_model, strava_code: str) -> bool:
     }
     strava_obj = StravaApi.objects.get_or_create(user=user)[0]
     url = settings.STRAVA_AUTH_URL
-    res = process_request(strava_obj, url=url, payload=payload, type='POST')
+    res = selectors.process_request(strava_obj, url=url, payload=payload, type='POST')
     if res:
         important_auth_data = {'expires_at': None, 'refresh_token': None,
                                 'access_token': None}
@@ -36,8 +35,8 @@ def update_activities(user: get_user_model, date: datetime) -> None:
     now = time.time()
     hour = 3600
     raw_strava_activities = []
-    if now - get_strava_last_request_epoc_time(user=user) > hour:
-        raw_strava_activities = get_activities_from_strava(user=user, date=date)
+    if now - selectors.get_strava_last_request_epoc_time(user=user) > hour:
+        raw_strava_activities = selectors.get_activities_from_strava(user=user, date=date)
         process_and_save_strava_activities(user, raw_strava_activities)
     else:
         print('To many request try again soon')
@@ -51,11 +50,11 @@ def process_and_save_strava_activities(user: get_user_model, raw_strava_activiti
             strava_id = activity.get('id', None)
             if not strava_id:
                 continue
-            url = prepare_strava_request_url(id=strava_id)
-            header = prepare_authorization_header(strava_obj=user.strava)
-            strava_activity = process_request(user.strava, url, header, 'GET')
+            url = selectors.prepare_strava_request_url(id=strava_id)
+            header = selectors.prepare_authorization_header(strava_obj=user.strava)
+            strava_activity = selectors.process_request(user.strava, url, header, 'GET')
             if strava_activity:
-                defaults = get_activity_properties(strava_activity)
+                defaults = selectors.get_activity_properties(strava_activity)
                 obj, created = StravaActivity.objects.update_or_create(
                     strava_id=strava_id, user=user, **defaults)
                 activity_objects.append(obj)

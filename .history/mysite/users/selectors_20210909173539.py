@@ -1,1 +1,0 @@
-def get_activities(user: get_user_model, date:)

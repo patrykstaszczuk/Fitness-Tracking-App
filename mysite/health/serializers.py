@@ -8,9 +8,10 @@ from users.models import StravaActivity
 from users import selectors as users_selectors
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from users.serializers import DynamicFieldsModelSerializer
 
 
-class HealthDiaryOutputSerializer(serializers.ModelSerializer):
+class HealthDiaryOutputSerializer(DynamicFieldsModelSerializer):
     """ serializer for retreiving HealthDiary objects"""
 
     activities = serializers.SerializerMethodField()
@@ -44,7 +45,18 @@ class HealthDiaryInputSerializer(serializers.Serializer):
     weight = serializers.FloatField(min_value=20, max_value=300, required=False)
     sleep_length = serializers.TimeField(required=False)
     rest_hearth_rate = serializers.IntegerField(min_value=0, max_value=230, required=False)
-    daily_thoughts = serializers.CharField(max_length=2000, required=False)
+    daily_thoughts = serializers.CharField(max_length=2000, required=False, allow_blank=True)
+
+    def is_valid(self, raise_exception=False):
+        """ pop weight from initial_data if None """
+        try:
+            if self.initial_data['weight'] == None:
+                self.initial_data.pop('weight')
+        except KeyError:
+            pass
+        return super().is_valid(raise_exception)
+
+
 
 class HealthDiarySerializer(serializers.ModelSerializer):
     """ serializer for health diary """

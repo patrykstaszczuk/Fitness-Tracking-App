@@ -6,6 +6,8 @@ import os
 import requests
 from mysite import settings
 from users.models import StravaActivity, StravaApi
+from users import services
+from django.db import models
 
 def get_activity_properties(activity: dict) -> dict:
     """ return only that properties which are needed """
@@ -27,7 +29,6 @@ def get_activities(user: get_user_model, date: datetime) -> Iterable[StravaActiv
     """ return strava activities for given date """
     return StravaActivity.objects.filter(user=user, date__date=datetime.date(date.year, date.month, date.day))
 
-
 def get_strava_last_request_epoc_time(user: get_user_model) -> int:
     """ return last request time in epoc format """
     return user.strava.last_request_epoc_time
@@ -48,7 +49,6 @@ def get_activities_from_strava(user: get_user_model, date: datetime) -> dict:
         access_token = user.strava.access_token
         header = prepare_authorization_header(strava_obj)
         return process_request(strava_obj, url, header, 'GET')
-    print('Request to strava cannot be send due to lack of information needed or invalid token')
     return None
 
 def can_request_be_send(strava_obj: StravaApi) -> bool:
@@ -77,7 +77,6 @@ def get_new_strava_access_token(strava_obj: StravaApi) -> bool:
         'grant_type': 'refresh_token'
     }
     res = process_request(strava_obj, settings.STRAVA_AUTH_URL, payload, 'POST')
-
     if res:
         try:
             strava_obj.access_token = res['access_token']
@@ -103,7 +102,6 @@ def process_request(strava_obj: StravaApi, url: str, payload: dict, type: str) -
         response = send_get_request_to_strava(url, payload)
     else:
         response = send_post_request_to_strava(url, payload=payload)
-
     if response:
         if response.status_code == 200:
             return response.json()
@@ -117,7 +115,9 @@ def send_get_request_to_strava(url: str, payload: dict) -> requests:
     return requests.get(url, headers=payload)
 
 def send_post_request_to_strava(url: str, payload: dict) -> requests:
-    pass
+    """ send request to strava based on parameters """
+    print("Request has been sent")
+    return requests.post(url, payload)
 
 def prepare_strava_request_url(id: int, params: list = None) -> str:
     """ prepare strava url for request """
@@ -142,3 +142,4 @@ def is_auth_to_strava(user: get_user_model) -> bool:
     except StravaApi.DoesNotExist:
         StravaApi.objects.create(user=user)
     return False
+

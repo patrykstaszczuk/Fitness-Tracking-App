@@ -1,11 +1,10 @@
-
-from rest_framework import viewsets, mixins, status, authentication, permissions
+from rest_framework import viewsets, mixins, status, authentication, permissions, generics
 from rest_framework.decorators import action, api_view, \
     authentication_classes, permission_classes
 
 from rest_framework.response import Response
 from health import serializers, models
-from health.selectors import get_fields_usable_for_calculations
+from health import selectors
 import datetime
 from mysite.renderers import CustomRenderer
 from rest_framework.views import APIView
@@ -68,8 +67,7 @@ class HealthDiary(RequiredFieldsResponseMessage):
         """ return heatlth data for today """
         now = datetime.date.today()
         users_services.update_activities(user=request.user, date=now)
-
-        health_diary_instance = selectors.get_health_diaries(user=request.user, date=now)
+        health_diary_instance = selectors.get_health_diary(user=request.user)
         serializer = serializers.HealthDiaryOutputSerializer(health_diary_instance, many=False)
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
@@ -78,7 +76,7 @@ class HealthDiary(RequiredFieldsResponseMessage):
         serializer = serializers.HealthDiaryInputSerializer(data=request.data)
         if serializer.is_valid():
             today = datetime.date.today()
-            instance = selectors.get_health_diaries(user=request.user, date=today)
+            instance = selectors.get_health_diary(user=request.user, date=today)
             services.update_health_diary(instance=instance, data=serializer.data)
             serializer = serializers.HealthDiaryOutputSerializer(instance)
             return Response(data=serializer.data, status=status.HTTP_200_OK)
@@ -177,68 +175,51 @@ class HealthDiary(RequiredFieldsResponseMessage):
 #         serializer = self.get_serializer(instance)
 #         return Response(serializer.data)
 
+class HealthRaport(RequiredFieldsResponseMessage, viewsets.GenericViewSet, mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.UpdateModelMixin):
+    """ View for managing user health statistics history """
 
-class HealthRaport(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
-                   mixins.RetrieveModelMixin, mixins.UpdateModelMixin,
-                   mixins.ListModelMixin):
-    """ viewset for managing user health statistic history
-    URL mapping: /fitness/daily
-                 /fitness/raports
-                 /fitness/raports/2021-05-08 e.g ...
-                 /fitness/raports/weight e.g
-
-    """
     authentication_classes = (authentication.TokenAuthentication, )
     permission_classes = (permissions.IsAuthenticated, )
     renderer_classes = [CustomRenderer, ]
-    serializer_class = serializers.HealthRaportSerializer
-    queryset = models.HealthDiary.objects.all()
+    serializer_class = serializers.HealthDiaryOutputSerializer
     lookup_field = 'slug'
 
-    def perform_update(self, serializer):
-        """ set instance user to requested user """
-        serializer.save(user=self.request.user)
-
-    def get_serializer_class(self):
-        """ return appropriate serializer according to action """
-        if self.action in ['retrieve', 'update']:
-            return serializers.HealthDiarySerializer
-        return self.serializer_class
-
     def get_queryset(self):
-        """ filter queryset to requsted user only """
+        """ filter queryset to requsted user only and exclude today when listing instances """
         today = datetime.date.today()
         if self.action == 'list':
-            return self.queryset.filter(user=self.request.user).exclude(date=today)
-        return self.queryset.filter(user=self.request.user)
+            return selectors.get_health_diaries(user=self.request.user).exclude(date=today)
+        return selectors.get_health_diaries(user=self.request.user)
 
-    def retrieve(self, *args, **kwargs):
-        """ return appropriate data based on provided slug """
-
+    def retrieve(self, request, *args, **kwargs):
+        """ check whether field name or date was provided as slug and return appropriate data """
         slug = kwargs.get('slug')
         if not re.search("....-..-..", slug):
-            try:
-                field = self._map_slug_to_model_field(slug)
-            except ValidationError as e:
-                return Response(data={'slug': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-            instance = self.queryset.filter(user=self.request.user).\
-                values(field)
-            serializer = serializers.HealthStatisticHistorySerializer(
-                instance,
-                many=True,
-                fields=(field, ),
-                context={'request': self.request}
-                )
-            code = status.HTTP_200_OK
-            if not serializer.data:
-                code = status.HTTP_204_NO_CONTENT
-            return Response(data=serializer.data, status=code)
-        return super().retrieve(self, *args, **kwargs)
+            field = selectors.map_slug_to_health_diary_field(slug)
+            if not field:
+                return Response(data={f'{field} field not allowed as slug'}, status=status.HTTP_400_BAD_REQUEST)
+            all_field_values = selectors.get_all_values_for_given_field(request.user, field)
+            serializer = serializers.HealthDiaryOutputSerializer(all_field_values, many=True, fields=(field, ))
+            if serializer.data:
+                return Response(data=serializer.data, status=status.HTTP_200_OK)
+            return Response(data=serializer.data, status=status.HTTP_204_NO_CONTENT)
+        return super().retrieve(request, *args, **kwargs)
+
+    def update(self, request, *arsg, **kwargs):
+        """ update instance """
+
+        instance = self.get_object()
+        serializer = serializers.HealthDiaryInputSerializer(data=request.data)
+        if serializer.is_valid():
+            services.update_health_diary(instance, data=serializer.data)
+            serializer = serializers.HealthDiaryOutputSerializer(instance)
+            return Response(data=serializer.data, status=status.HTTP_200_OK)
+        return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def get_renderer_context(self):
         """ add links to response """
         context = super().get_renderer_context()
-        approved_fields = get_health_model_usable_fields()
+        approved_fields = selectors.get_fields_usable_for_calculations()
         links = {}
         for field in approved_fields:
             links.update({f'{field.name}-history':
@@ -248,14 +229,85 @@ class HealthRaport(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
         context['required'] = self._serializer_required_fields
         return context
 
-    def _map_slug_to_model_field(self, field_name):
-        """ map verbose name of field to model field name """
-        approved_fields = get_health_model_usable_fields()
-        for field in approved_fields:
-            if field_name in [field.name, field.verbose_name]:
-                return field.name
-        raise ValidationError(
-            "No such field in model approved fields for history viewing")
+
+# class HealthRaport(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
+#                    mixins.RetrieveModelMixin, mixins.UpdateModelMixin,
+#                    mixins.ListModelMixin):
+#     """ viewset for managing user health statistic history
+#     URL mapping: /fitness/daily
+#                  /fitness/raports
+#                  /fitness/raports/2021-05-08 e.g ...
+#                  /fitness/raports/weight e.g
+
+#     """
+#     authentication_classes = (authentication.TokenAuthentication, )
+#     permission_classes = (permissions.IsAuthenticated, )
+#     renderer_classes = [CustomRenderer, ]
+#     serializer_class = serializers.HealthRaportSerializer
+#     queryset = models.HealthDiary.objects.all()
+#     lookup_field = 'slug'
+
+#     def perform_update(self, serializer):
+#         """ set instance user to requested user """
+#         serializer.save(user=self.request.user)
+
+#     def get_serializer_class(self):
+#         """ return appropriate serializer according to action """
+#         if self.action in ['retrieve', 'update']:
+#             return serializers.HealthDiarySerializer
+#         return self.serializer_class
+
+#     def get_queryset(self):
+#         """ filter queryset to requsted user only """
+#         today = datetime.date.today()
+#         if self.action == 'list':
+#             return self.queryset.filter(user=self.request.user).exclude(date=today)
+#         return self.queryset.filter(user=self.request.user)
+
+#     def retrieve(self, *args, **kwargs):
+#         """ return appropriate data based on provided slug """
+
+#         slug = kwargs.get('slug')
+#         if not re.search("....-..-..", slug):
+#             try:
+#                 field = self._map_slug_to_model_field(slug)
+#             except ValidationError as e:
+#                 return Response(data={'slug': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+#             instance = self.queryset.filter(user=self.request.user).\
+#                 values(field)
+#             serializer = serializers.HealthStatisticHistorySerializer(
+#                 instance,
+#                 many=True,
+#                 fields=(field, ),
+#                 context={'request': self.request}
+#                 )
+#             code = status.HTTP_200_OK
+#             if not serializer.data:
+#                 code = status.HTTP_204_NO_CONTENT
+#             return Response(data=serializer.data, status=code)
+#         return super().retrieve(self, *args, **kwargs)
+
+#     def get_renderer_context(self):
+#         """ add links to response """
+#         context = super().get_renderer_context()
+#         approved_fields = get_health_model_usable_fields()
+#         links = {}
+#         for field in approved_fields:
+#             links.update({f'{field.name}-history':
+#                           reverse('health:health-detail',
+#                                   kwargs={'slug': field.name}, request=self.request)})
+#         context['links'] = links
+#         context['required'] = self._serializer_required_fields
+#         return context
+
+#     def _map_slug_to_model_field(self, field_name):
+#         """ map verbose name of field to model field name """
+#         approved_fields = get_health_model_usable_fields()
+#         for field in approved_fields:
+#             if field_name in [field.name, field.verbose_name]:
+#                 return field.name
+#         raise ValidationError(
+#             "No such field in model approved fields for history viewing")
 
 
 class HealthWeeklySummary(APIView):
@@ -266,7 +318,7 @@ class HealthWeeklySummary(APIView):
 
     def get(self, request, *args, **kwargs):
         """ retrieve weekly summary """
-        weekly_summary = request.user.get_weekly_avg_stats()
+        weekly_summary = selectors.get_weekly_avg_stats(user=request.user)
         if weekly_summary == {}:
             return Response(status=status.HTTP_204_NO_CONTENT)
         return Response(data=weekly_summary,
