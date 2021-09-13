@@ -224,7 +224,6 @@ class PrivateUserApiTests(TestCase):
             'height': self.user.height,
             'weight': self.user.weight,
             'gender': self.user.gender,
-            'groups': []
         })
 
     def test_post_not_allowed(self):

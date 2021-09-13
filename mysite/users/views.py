@@ -15,12 +15,12 @@ from mysite.views import RequiredFieldsResponseMessage, get_serializer_required_
 class CreateUserView(RequiredFieldsResponseMessage, APIView):
     """ create a new user in the system """
     renderer_classes = [CustomRenderer, ]
+    serializer_class = serializers.UserInputSerializer
 
     def get(self, request, *args, **kwargs):
         """ redirect user when is already authenticated """
         if self.request.user.is_authenticated:
             return self._redirect_to_profile_page()
-        self.get_serializer() # method need to be here since it trigger custom response format
         return Response(data=None, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
@@ -66,11 +66,12 @@ class ManageUserView(RequiredFieldsResponseMessage, APIView):
     """ manage the authenticated user profile page """
     authentication_classes = (authentication.TokenAuthentication, )
     permission_classes = (permissions.IsAuthenticated, )
+    serializer_class = serializers.UserInputSerializer
     renderer_classes = [CustomRenderer, ]
 
     def get(self, request, *args, **kwargs):
         """ retrieve user profile """
-        serializer = serializers.UserOutputSerializer(request.user)
+        serializer = serializers.UserOutputSerializer(instance=request.user)
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):
@@ -98,7 +99,9 @@ class ManageUserView(RequiredFieldsResponseMessage, APIView):
             'groups': reverse('users:group-list', request=self.request)
         }
         context['links'] = links
-        context['required'] = self._serializer_required_fields
+        context['writable'].pop(-1) # pop password and passsowrd2
+        context['writable'].pop(-2)
+        #context['required'] = self._serializer_required_fields
         return context
 
 
@@ -116,7 +119,6 @@ class ChangeUserPasswordView(RequiredFieldsResponseMessage):
         kwargs = {}
         kwargs['fields'] = fields
         serializer = serializers.UserInputSerializer(data=request.data, context=kwargs)
-
         if serializer.is_valid():
             services.change_password(user=request.user, data=serializer.data)
             return Response(status=status.HTTP_200_OK)

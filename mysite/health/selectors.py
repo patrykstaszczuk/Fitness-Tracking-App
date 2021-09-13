@@ -4,6 +4,7 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from health import services
 import datetime
+import time
 
 def get_health_diary(user: get_user_model, date: datetime=datetime.date.today()) -> HealthDiary:
     """ return today'shealth diary instance for given user """
@@ -20,22 +21,10 @@ def get_all_values_for_given_field(user: get_user_model, field_name: str) -> Hea
     """ return all values for given field name and user """
     return HealthDiary.objects.filter(user=user).values(field_name)
 
-
-def get_fields_usable_for_calculations() -> models:
-    """ get field which can be use for calculations """
-    usable_fields = []
-    all_fields = HealthDiary._meta.get_fields()
-    approved_field_types = (models.FloatField, models.PositiveIntegerField,
-                            models.SmallIntegerField, models.PositiveSmallIntegerField, models.TimeField)
-    for field in all_fields:
-        if isinstance(field, approved_field_types):
-            usable_fields.append(field)
-    return usable_fields
-
 def map_slug_to_health_diary_field(slug: str) -> str:
     """ map verbose name of field to model field name and return it """
 
-    approved_fields = get_fields_usable_for_calculations()
+    approved_fields = get_fields_allowed_for_calculations()
     for field in approved_fields:
         if slug in [field.name, field.verbose_name]: return field.name
     return None
@@ -75,10 +64,13 @@ def sum_up_fields_values(field: str, instances: HealthDiary )-> dict:
     return total_value, counter
 
 
-def convert_time_to_seconds(time: datetime) -> int:
+def convert_time_to_seconds(formated_time: datetime) -> int:
     """ convert time value to int """
-    return time.hour * 3600 + time.minute * 60 + time.second
+    return formated_time.hour * 3600 + formated_time.minute * 60 + formated_time.second
 
+def convert_seconds_to_time(seconds: int) -> datetime:
+    """ convert second to time """
+    return time.strftime('%H:%M:%S', time.gmtime(seconds))
 
 def calculate_avarage_value(total_value: dict, counter: dict) -> dict:
     """ calculate avarage based on sum up value and counter """
@@ -86,15 +78,18 @@ def calculate_avarage_value(total_value: dict, counter: dict) -> dict:
         if counter[field] == 0:
             continue
         total_value.update({field: value/counter[field]})
+
+    if 'sleep_length' in total_value and total_value['sleep_length'] != 0:
+        total_value['sleep_length'] = convert_seconds_to_time(total_value['sleep_length'])
     return total_value
 
 def get_fields_allowed_for_calculations() -> list[models]:
-        """ return only that fields which are allwod for calculations  """
-        allowed_fields_types = (models.FloatField, models.PositiveIntegerField, models.SmallIntegerField, models.PositiveSmallIntegerField, models.TimeField)
-        ommited_fields = ['last_update']
-        all_fields = HealthDiary._meta.get_fields()
-        allowed_fields = []
-        for field in all_fields:
-            if isinstance(field, allowed_fields_types) and field.name not in ommited_fields:
-                allowed_fields.append(field)
-        return allowed_fields
+    """ return only that fields which are allwod for calculations  """
+    allowed_fields_types = (models.FloatField, models.PositiveIntegerField, models.SmallIntegerField, models.PositiveSmallIntegerField, models.TimeField)
+    ommited_fields = ['last_update']
+    all_fields = HealthDiary._meta.get_fields()
+    allowed_fields = []
+    for field in all_fields:
+        if isinstance(field, allowed_fields_types) and field.name not in ommited_fields:
+            allowed_fields.append(field)
+    return allowed_fields

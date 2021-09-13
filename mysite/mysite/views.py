@@ -1,3 +1,4 @@
+from typing import Type
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
@@ -24,12 +25,10 @@ def api_root(request, format=None):
 
 def get_serializer_required_fields(serializer):
     """ return fields names which are required """
-    required_fields = []
     writable_fields = []
+    required_fields = []
     for f, v in serializer.get_fields().items():
         field_type = str(type(v))[23:-2]
-        if getattr(v, 'required', True):
-            required_fields.append(f)
         if not getattr(v, 'read_only'):
             writable_fields.append({"name": f, "type": field_type})
     return required_fields, writable_fields
@@ -38,16 +37,22 @@ def get_serializer_required_fields(serializer):
 class RequiredFieldsResponseMessage(ApiErrorsMixin, generics.GenericAPIView):
     """ create custom init for descendants """
 
-    def get_serializer(self, *args, **kwargs):
-        """ set serializers required fields private variable """
+    # def get_serializer(self, *args, **kwargs):
+    #     """ set serializers required fields private variable """
 
-        serializer_instance = super().get_serializer()
-        self._serializer_required_fields = get_serializer_required_fields(serializer_instance)
-        return super().get_serializer(*args, **kwargs)
+    #     serializer_instance = super().get_serializer()
+    #     self._serializer_required_fields = get_serializer_required_fields(serializer_instance)
+    #     return super().get_serializer(*args, **kwargs)
 
     def get_renderer_context(self):
         """ add links to response """
         context = super().get_renderer_context()
+        try:
+            self._serializer_required_fields = get_serializer_required_fields(self.serializer_class())
+        except TypeError:
+            print('No serializer_class defined in viewset')
+            return context
+
         if self._serializer_required_fields:
             context['required'] = self._serializer_required_fields[0]
             context['writable'] = self._serializer_required_fields[1]

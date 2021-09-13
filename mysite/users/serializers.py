@@ -23,7 +23,8 @@ class UserOutputSerializer(serializers.ModelSerializer):
     class Meta:
         model = get_user_model()
         fields = ('id', 'email', 'name', 'gender', 'age',
-        'height', 'weight', 'groups')
+        'height', 'weight')
+
 
 class UserInputSerializer(DynamicFieldsModelSerializer):
     """ serializer for User model and input data """
@@ -34,12 +35,12 @@ class UserInputSerializer(DynamicFieldsModelSerializer):
         )
     email = serializers.EmailField(required=False)
     name = serializers.CharField(required=False)
-    password = serializers.CharField(required=False)
-    password2 = serializers.CharField(write_only=True, required=False)
     age = serializers.IntegerField(required=False)
     height = serializers.IntegerField(required=False)
     weight = serializers.IntegerField(required=False)
     gender = serializers.ChoiceField(choices, required=False)
+    password = serializers.CharField(required=False)
+    password2 = serializers.CharField(write_only=True, required=False)
 
     def is_valid(self, raise_exception=False):
         """ pop password2 """

@@ -288,8 +288,7 @@ class PrivateHealthApiTests(TestCase):
         today = models.HealthDiary.objects.create(user=self.user)
         res = self.client.get(USER_HEALTH_STATISTIC_RAPORT)
 
-        serializer = health_serializers.HealthRaportSerializer(today,
-                                        context={'request': self.request})
+        serializer = health_serializers.HealthDiaryOutputSerializer(today)
         self.assertNotIn(serializer.data, res.data)
 
     def test_post_not_allowed_on_health_history_site(self):
@@ -321,7 +320,6 @@ class PrivateHealthApiTests(TestCase):
                                                   date='2021-05-30')
 
         res = self.client.get(user_healh_statistic_raport_detail(diary.slug))
-
         serializer = health_serializers.HealthDiaryOutputSerializer(diary)
         self.assertEqual(res.data, serializer.data)
 

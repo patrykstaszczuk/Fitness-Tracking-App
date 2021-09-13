@@ -13,7 +13,7 @@ class CustomRenderer(JSONRenderer):
         links = []
         if user.is_authenticated:
             links = renderer_context.get('links')
-        required = renderer_context.get('required')
+        #required = renderer_context.get('required')
 
         writable = renderer_context.get('writable')
         status_code = renderer_context['response'].status_code
@@ -22,8 +22,8 @@ class CustomRenderer(JSONRenderer):
           "code": status_code,
           "data": data,
           "message": None,
-          "writable": writable,
-          "required": required,
+          #"writable": writable,
+          #"required": required,
           "_links": links
         }
 
