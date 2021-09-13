@@ -8,6 +8,7 @@ from rest_framework.test import APIClient, APIRequestFactory
 
 from users import serializers as user_serializers
 from users import models as user_models
+from users import selectors as user_selectors
 from health import serializers as health_serializers
 from health.models import HealthDiary
 from recipe.models import Recipe, Ingredient, Unit
@@ -83,7 +84,7 @@ class PrivateHealthApiTests(TestCase):
 
         url = reverse('users:profile')
         res = self.client.get(url)
-        serializer = user_serializers.UserSerializer(self.user)
+        serializer = user_serializers.UserOutputSerializer(self.user)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
 
@@ -93,7 +94,7 @@ class PrivateHealthApiTests(TestCase):
         url = reverse('health:bmi')
 
         res = self.client.get(url)
-        bmi = self.user.get_bmi()
+        bmi = user_selectors.get_bmi(user=self.user)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data['bmi'], bmi)
 
@@ -219,7 +220,7 @@ class PrivateHealthApiTests(TestCase):
 
         res = self.client.patch(USER_DAILY_HEALTH_DASHBOARD, payload,
                                format='json')
-        self.assertNotEqual(res.json()['data']['date'], payload['date'])
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_updating_user_weight_with_null(self):
         """ test setting weight to blank value """

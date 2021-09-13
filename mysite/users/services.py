@@ -3,6 +3,7 @@ import datetime
 import time
 from mysite import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from users.models import StravaActivity, StravaApi
 
 def create_user(data: dict) -> get_user_model:
@@ -27,8 +28,42 @@ def send_group_invitation(user: get_user_model, data: dict[int]) -> bool:
     """ set pending membership for users IDs in data """
     for user_id in data['pending_membership']:
         invited_user = selectors.get_user(user_id['id'])
+        if invited_user == user:
+            raise ValidationError('You cannot invite yourself')
         invited_user.pending_membership.add(user.own_group.id)
 
+def manage_group_invitation(user: get_user_model, data: dict) -> bool:
+    """ manage group invitation based of data """
+
+    if data['action'] == 1:
+        accept_group_invitation(user, data['pending_membership'])
+    else:
+        deny_group_invitation(user, data['pending_membership'])
+
+def accept_group_invitation(user: get_user_model, groups_ids: list[int]) -> bool:
+    """ add group_id to user membership and remove from pending membership """
+
+    for group_id in groups_ids:
+        user.membership.add(group_id['id'])
+        user.pending_membership.remove(group_id['id'])
+
+def deny_group_invitation(user: get_user_model, groups_ids: list[int]) -> bool:
+    """ remove group id from user pending membership """
+    for group_id in groups_ids:
+        user.pending_membership.remove(group_id['id'])
+
+def leave_group(user: get_user_model, group_id: int) -> bool:
+    """ remove group from user membership """
+    if not isinstance(group_id.get('id'), int):
+        raise ValidationError('group_id must be a number!')
+    if user.own_group.id == group_id['id']:
+        raise ValidationError('You cannot leave own group!')
+
+    user_membership = list(selectors.get_membership(user=user).values('id'))
+    if group_id not in user_membership:
+        raise ValidationError('Group not found in your membership')
+    else:
+        user.membership.remove(group_id['id'])
 
 def authorize_to_strava(user: get_user_model, strava_code: str) -> bool:
     try:

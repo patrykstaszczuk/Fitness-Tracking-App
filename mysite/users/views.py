@@ -7,6 +7,7 @@ from rest_framework.reverse import reverse
 from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
 from users import services, selectors
+from mysite.exceptions import ApiErrorsMixin
 from mysite.renderers import CustomRenderer
 from mysite.views import RequiredFieldsResponseMessage, get_serializer_required_fields
 
@@ -122,7 +123,7 @@ class ChangeUserPasswordView(RequiredFieldsResponseMessage):
         return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class GroupViewSet(RequiredFieldsResponseMessage, viewsets.GenericViewSet, mixins.ListModelMixin):
+class GroupViewSet(RequiredFieldsResponseMessage, ApiErrorsMixin, viewsets.GenericViewSet, mixins.ListModelMixin):
     """ Manage Group in database """
     serializer_class = serializers.GroupInputSerializer
     renderer_classes = [CustomRenderer, ]
@@ -138,27 +139,6 @@ class GroupViewSet(RequiredFieldsResponseMessage, viewsets.GenericViewSet, mixin
             serializer = serializers.GroupOutputSerializer(user_groups, many=True)
             return Response(data=serializer.data, status=status.HTTP_200_OK)
         return Response(status=status.HTTP_204_NO_CONTENT)
-
-    # def get_serializer_class(self):
-    #     """ get specific serializer based on action """
-    #     if self.action == 'send_invitation':
-    #         return serializers.SendInvitationSerializer
-    #     elif self.action == 'manage_invitation':
-    #         return serializers.ManageInvitationSerializer
-    #     return self.serializer_class
-
-    # def get_object(self):
-    #     """ get group for requested user. Group is automatically created
-    #     when user is created """
-    #     return get_object_or_404(self.queryset, founder=self.request.user)
-
-    # def list(self, request, *args, **kwargs):
-    #     """ return all user's groups or return HTTP 204"""
-    #     user_groups = self.request.user.membership.all()
-    #     if user_groups.exists():
-    #         serializer = self.get_serializer(user_groups, many=True)
-    #         return Response(serializer.data, status=status.HTTP_200_OK)
-    #     return Response(status=status.HTTP_204_NO_CONTENT)
 
     def get_renderer_context(self):
         """ return rendered context and add extra informations to response """
@@ -197,8 +177,6 @@ class GroupViewSet(RequiredFieldsResponseMessage, viewsets.GenericViewSet, mixin
         if not request.data:
             serializer = serializers.GroupOutputSerializer()
             return Response(status=status.HTTP_200_OK)
-
-        group = selectors.get_user_group(user=request.user)
         serializer = serializers.GroupInputSerializer(data=request.data)
         if serializer.is_valid():
             services.send_group_invitation(user=request.user, data=serializer.data)
@@ -211,14 +189,14 @@ class GroupViewSet(RequiredFieldsResponseMessage, viewsets.GenericViewSet, mixin
         """ show invitation or accept pending memberships """
 
         if not request.data:
-            serializer = self.get_serializer(instance=request.user)
+            pending_membership = selectors.get_pending_membership(user=request.user)
+            serializer = serializers.GroupOutputSerializer(pending_membership, many=True)
             return Response(data=serializer.data, status=status.HTTP_200_OK)
 
-        serializer = self.get_serializer(instance=request.user,
-                                         data=request.data)
+        serializer = serializers.GroupInputSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response(data=serializer.data, status=status.HTTP_200_OK)
+            services.manage_group_invitation(user=request.user, data=serializer.data)
+            return Response(status=status.HTTP_200_OK)
         return Response(data=serializer.errors,
                         status=status.HTTP_400_BAD_REQUEST)
 
@@ -226,18 +204,10 @@ class GroupViewSet(RequiredFieldsResponseMessage, viewsets.GenericViewSet, mixin
     def leave_group(self, request):
         """ leave group """
 
-        if request.method == 'POST' and request.data:
-            serializer = serializers.LeaveGroupSerializer(instance=request.user,
-                                                          data=request.data,
-                                                          context={'user': request.user})
-            if serializer.is_valid():
-                serializer.save()
-                headers = {'Location': reverse('users:group-list',
-                                               request=request)}
-                return Response(data=serializer.data, status=status.HTTP_200_OK,
-                                headers=headers)
-            return Response(data=serializer.errors,
-                            status=status.HTTP_400_BAD_REQUEST)
-        serializer = serializers.LeaveGroupSerializer(instance=request.user,
-                                                      context={'user': request.user})
-        return Response(data=serializer.data, status=status.HTTP_200_OK)
+        if not request.data:
+            membership = selectors.get_membership(user=request.user)
+            serializer = serializers.GroupOutputSerializer(membership, many=True)
+            return Response(data=serializer.data, status=status.HTTP_200_OK)
+        else:
+            services.leave_group(user=request.user, group_id=request.data)
+            return Response(status=status.HTTP_200_OK)

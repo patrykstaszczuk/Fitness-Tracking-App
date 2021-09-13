@@ -5,8 +5,7 @@ from django.urls import reverse
 from rest_framework.test import APIClient
 from rest_framework import status
 import time
-from users import serializers
-from users import models
+from users import serializers, selectors, models
 from unittest.mock import patch, MagicMock
 
 
@@ -268,7 +267,6 @@ class PrivateUserApiTests(TestCase):
             'gender': 'Female'
         }
         res = self.client.patch(ME_URL, payload)
-        print(res.data)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(self.user.name, payload['name'])
 
@@ -323,7 +321,7 @@ class PrivateUserApiTests(TestCase):
         """ test retrieving group created by user """
 
         user_groups = self.user.membership.all()
-        serializer = serializers.GroupSerializer(user_groups, many=True)
+        serializer = serializers.GroupOutputSerializer(user_groups, many=True)
         res = self.client.get(GROUP_URL)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
@@ -338,7 +336,7 @@ class PrivateUserApiTests(TestCase):
 
         get_user_groups = self.user.membership.all()
 
-        serializer1 = serializers.GroupSerializer(get_user_groups, many=True)
+        serializer1 = serializers.GroupOutputSerializer(get_user_groups, many=True)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(serializer1.data, res.data)
         self.assertEqual(self.user.membership.all().count(), 2)
@@ -406,7 +404,6 @@ class PrivateUserApiTests(TestCase):
             'pending_membership': [{'id': self.user.id},],
         }
         res = self.client.post(send_invitation_url(), payload, format='json')
-        print(res.data)
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_sending_invitation_to_wrong_user_failed(self):
@@ -426,11 +423,11 @@ class PrivateUserApiTests(TestCase):
         group = models.Group.objects.get(founder=user2)
         self.user.pending_membership.add(group)
 
-        serializer = serializers.GroupSerializer(group)
+        serializer = serializers.GroupOutputSerializer(group)
         res = self.client.get(manage_invitation_url())
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(res.json()['data']['pending_membership'][0],
-                         serializer.data['id'])
+        self.assertEqual(res.json()['data'][0],
+                         serializer.data)
 
     def test_listing_joined_groups_in_leave_group_endpoint(self):
         """ test getting all joined groups """
@@ -441,7 +438,7 @@ class PrivateUserApiTests(TestCase):
 
         res = self.client.get(leave_group_url())
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(group.id, res.json()['data']['groups'][0]['id'])
+        self.assertEqual(group.id, res.json()['data'][1]['id'])
 
     def test_accept_group_invitation(self):
         """ test accepting group invitation send by other users """
@@ -449,9 +446,9 @@ class PrivateUserApiTests(TestCase):
         user2 = sample_user()
         group = models.Group.objects.get(founder=user2)
         self.user.pending_membership.add(group)
-        serializer = serializers.GroupSerializer(group)
+        serializer = serializers.GroupOutputSerializer(group)
         payload = {
-            'pending_membership': [group.id, ],
+            'pending_membership': [{'id': group.id}, ],
             'action': 1
         }
         res = self.client.post(manage_invitation_url(), payload,
@@ -473,12 +470,11 @@ class PrivateUserApiTests(TestCase):
         self.user.pending_membership.add(group)
 
         payload = {
-            'pending_membership': [group.id, ],
-            'action': 0,
+            'pending_membership': [{'id': group.id}, ],
+            'action': 0
         }
-        res = self.client.post(manage_invitation_url(), payload)
+        res = self.client.post(manage_invitation_url(), payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.user.refresh_from_db()
         self.assertFalse(self.user.pending_membership.all().exists())
 
     def test_leave_group(self):
@@ -525,8 +521,8 @@ class PrivateUserApiTests(TestCase):
     #     self.assertTrue(self.user.strava.refresh_token)
     #     self.assertTrue(self.user.strava.expires_at)
 
-    @patch('users.models.MyUser.authorize_to_strava')
-    @patch('users.models.StravaApi._has_needed_informations')
+    @patch('users.services.authorize_to_strava')
+    @patch('users.selectors.has_needed_information_for_request')
     def test_strava_already_associated_with_user(self, mock, mock_validation):
         """ test trying to associate user to strava account,
         when its already done """
@@ -548,7 +544,7 @@ class PrivateUserApiTests(TestCase):
         self.assertEqual(res.json()['data']['status'],
                          'No Strava code provided in url or other problem occured. Contact site administrator')
 
-    @patch('users.models.StravaApi._process_request')
+    @patch('users.selectors.process_request')
     def test_associate_user_with_strava(self, mock):
         """ test associating user with strava via provided code in url """
         data = {'expires_at': 123, 'refresh_token': 123,
@@ -561,10 +557,9 @@ class PrivateUserApiTests(TestCase):
         res = self.client.get(url, payload)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.json()['data']['status'], 'Ok')
-        self.assertTrue(self.user.strava._has_needed_informations())
 
-    @patch('users.models.StravaApi.get_last_request_epoc_time')
-    @patch('users.models.StravaApi._send_request_to_strava')
+    @patch('users.selectors.get_strava_last_request_epoc_time')
+    @patch('users.selectors.process_request')
     def test_authorize_to_strava_timeout(self, mock_auth, mock_time):
         """ test trying to authorize to strava multile times with wrong code
         implies timeout """
@@ -583,15 +578,15 @@ class PrivateUserApiTests(TestCase):
             self.assertEqual(res.json()['data']['status'],
                              'To many requests try again soon')
 
-    @patch('users.models.StravaApi.get_last_request_epoc_time')
-    @patch('users.models.StravaApi._process_request')
+    @patch('users.selectors.get_strava_last_request_epoc_time')
+    @patch('users.selectors.process_request')
     def test_authorize_to_strava_after_third_attempt(self, mock_auth, mock_time):
         """ test timeout system works as expected """
 
         data = {'expires_at': 123, 'refresh_token': 123,
                 'access_token': 123}
         mock_auth.return_value = data
-        mock_time.side_effect = [time.time()-1, time.time()-35, time.time()-61]
+        mock_time.side_effect = [time.time()-1, time.time()-35, time.time()-3610]
 
         url = reverse('strava-auth')
         payload = {
@@ -604,5 +599,6 @@ class PrivateUserApiTests(TestCase):
                              'To many requests try again soon')
         res = self.client.get(url, payload)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertTrue(self.user.strava._has_needed_informations())
+        self.user.strava.refresh_from_db()
+        self.assertTrue(selectors.has_needed_information_for_request(self.user.strava))
         self.assertEqual(res.json()['data']['status'], 'Ok')

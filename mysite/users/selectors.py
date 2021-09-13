@@ -8,14 +8,22 @@ from mysite import settings
 from users.models import StravaActivity, StravaApi, Group
 from users import services
 from django.db import models
+from django.core.exceptions import ObjectDoesNotExist
 
 def get_user(id: int) -> get_user_model:
     """ return use for given id"""
-    return get_user_model().objects.get(id=id)
+    try:
+        return get_user_model().objects.get(id=id)
+    except get_user_model().DoesNotExist:
+        raise ObjectDoesNotExist(f'User with id = {id} does not exists')
 
 def get_membership(user: get_user_model) -> Iterable[Group]:
     """ return user group memberships """
-    return user.memberships.all()
+    return user.membership.all()
+
+def get_pending_membership(user: get_user_model) -> Iterable[int]:
+    """ return pending membership for user """
+    return user.pending_membership.all()
 
 def get_user_group(user: get_user_model) -> Group:
     """ return user own group """
@@ -49,7 +57,7 @@ def get_strava_last_request_epoc_time(user: get_user_model) -> int:
     """ return last request time in epoc format """
     return user.strava.last_request_epoc_time
 
-def get_activities_from_strava(user: get_user_model, date: datetime) -> dict:
+def get_activities_from_strava(user: get_user_model, date: datetime=datetime.date.today()) -> dict:
 
     one_day_in_seconds = 86400
     after_epoch_timestamp = int(time.mktime(time.strptime(date.strftime('%Y-%m-%d'), '%Y-%m-%d')))

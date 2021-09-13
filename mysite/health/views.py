@@ -68,7 +68,7 @@ class HealthDiary(RequiredFieldsResponseMessage):
         now = datetime.date.today()
         users_services.update_activities(user=request.user, date=now)
         health_diary_instance = selectors.get_health_diary(user=request.user)
-        serializer = serializers.HealthDiaryOutputSerializer(health_diary_instance, many=False)
+        serializer = serializers.HealthDiaryOutputSerializer(instance=health_diary_instance)
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):

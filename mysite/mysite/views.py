@@ -5,6 +5,7 @@ from rest_framework import generics, fields
 from rest_framework.response import Response
 from rest_framework import authentication, permissions, status
 from mysite.renderers import CustomRenderer
+from mysite.exceptions import ApiErrorsMixin
 from rest_framework.views import APIView
 import time
 from users import selectors as users_selectors
@@ -34,7 +35,7 @@ def get_serializer_required_fields(serializer):
     return required_fields, writable_fields
 
 
-class RequiredFieldsResponseMessage(generics.GenericAPIView):
+class RequiredFieldsResponseMessage(ApiErrorsMixin, generics.GenericAPIView):
     """ create custom init for descendants """
 
     def get_serializer(self, *args, **kwargs):
