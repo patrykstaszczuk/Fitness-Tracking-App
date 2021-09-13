@@ -49,7 +49,7 @@ class BmiViewSet(RequiredFieldsResponseMessage, viewsets.GenericViewSet):
     def retrieve(self, request, *args, **kwargs):
         """ retrieve user's BMI """
 
-        bmi = request.user.get_bmi()
+        bmi = users_selectors.get_bmi(user=request.user)
         return Response(data={'bmi': bmi}, status=status.HTTP_200_OK)
 
 class HealthDiary(RequiredFieldsResponseMessage):
@@ -108,72 +108,6 @@ class HealthDiary(RequiredFieldsResponseMessage):
         context['required'] = self._serializer_required_fields
         return context
 
-
-# class HealthDiary(RequiredFieldsResponseMessage, viewsets.GenericViewSet,
-#                   mixins.RetrieveModelMixin, mixins.CreateModelMixin,
-#                   mixins.UpdateModelMixin):
-#     """ view for managing user health diary """
-
-#     authentication_classes = (authentication.TokenAuthentication, )
-#     permission_classes = (permissions.IsAuthenticated, )
-#     serializer_class = serializers.HealthDiarySerializer
-#     renderer_classes = [CustomRenderer, ]
-
-#     def perform_create(self, serializer):
-#         """ set instance user to requested user """
-#         serializer.save(user=self.request.user)
-
-#     def perform_update(self, serializer):
-#         """ set instance user to requested user """
-#         serializer.save(user=self.request.user)
-
-#     def get_object(self):
-#         """ get or create and return object for requested user """
-#         now = datetime.date.today()
-#         obj, created = models.HealthDiary.objects.get_or_create(
-#             user=self.request.user, date=now)
-#         return obj
-
-#     def get_renderer_context(self):
-#         """ add links to response """
-#         context = super().get_renderer_context()
-#         links = {
-#             'raports': reverse('health:health-list', request=self.request),
-#             'weekly-summary': reverse('health:weekly-summary',
-#                                       request=self.request)
-#         }
-#         user = self.request.user
-#         if user.is_authenticated and not user.is_auth_to_strava():
-#             url = 'https://www.strava.com/oauth/authorize?'
-#             params = [
-#                 'client_id=69302',
-#                 'response_type=code',
-#                 'redirect_uri=http://localhost:8000/strava-auth',
-#                 'approval_prompt=force',
-#                 'scope=activity:read_all'
-#             ]
-#             for param in params:
-#                 url += param + '&'
-#             links.update({"connect-strava": url})
-#         context['links'] = links
-#         context['required'] = self._serializer_required_fields
-#         return context
-
-#     def retrieve(self, request, *args, **kwargs):
-#         """ retrieve health objects, download strava activities for given day
-#         and save them in database """
-#         instance = self.get_object()
-#         now = time.time()
-#         strava_api_instance = request.user.strava
-#         hour = 3600
-#         if now - strava_api_instance.get_last_request_epoc_time() > hour:
-#             raw_strava_activities = strava_api_instance.get_strava_activities(
-#                 date=instance.date)
-#             if raw_strava_activities and isinstance(raw_strava_activities, list):
-#                 strava_api_instance.process_and_save_strava_activities(
-#                     raw_strava_activities)
-#         serializer = self.get_serializer(instance)
-#         return Response(serializer.data)
 
 class HealthRaport(RequiredFieldsResponseMessage, viewsets.GenericViewSet, mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.UpdateModelMixin):
     """ View for managing user health statistics history """

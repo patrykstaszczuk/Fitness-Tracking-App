@@ -1,35 +1,39 @@
-from rest_framework import generics, authentication, permissions, status, mixins
-from rest_framework.authtoken.views import ObtainAuthToken
+from rest_framework import generics, authentication, permissions, status, mixins, viewsets
+from rest_framework.authtoken.views import ObtainAuthToken, APIView
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.response import Response
 from users import models, serializers
 from rest_framework.reverse import reverse
 from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
-
+from users import services, selectors
 from mysite.renderers import CustomRenderer
 from mysite.views import RequiredFieldsResponseMessage, get_serializer_required_fields
 
 
-class CreateUserView(RequiredFieldsResponseMessage, generics.CreateAPIView):
+class CreateUserView(RequiredFieldsResponseMessage, APIView):
     """ create a new user in the system """
-    serializer_class = serializers.UserSerializer
     renderer_classes = [CustomRenderer, ]
 
     def get(self, request, *args, **kwargs):
-        """ handle get request and extra check if user is authenticated """
+        """ redirect user when is already authenticated """
         if self.request.user.is_authenticated:
             return self._redirect_to_profile_page()
-        self.get_serializer()
+        self.get_serializer() # method need to be here since it trigger custom response format
         return Response(data=None, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
         """ hande post request and extra check if user is authenticated """
         if self.request.user.is_authenticated:
             return self._redirect_to_profile_page()
-        response = super().create(request, *args, **kwargs)
-        response['Location'] = reverse('users:token', request=request)
-        return response
+        serializer = serializers.UserInputSerializer(data=request.data)
+        if serializer.is_valid():
+            user = services.create_user(serializer.data)
+            serializer = serializers.UserOutputSerializer(user)
+            headers = {}
+            headers['Location'] = reverse('users:profile')
+            return Response(data=serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def _redirect_to_profile_page(self):
         """ redirect to profile page """
@@ -57,26 +61,33 @@ class CreateTokenView(RequiredFieldsResponseMessage, ObtainAuthToken):
         return Response(data=None, status=status.HTTP_200_OK)
 
 
-class ManageUserView(RequiredFieldsResponseMessage, generics.RetrieveUpdateAPIView):
+class ManageUserView(RequiredFieldsResponseMessage, APIView):
     """ manage the authenticated user profile page """
-    serializer_class = serializers.UserSerializer
     authentication_classes = (authentication.TokenAuthentication, )
     permission_classes = (permissions.IsAuthenticated, )
     renderer_classes = [CustomRenderer, ]
 
-    def get_object(self):
-        """ retrieve and return authenticated user """
-        return self.request.user
+    def get(self, request, *args, **kwargs):
+        """ retrieve user profile """
+        serializer = serializers.UserOutputSerializer(request.user)
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
 
-    def get_serializer(self, *args, **kwargs):
-        """ return serializer with dynamically set fields """
-        serializer_class = self.get_serializer_class()
+    def patch(self, request, *args, **kwargs):
+        """ handle patch request """
+
         fields = ('email', 'name', 'age', 'gender', 'height', 'weight')
-        kwargs['context'] = self.get_serializer_context()
+        kwargs = {}
         kwargs['fields'] = fields
-        serializer = serializer_class(*args, **kwargs)
-        self._serializer_required_fields = get_serializer_required_fields(serializer)
-        return serializer
+        serializer = serializers.UserInputSerializer(data=request.data, context=kwargs)
+        if serializer.is_valid():
+            user = services.update_user(user=request.user, data=serializer.data)
+            serializer = serializers.UserOutputSerializer(user)
+            return Response(data=serializer.data, status=status.HTTP_200_OK)
+        return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def put(self, request, *args, **kwargs):
+        """ map this method to patch """
+        return self.patch(request, *args, **kwargs)
 
     def get_renderer_context(self):
         """ return renderer context withh extra links in response """
@@ -90,61 +101,64 @@ class ManageUserView(RequiredFieldsResponseMessage, generics.RetrieveUpdateAPIVi
         return context
 
 
-class ChangeUserPasswordView(RequiredFieldsResponseMessage,
-                             generics.UpdateAPIView):
+class ChangeUserPasswordView(RequiredFieldsResponseMessage):
     """ update user password view """
-    serializer_class = serializers.UserChangePasswordSerializer
     authentication_classes = (authentication.TokenAuthentication, )
     permission_classes = (permissions.IsAuthenticated, )
+    serializer_class = serializers.UserInputSerializer
     renderer_classes = [CustomRenderer, ]
 
-    def get_object(self):
-        """ retrieve and return authenticated user """
-        return self.request.user
-
-    def update(self, request, *args, **kwargs):
+    def patch(self, request, *args, **kwargs):
         """ handle update request and return response with location in header
         """
-        response = super().update(request, *args, **kwargs)
-        response['Location'] = reverse('users:profile', request=request)
-        return response
+        fields = ('password', 'password2')
+        kwargs = {}
+        kwargs['fields'] = fields
+        serializer = serializers.UserInputSerializer(data=request.data, context=kwargs)
 
-    def get(self, request, *args, **kwargs):
-        """ return standard response but in custom format that is initiated
-         when accessing get_serializer method """
-        self.get_serializer()
-        return Response(data=None, status=status.HTTP_200_OK)
+        if serializer.is_valid():
+            services.change_password(user=request.user, data=serializer.data)
+            return Response(status=status.HTTP_200_OK)
+        return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class GroupViewSet(RequiredFieldsResponseMessage, GenericViewSet,
-                   mixins.ListModelMixin):
+class GroupViewSet(RequiredFieldsResponseMessage, viewsets.GenericViewSet, mixins.ListModelMixin):
     """ Manage Group in database """
-    queryset = models.Group.objects.all()
-    serializer_class = serializers.GroupSerializer
+    serializer_class = serializers.GroupInputSerializer
     renderer_classes = [CustomRenderer, ]
     authentication_classes = (authentication.TokenAuthentication, )
     permission_classes = (permissions.IsAuthenticated, )
 
-    def get_serializer_class(self):
-        """ get specific serializer based on action """
-        if self.action == 'send_invitation':
-            return serializers.SendInvitationSerializer
-        elif self.action == 'manage_invitation':
-            return serializers.ManageInvitationSerializer
-        return self.serializer_class
-
-    def get_object(self):
-        """ get group for requested user. Group is automatically created
-        when user is created """
-        return get_object_or_404(self.queryset, founder=self.request.user)
-
     def list(self, request, *args, **kwargs):
-        """ return all user's groups or return HTTP 204"""
-        user_groups = self.request.user.membership.all()
+        """ retrieve reuqested user groups """
+
+        user_groups = selectors.get_membership(user=request.user)
+
         if user_groups.exists():
-            serializer = self.get_serializer(user_groups, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            serializer = serializers.GroupOutputSerializer(user_groups, many=True)
+            return Response(data=serializer.data, status=status.HTTP_200_OK)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # def get_serializer_class(self):
+    #     """ get specific serializer based on action """
+    #     if self.action == 'send_invitation':
+    #         return serializers.SendInvitationSerializer
+    #     elif self.action == 'manage_invitation':
+    #         return serializers.ManageInvitationSerializer
+    #     return self.serializer_class
+
+    # def get_object(self):
+    #     """ get group for requested user. Group is automatically created
+    #     when user is created """
+    #     return get_object_or_404(self.queryset, founder=self.request.user)
+
+    # def list(self, request, *args, **kwargs):
+    #     """ return all user's groups or return HTTP 204"""
+    #     user_groups = self.request.user.membership.all()
+    #     if user_groups.exists():
+    #         serializer = self.get_serializer(user_groups, many=True)
+    #         return Response(serializer.data, status=status.HTTP_200_OK)
+    #     return Response(status=status.HTTP_204_NO_CONTENT)
 
     def get_renderer_context(self):
         """ return rendered context and add extra informations to response """
@@ -181,13 +195,14 @@ class GroupViewSet(RequiredFieldsResponseMessage, GenericViewSet,
         """ send group invitation to other users """
 
         if not request.data:
-            serializer = self.get_serializer()
+            serializer = serializers.GroupOutputSerializer()
             return Response(status=status.HTTP_200_OK)
-        group = self.get_object()
-        serializer = self.get_serializer(group, request.data)
+
+        group = selectors.get_user_group(user=request.user)
+        serializer = serializers.GroupInputSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response(data=serializer.data, status=status.HTTP_200_OK)
+            services.send_group_invitation(user=request.user, data=serializer.data)
+            return Response(status=status.HTTP_200_OK)
         return Response(data=serializer.errors,
                         status=status.HTTP_400_BAD_REQUEST)
 

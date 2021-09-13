@@ -4,7 +4,7 @@ from users.models import Group, StravaActivity
 from django.core.validators import ValidationError
 
 
-class DynamicFieldsModelSerializer(serializers.ModelSerializer):
+class DynamicFieldsModelSerializer(serializers.Serializer):
 
     def __init__(self, *args, **kwargs):
         fields = kwargs.pop('fields', None)
@@ -17,29 +17,41 @@ class DynamicFieldsModelSerializer(serializers.ModelSerializer):
             for field_name in existing - allowed:
                 self.fields.pop(field_name)
 
-
-class UserSerializer(DynamicFieldsModelSerializer):
-    """ serializer for MyUser instances handling """
-
-    password2 = serializers.CharField(label='Confirm password', write_only=True)
+class UserOutputSerializer(serializers.ModelSerializer):
+    """ serializer for reading User model """
 
     class Meta:
         model = get_user_model()
-        fields = ('email', 'password', 'password2', 'name', 'age', 'gender',
-                  'height', 'weight')
-        extra_kwargs = {'password': {'write_only': True}}
+        fields = ('id', 'email', 'name', 'gender', 'age',
+        'height', 'weight', 'groups')
 
-    def create(self, validated_data):
-        """ create a new user with encrypted password and return it """
-        validated_data.pop('password2')
-        return get_user_model().objects.create_user(**validated_data)
+class UserInputSerializer(DynamicFieldsModelSerializer):
+    """ serializer for User model and input data """
+
+    choices = (
+        ('Male', 'Male'),
+        ('Female', 'Female')
+        )
+    email = serializers.EmailField(required=False)
+    name = serializers.CharField(required=False)
+    password = serializers.CharField(required=False)
+    password2 = serializers.CharField(write_only=True, required=False)
+    age = serializers.IntegerField(required=False)
+    height = serializers.IntegerField(required=False)
+    weight = serializers.IntegerField(required=False)
+    gender = serializers.ChoiceField(choices, required=False)
+
+    def is_valid(self, raise_exception=False):
+        """ pop password2 """
+        is_valid = super().is_valid(raise_exception)
+        if 'password2' in self.validated_data:
+            self.validated_data.pop('password2')
+        return is_valid
 
     def validate(self, values):
         """ validate passwords matching """
-
         password = values.get('password')
         password2 = values.get('password2')
-
         if password != password2:
             raise serializers.ValidationError('Password do not match!')
         return values
@@ -77,31 +89,6 @@ class UserSerializer(DynamicFieldsModelSerializer):
         return weight
 
 
-class UserChangePasswordSerializer(serializers.Serializer):
-    """ update user password """
-    old_password = serializers.CharField(required=True, write_only=True)
-    password = serializers.CharField(min_length=8, required=True,
-                                     write_only=True, trim_whitespace=False)
-    confirm_password = serializers.CharField(required=True, write_only=True)
-
-    def validate_old_password(self, value):
-        user = self.context['request'].user
-        if not user.check_password(value):
-            raise serializers.ValidationError("Old password is incorrect!")
-        return value
-
-    def validate(self, data):
-        if data['password'] != data['confirm_password']:
-            raise serializers.ValidationError("Passwords do not match")
-        return data
-
-    def update(self, instance, validated_data):
-        password = validated_data.pop('password', None)
-        instance.set_password(password)
-        instance.save()
-        return instance
-
-
 class AuthTokenSerializer(serializers.Serializer):
     """ serialier for user authentication object """
 
@@ -137,13 +124,21 @@ class MembershipSerializer(serializers.ModelSerializer):
         read_only_fields = ('membership', )
 
 
-class GroupSerializer(serializers.ModelSerializer):
+class GroupOutputSerializer(serializers.ModelSerializer):
     """ Serializer for handling groups """
 
     class Meta:
         model = Group
         fields = ('id', 'name', 'founder',)
         read_only_fields = ('id', 'name', 'founder',)
+
+class UserIdSerializer(serializers.Serializer):
+    """ serialzier for user id """
+    id = serializers.IntegerField()
+
+class GroupInputSerializer(serializers.Serializer):
+    """ serializing inpout data. Need to use nested serialzier due to problem with accessing data when using ListField """
+    pending_membership = UserIdSerializer(required=False, many=True, write_only=False)
 
 
 class SendInvitationSerializer(serializers.ModelSerializer):

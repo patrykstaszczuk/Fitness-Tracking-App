@@ -5,6 +5,31 @@ from mysite import settings
 from django.contrib.auth import get_user_model
 from users.models import StravaActivity, StravaApi
 
+def create_user(data: dict) -> get_user_model:
+    """ create user based on data """
+    return get_user_model().objects.create_user(**data)
+
+def update_user(user: get_user_model, data: dict) -> get_user_model:
+    """ update user based on provided data """
+    for attr, value in data.items():
+        setattr(user, attr, value)
+    user.save()
+    return user
+
+def change_password(user: get_user_model, data: dict) -> None:
+    """ update user password """
+    if 'password' in data:
+        user.set_password(data['password'])
+        user.save()
+    return user
+
+def send_group_invitation(user: get_user_model, data: dict[int]) -> bool:
+    """ set pending membership for users IDs in data """
+    for user_id in data['pending_membership']:
+        invited_user = selectors.get_user(user_id['id'])
+        invited_user.pending_membership.add(user.own_group.id)
+
+
 def authorize_to_strava(user: get_user_model, strava_code: str) -> bool:
     try:
         client_id, client_secret = selectors.get_environ_variables()

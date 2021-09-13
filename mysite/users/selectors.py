@@ -1,13 +1,29 @@
 from typing import Iterable
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user, get_user_model
 import datetime
 import time
 import os
 import requests
 from mysite import settings
-from users.models import StravaActivity, StravaApi
+from users.models import StravaActivity, StravaApi, Group
 from users import services
 from django.db import models
+
+def get_user(id: int) -> get_user_model:
+    """ return use for given id"""
+    return get_user_model().objects.get(id=id)
+
+def get_membership(user: get_user_model) -> Iterable[Group]:
+    """ return user group memberships """
+    return user.memberships.all()
+
+def get_user_group(user: get_user_model) -> Group:
+    """ return user own group """
+    return user.own_group
+
+def get_bmi(user: get_user_model) -> int:
+    """ calculate and return BMI for user """
+    return round(user.weight/(user.height/100)**2, 1)
 
 def get_activity_properties(activity: dict) -> dict:
     """ return only that properties which are needed """

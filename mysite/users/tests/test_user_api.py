@@ -65,7 +65,7 @@ class PublicUserApiTests(TestCase):
 
         res = self.client.post(CREATE_USER_URL, payload, foramt='json')
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-        user = get_user_model().objects.get(**res.data)
+        user = get_user_model().objects.get(id=res.json()['data']['id'])
         self.assertTrue(user.check_password(payload['password']))
 
         self.assertNotIn('password', res.data)
@@ -218,12 +218,14 @@ class PrivateUserApiTests(TestCase):
         res = self.client.get(ME_URL)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, {
+            'id': self.user.id,
             'email': self.user.email,
             'name': self.user.name,
             'age': self.user.age,
             'height': self.user.height,
             'weight': self.user.weight,
             'gender': self.user.gender,
+            'groups': []
         })
 
     def test_post_not_allowed(self):
@@ -261,21 +263,21 @@ class PrivateUserApiTests(TestCase):
         """ test updating the user profile for authenticated user """
         payload = {
             'email': 'newtest@gmail.com',
-            'name': 'testname',
-            'age': 25,
-            'gender': 'Male'
+            'name': 'testname2',
+            'age': 30,
+            'gender': 'Female'
         }
         res = self.client.patch(ME_URL, payload)
-        self.user.refresh_from_db()
-        self.assertEqual(self.user.name, payload['name'])
+        print(res.data)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.user.name, payload['name'])
 
     def test_update_user_password_success(self):
         """ test updating the user password """
         payload = {
             'old_password': 'testpass',
             'password': 'newpass2',
-            'confirm_password': 'newpass2'
+            'password2': 'newpass2'
         }
         res = self.client.patch(PASSWORD_URL, payload)
         self.user.refresh_from_db()
@@ -366,14 +368,14 @@ class PrivateUserApiTests(TestCase):
 
         user2 = sample_user()
         group = models.Group.objects.get(founder=self.user)
-
         payload = {
-            'pending_membership': [user2.id, ],
+            'pending_membership': [
+                {'id': user2.id},
+            ],
         }
         res = self.client.post(send_invitation_url(), payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         user2.refresh_from_db()
-
         self.assertEqual(str(user2.pending_membership.all()[0]),
                          str(group.name))
 
@@ -386,7 +388,10 @@ class PrivateUserApiTests(TestCase):
         group = models.Group.objects.get(founder=self.user)
 
         payload = {
-            "pending_membership": [user2.id, user3.id],
+              'pending_membership': [
+                {'id': user2.id},
+                {'id': user3.id},
+            ],
         }
         res = self.client.post(send_invitation_url(), payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
@@ -398,16 +403,17 @@ class PrivateUserApiTests(TestCase):
     def test_sending_invitation_to_yourself_failed(self):
 
         payload = {
-            'pending_membership': [self.user.id, ]
+            'pending_membership': [{'id': self.user.id},],
         }
         res = self.client.post(send_invitation_url(), payload, format='json')
+        print(res.data)
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_sending_invitation_to_wrong_user_failed(self):
         """ test sening invitation to non existing user """
 
         payload = {
-            'pending_membership': [3, ]
+            'pending_membership': [{'id': 3},]
         }
         res = self.client.post(send_invitation_url(), payload,
                                format='json')

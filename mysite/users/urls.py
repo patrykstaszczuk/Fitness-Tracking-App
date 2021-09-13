@@ -3,7 +3,7 @@ from users import views
 from rest_framework.routers import DefaultRouter
 
 router = DefaultRouter()
-router.register('', views.GroupViewSet)
+router.register('', views.GroupViewSet, basename='group')
 app_name = 'users'
 
 urlpatterns = [
