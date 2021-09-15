@@ -49,7 +49,7 @@ class RequiredFieldsResponseMessage(ApiErrorsMixin, generics.GenericAPIView):
         context = super().get_renderer_context()
         try:
             self._serializer_required_fields = get_serializer_required_fields(self.serializer_class())
-        except TypeError:
+        except (TypeError, AssertionError):
             print('No serializer_class defined in viewset')
             return context
 

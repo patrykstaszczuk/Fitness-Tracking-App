@@ -5,6 +5,83 @@ from rest_framework import fields
 from rest_framework.reverse import reverse
 from django.core.exceptions import FieldError
 
+class DynamicFieldsModelSerializer(serializers.Serializer):
+
+    def __init__(self, *args, **kwargs):
+        fields = kwargs.pop('fields', None)
+        super(DynamicFieldsModelSerializer, self).__init__(*args, **kwargs)
+
+        if fields is not None:
+            allowed = set(fields)
+            existing = set(self.fields)
+
+            for field_name in existing - allowed:
+                self.fields.pop(field_name)
+
+def create_serializer_class(name, fields):
+    return type(name, (serializers.Serializer, ), fields)
+
+
+def inline_serializer(*, fields, data=None, **kwargs):
+    serializer_class = create_serializer_class(name='', fields=fields)
+    if data is not None:
+        return serializer_class(data=data, **kwargs)
+
+    return serializer_class(**kwargs)
+
+
+class IngredientOutputSerializer(serializers.ModelSerializer):
+    """ serializing Ingredient instances """
+
+    class Meta:
+        model = Ingredient
+        fields = '__all__'
+
+class RecipeOutputSerializer(serializers.ModelSerializer):
+    """ serializing Recipe objects for retrieving """
+
+    url = serializers.HyperlinkedIdentityField(view_name='recipe:recipe-detail',
+                                               lookup_field='slug')
+    tags = serializers.StringRelatedField(many=True)
+    ingredients = IngredientOutputSerializer(many=True)
+
+    class Meta:
+        model = Recipe
+        exclude = ('photo1', 'photo2', 'photo3', 'description')
+
+    def to_representation(self, instance):
+        """ update url field for recipes created by other user to avoid multi objects retrieving in detail view """
+        ret = super().to_representation(instance)
+        if ret['user'] != self.user.id:
+            ret['url'] = reverse("recipe:recipe-detail", kwargs={
+                                    'slug': ret['slug']}, request=self.context['request']) + f"?user={ret['user']}"
+        return ret
+
+    def __init__(self, *args, **kwargs):
+        """ get user from context request when serialzier is init via view or get user
+        from context when serializer is init in tests """
+        super().__init__(*args, **kwargs)
+        try:
+            self.user = self.context['user']
+        except KeyError:
+            self.user = self.context['request'].user
+
+
+class RecipeInputSerializer(serializers.Serializer):
+    """ serializing data for creating Recipe instance """
+
+    name = serializers.CharField(required=True)
+    tags = serializers.ListField(child=serializers.SlugField(), required=False)
+    ingredients = inline_serializer(many=True, required=False, fields={
+        'ingredient': serializers.SlugField(required=True),
+        'amount': serializers.IntegerField(required=True),
+        'unit': serializers.IntegerField(required=True)
+    })
+    portions = serializers.IntegerField(required=False)
+    prepare_time = serializers.IntegerField(required=False)
+    description = serializers.CharField(required=False)
+
+
 
 def raise_validation_error(instance):
     """" raise validation error for instance """

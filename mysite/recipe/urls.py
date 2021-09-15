@@ -6,14 +6,12 @@ from recipe import views
 router = DefaultRouter()
 router.register('ingredients', views.IngredientViewSet)
 router.register('tags', views.TagViewSet)
-router.register('recipes', views.RecipeViewSet)
+router.register('recipes', views.RecipeViewSet, basename='recipe')
 
 app_name = 'recipe'
 
 urlpatterns = [
     path('', include(router.urls)),
-    # path('group-recipe/<pk>/<slug>', views.RecipeDetailViewSet.
-    #      as_view({'get': 'retrieve'}), name='recipe-group-detail'),
     path('available-units/', views.UnitViewSet.as_view({'get': 'list'}),
          name='units'),
 ]

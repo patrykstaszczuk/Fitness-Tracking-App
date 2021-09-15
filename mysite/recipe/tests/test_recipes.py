@@ -6,8 +6,8 @@ from rest_framework.test import APIClient, APITestCase, APIRequestFactory
 from rest_framework import status
 
 from recipe import models
-from recipe.serializers import RecipeSerializer, RecipeDetailSerializer, \
-                                IngredientSerializer
+from recipe.serializers import IngredientSerializer
+from recipe import serializers
 
 from unittest.mock import patch
 
@@ -107,8 +107,8 @@ class PrivateRecipeApiTests(APITestCase):
         }
         sample_recipe(self.user, **params)
         res = self.client.get(RECIPE_URL)
-        recipes = models.Recipe.objects.all().order_by('-name')
-        serializer = RecipeSerializer(recipes, many=True, context=self.context)
+        recipes = models.Recipe.objects.all()
+        serializer = serializers.RecipeOutputSerializer(recipes, many=True, context=self.context)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
 
@@ -127,7 +127,7 @@ class PrivateRecipeApiTests(APITestCase):
         res = self.client.get(RECIPE_URL)
 
         recipes = models.Recipe.objects.filter(user=self.user)
-        serializer = RecipeSerializer(recipes, many=True, context=self.context)
+        serializer = serializers.RecipeOutputSerializer(recipes, many=True, context=self.context)
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(len(res.data), 1)
@@ -164,9 +164,9 @@ class PrivateRecipeApiTests(APITestCase):
         res = self.client.get(RECIPE_URL)
         user2_recipe = models.Recipe.objects.get(user=user2)
         user3_recipe = models.Recipe.objects.get(user=user3)
-        serializer_recipes = RecipeSerializer([user2_recipe, user3_recipe],
+        serializer_recipes = serializers.RecipeOutputSerializer([user2_recipe, user3_recipe],
                                               many=True, context=self.context)
-        serializer_recipe_user4 = RecipeSerializer([user4_recipe, ], many=True, context=self.context)
+        serializer_recipe_user4 = serializers.RecipeOutputSerializer([user4_recipe, ], many=True, context=self.context)
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertIn(serializer_recipes.data[0], res.data)
@@ -181,7 +181,7 @@ class PrivateRecipeApiTests(APITestCase):
         url = recipe_detail_url(recipe.slug)
 
         res = self.client.get(url)
-        serializer = RecipeDetailSerializer(recipe,
+        serializer = serializers.RecipeOutputSerializer(recipe,
                                             context=self.context,
                                             )
 
@@ -193,13 +193,22 @@ class PrivateRecipeApiTests(APITestCase):
 
         user2 = sample_user()
         recipe = sample_recipe(user2)
+        models.Recipe.objects.create(user=self.user, name=recipe.name)
         group = user_models.Group.objects.get(founder=user2)
         self.user.membership.add(group)
         url = detail_group_url(recipe.slug, user2.id)
         res = self.client.get(url)
-        serializer = RecipeDetailSerializer(recipe, context=self.context)
+        serializer = serializers.RecipeOutputSerializer(recipe, context=self.context)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
+
+    def test_view_group_recipe_failed(self):
+        """ test retrieving detail of recipe created by other user whos not in our group """
+        user2 = sample_user()
+        recipe = sample_recipe(user2)
+        url = detail_group_url(recipe.slug, user2.id)
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_view_group_recipe_detail_with_the_same_name(self):
         """ test retrieving group recipe which has same name as self.user
@@ -214,7 +223,7 @@ class PrivateRecipeApiTests(APITestCase):
 
         url = detail_group_url(recipe_user2.slug, user2.id)
         res = self.client.get(url)
-        serializer = RecipeDetailSerializer(recipe_user2, context=self.context)
+        serializer = serializers.RecipeOutputSerializer(recipe_user2, context=self.context)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
 
@@ -222,9 +231,10 @@ class PrivateRecipeApiTests(APITestCase):
         """ test creating recipe """
         payload = {
             'name': 'Hamburgery vege',
-            'description': 'opis dania'
+            'description': 'opis dania',
         }
         res = self.client.post(RECIPE_URL, payload)
+        print(res.data)
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         recipe = models.Recipe.objects.get(slug=res.data['slug'])
 
@@ -242,8 +252,7 @@ class PrivateRecipeApiTests(APITestCase):
             'description': "opis dania"
         }
 
-        res = self.client.post(RECIPE_URL, payload)
-
+        res = self.client.post(RECIPE_URL, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         recipe = models.Recipe.objects.get(slug=res.data['slug'])
         tags = recipe.tags.all()
@@ -290,7 +299,7 @@ class PrivateRecipeApiTests(APITestCase):
         """ test creating recipe with at least one ingredient created by
         other user """
         user2 = sample_user()
-        ingredient1 = sample_ingredient(user=self.user, name='Krewetki')
+        ingredient1 = sample_ingredient(user=self.user, name='Masło')
         ingredient2 = sample_ingredient(user=user2, name='Masło')
         tag = sample_tag(user=self.user, name='Deser')
         payload = {
@@ -309,6 +318,7 @@ class PrivateRecipeApiTests(APITestCase):
         }
 
         res = self.client.post(RECIPE_URL, payload, format='json')
+        print(res.data)
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         recipe = models.Recipe.objects.get(slug=res.data['slug'])
 
@@ -378,8 +388,8 @@ class PrivateRecipeApiTests(APITestCase):
             'tags': [new_tag.slug, ]
         }
         url = recipe_detail_url(recipe.slug)
-        self.client.patch(url, payload)
-
+        res = self.client.patch(url, payload)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
         recipe.refresh_from_db()
         self.assertEqual(recipe.name, payload['name'])
         tags = recipe.tags.all()
@@ -500,7 +510,7 @@ class PrivateRecipeApiTests(APITestCase):
         group = user_models.Group.objects.get(founder=user2)
         self.user.membership.add(group)
 
-        serializer = RecipeDetailSerializer(recipe, context=self.context)
+        serializer = serializers.RecipeOutputSerializer(recipe, context=self.context)
         res = self.client.get(detail_group_url(recipe.slug, user2.id))
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
@@ -518,7 +528,7 @@ class PrivateRecipeApiTests(APITestCase):
         group = user_models.Group.objects.get(founder=user2)
         self.user.membership.add(group)
 
-        serializer = RecipeDetailSerializer(recipe, context=self.context)
+        serializer = serializers.RecipeOutputSerializer(recipe, context=self.context)
         res = self.client.get(detail_group_url(recipe.slug, user2.id))
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
@@ -682,9 +692,9 @@ class PrivateRecipeApiTests(APITestCase):
 
         res = self.client.get(RECIPE_URL, {'tags': f'{tag1.slug},{tag2.slug}'})
 
-        serializer1 = RecipeSerializer(recipe1, context=self.context)
-        serializer2 = RecipeSerializer(recipe2, context=self.context)
-        serializer3 = RecipeSerializer(recipe3, context=self.context)
+        serializer1 = serializers.RecipeOutputSerializer(recipe1, context=self.context)
+        serializer2 = serializers.RecipeOutputSerializer(recipe2, context=self.context)
+        serializer3 = serializers.RecipeOutputSerializer(recipe3, context=self.context)
 
         self.assertIn(serializer1.data, res.data)
         self.assertIn(serializer2.data, res.data)
@@ -719,9 +729,9 @@ class PrivateRecipeApiTests(APITestCase):
         user2_recipe = models.Recipe.objects.get(user=user2)
         user3_recipe = models.Recipe.objects.get(user=user3)
 
-        serializer_self_user = RecipeSerializer(self_user_recipes, many=True, context=self.context)
-        serializer_user2 = RecipeSerializer(user2_recipe, context=self.context)
-        serializer_user3 = RecipeSerializer(user3_recipe, context=self.context)
+        serializer_self_user = serializers.RecipeOutputSerializer(self_user_recipes, many=True, context=self.context)
+        serializer_user2 = serializers.RecipeOutputSerializer(user2_recipe, context=self.context)
+        serializer_user3 = serializers.RecipeOutputSerializer(user3_recipe, context=self.context)
         res = self.client.get(RECIPE_URL, {'groups': f'{group.id}'},
                               format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
@@ -767,9 +777,9 @@ class PrivateRecipeApiTests(APITestCase):
     #     res = self.client.get(RECIPE_URL,
     #                           {'ingredients':
     #                            f'{ingredient1.slug},{ingredient2.slug}'})
-    #     serializer1 = RecipeSerializer(recipe1)
-    #     serializer2 = RecipeSerializer(recipe2)
-    #     serializer3 = RecipeSerializer(recipe3)
+    #     serializer1 = serializers.RecipeOutputSerializer(recipe1)
+    #     serializer2 = serializers.RecipeOutputSerializer(recipe2)
+    #     serializer3 = serializers.RecipeOutputSerializer(recipe3)
     #
     #     self.assertIn(serializer1.data, res.data)
     #     self.assertIn(serializer2.data, res.data)

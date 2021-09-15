@@ -173,7 +173,7 @@ class Ingredient(Dish):
     ]
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                              null=False, related_name='user')
-
+    slug = models.SlugField(blank=False, unique=True)
     type = models.CharField(max_length=10, choices=TYPE_CHOICE, null=True)
     units = models.ManyToManyField('Unit', through='ingredient_unit',)
     fiber = models.FloatField(null=True, validators=[MinValue(0)])
@@ -194,11 +194,11 @@ class Ingredient(Dish):
 
     def save(self, *args, **kwargs) -> None:
         """ save object with proper slug """
-        self.slug = slugify(unidecode(self.name))
+        self.slug = slugify(unidecode(self.name)) + '-user-' + str(self.user.id)
         number_of_ingredients_with_the_same_name = self._check_if_name_exists(
             self.name)
         if number_of_ingredients_with_the_same_name > 0:
-            self.slug = self.slug + str(number_of_ingredients_with_the_same_name + 1)
+            self.slug = self.slug + '(' + str(number_of_ingredients_with_the_same_name + 1) +')'
         super().save(*args, **kwargs)
 
 

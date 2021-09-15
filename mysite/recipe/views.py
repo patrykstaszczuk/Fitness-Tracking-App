@@ -3,7 +3,7 @@ from rest_framework.reverse import reverse
 from rest_framework import viewsets, status, mixins
 from rest_framework.response import Response
 from rest_framework.authentication import TokenAuthentication
-from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
+from rest_framework.permissions import IsAuthenticated, SAFE_METHODS, BasePermission
 from recipe.models import Ingredient, Tag, Recipe, Unit
 from users.models import Group
 from recipe import serializers
@@ -14,6 +14,20 @@ from rest_framework import permissions
 from mysite.renderers import CustomRenderer
 from mysite.views import RequiredFieldsResponseMessage
 
+from recipe import selectors, services
+
+
+class CanRetrieveRecipeDetail(BasePermission):
+    """ check if user has permission for retreiveing other user recipe detail """
+
+    def has_object_permission(self, request, view, obj):
+        """ check whether user is obj creator or is in obj creator group """
+        if request.user == obj.user:
+            return True
+        else:
+            if request.user in obj.user.own_group.members.all():
+                return True
+        return False
 
 class BaseRecipeAttrViewSet(RequiredFieldsResponseMessage, viewsets.ModelViewSet):
     """ Base viewset for user owned recipe atributes """
@@ -79,29 +93,57 @@ class TagViewSet(BaseRecipeAttrViewSet):
     queryset = Tag.objects.all()
 
 
-class RecipeViewSet(BaseRecipeAttrViewSet):
-    """ Manage recipe in the database """
-    serializer_class = serializers.RecipeSerializer
-    queryset = Recipe.objects.all()
+
+class RecipeViewSet(RequiredFieldsResponseMessage, viewsets.ModelViewSet):
+    """ endpoint for handling recipes """
+    authentication_classes = (TokenAuthentication, )
+    permission_classes = (IsAuthenticated, CanRetrieveRecipeDetail)
+    renderer_classes = [CustomRenderer, ]
     lookup_field = 'slug'
 
-    def get_queryset(self):
-        """ Retrieve the recipes for authenticated user with filtering if
-        applied """
+    def get_queryset(self, extra_action=False):
+        """ return recipes for requested user or other user in group """
 
-        if self.action == 'list':
-            return self._get_filtering(request=self.request)
-        else:
-            return super().get_queryset(extra_action=True)
+        user_in_url = self.request.query_params.get('user', None)
+        if user_in_url and self.action == 'retrieve':
+            return selectors.get_recipes(user=self.request.user, url_user=user_in_url )
+        elif user_in_url and self.action not in permissions.SAFE_METHODS:
+            return self.http_method_not_allowed(self.request)
+        return selectors.get_recipes(user=self.request.user)
 
-    def get_serializer_class(self):
-        """ return appropriate serializer class """
-        detailedActions = ['retrieve', 'update', 'partial_update']
-        if self.action in detailedActions:
-            return serializers.RecipeDetailSerializer
-        elif self.action == 'upload_image':
-            return serializers.RecipeImageSerializer
-        return self.serializer_class
+    def retrieve(self, request, *args, **kwargs):
+        """ retreive recipe detail """
+        instance = self.get_object()
+        serializer = serializers.RecipeOutputSerializer(instance=instance, context=self.get_serializer_context())
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+    def list(self, request, *args, **kwargs):
+        """ list all avilable recipes for requested user """
+
+        filters = request.query_params
+        available_recipes = selectors.get_recipes(user=request.user, filters=filters)
+        serializer = serializers.RecipeOutputSerializer(available_recipes, many=True, context=self.get_serializer_context())
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+    def create(self, request, *args, **kwargs):
+        """ create new recipe """
+
+        serializer = serializers.RecipeInputSerializer(data=request.data, context=self.get_serializer_context())
+        if serializer.is_valid():
+            obj = services.create_recipe(user=request.user, data=serializer.data)
+            serializer = serializers.RecipeOutputSerializer(obj, context=self.get_serializer_context())
+            return Response(data=serializer.data, status=status.HTTP_201_CREATED)
+        return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def update(self, request, *args, **kwargs):
+        """ update recipe """
+        instance = self.get_object()
+        serializer = serializers.RecipeInputSerializer(data=request.data)
+        if serializer.is_valid():
+            obj = services.update_recipe(instance=instance, data=serializer.data, method=self.request.method)
+            serializer = serializers.RecipeOutputSerializer(obj, context=self.get_serializer_context())
+            return Response(data=serializer.data, status=status.HTTP_200_OK)
+        return Response(data=serializer.error, status=status.HTTP_400_BAD_REQUEST)
 
     def get_renderer_context(self):
         """ override for extra links """
@@ -112,10 +154,10 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
             links = {
                 'recipes-list': reverse('recipe:recipe-list', request=self.request),
                 'availabe-units': reverse('recipe:units', request=self.request),
-                'send_to_nozbe': reverse('recipe:recipe-send-to-nozbe',
-                                         args=[slug], request=self.request),
-                'upload_image': reverse('recipe:recipe-upload-image',
-                                        args=[slug], request=self.request),
+                # 'send_to_nozbe': reverse('recipe:recipe-send-to-nozbe',
+                #                          args=[slug], request=self.request),
+                # 'upload_image': reverse('recipe:recipe-upload-image',
+                #                         args=[slug], request=self.request),
             }
         else:
             links = {
@@ -124,116 +166,161 @@ class RecipeViewSet(BaseRecipeAttrViewSet):
         context['links'] = links
         return context
 
-    def _validate_ingredients(self, ingredients):
-        """ validate that passed ingredient slug's can be mapped to models
-         object during send_to_nozbe action"""
+# class RecipeViewSet(BaseRecipeAttrViewSet):
+#     """ Manage recipe in the database """
+#     serializer_class = serializers.RecipeSerializer
+#     queryset = Recipe.objects.all()
+#     lookup_field = 'slug'
 
-        ingredient_queryset = Ingredient.objects.filter(slug__in=ingredients)
-        if ingredient_queryset.count() == len(ingredients):
-            return True, ingredient_queryset
-        return False, None
+#     def get_queryset(self):
+#         """ Retrieve the recipes for authenticated user with filtering if
+#         applied """
 
-    @action(methods=['PUT'], detail=True, url_path='add-to-nozbe')
-    def send_to_nozbe(self, request, slug=None):
-        """ send provided ingredients to nozbe """
+#         if self.action == 'list':
+#             return self._get_filtering(request=self.request)
+#         else:
+#             return super().get_queryset(extra_action=True)
 
-        bool, ingredients = self._validate_ingredients(request.data)
+#     def get_serializer_class(self):
+#         """ return appropriate serializer class """
+#         detailedActions = ['retrieve', 'update', 'partial_update']
+#         if self.action in detailedActions:
+#             return serializers.RecipeDetailSerializer
+#         elif self.action == 'upload_image':
+#             return serializers.RecipeImageSerializer
+#         return self.serializer_class
 
-        if bool:
-            for ingredient in ingredients:
-                if ingredient.send_to_nozbe():
-                    headers = {'Location': reverse('recipe:recipe-detail',
-                                                   kwargs={'slug':slug},
-                                                   request=request)}
-                    return Response(data={'success'}, status=status.HTTP_200_OK,
-                                    headers=headers)
-        return Response(data={'Failed, check ingredients slug or contact admin'},
-                        status=status.HTTP_400_BAD_REQUEST)
+    # def get_renderer_context(self):
+    #     """ override for extra links """
+    #     context = super().get_renderer_context()
 
-    @action(methods=['POST', 'GET'], detail=True, url_path='add-photos')
-    def upload_image(self, request, slug=None):
-        """ upload an image to a recipe """
+    #     if self.action == 'retrieve':
+    #         slug = self.kwargs.get('slug')
+    #         links = {
+    #             'recipes-list': reverse('recipe:recipe-list', request=self.request),
+    #             'availabe-units': reverse('recipe:units', request=self.request),
+    #             'send_to_nozbe': reverse('recipe:recipe-send-to-nozbe',
+    #                                      args=[slug], request=self.request),
+    #             'upload_image': reverse('recipe:recipe-upload-image',
+    #                                     args=[slug], request=self.request),
+    #         }
+    #     else:
+    #         links = {
+    #             'availabe-units': reverse('recipe:units', request=self.request)
+    #         }
+    #     context['links'] = links
+    #     return context
 
-        recipe = self.get_object()
-        serializer = self.get_serializer(
-            recipe,
-            data=request.data
-        )
+#     def _validate_ingredients(self, ingredients):
+#         """ validate that passed ingredient slug's can be mapped to models
+#          object during send_to_nozbe action"""
 
-        if serializer.is_valid():
-            serializer.save()
-            headers = {}
-            if request.method == 'POST':
+#         ingredient_queryset = Ingredient.objects.filter(slug__in=ingredients)
+#         if ingredient_queryset.count() == len(ingredients):
+#             return True, ingredient_queryset
+#         return False, None
 
-                headers['Location'] = reverse('recipe:recipe-detail',
-                                              kwargs={'slug': slug},
-                                              request=request)
-            return Response(
-                serializer.data,
-                status=status.HTTP_200_OK,
-                headers=headers
-            )
-        return Response(
-            serializer.errors,
-            status=status.HTTP_400_BAD_REQUEST
-        )
+#     @action(methods=['PUT'], detail=True, url_path='add-to-nozbe')
+#     def send_to_nozbe(self, request, slug=None):
+#         """ send provided ingredients to nozbe """
 
-    def _get_filtering(self, request):
-        """ check if there is any filter applied and return queryset if so """
+#         bool, ingredients = self._validate_ingredients(request.data)
 
-        allowed_filters = ['tags', 'groups']
-        user = self.request.user
-        filtered_groups = request.query_params.get('groups')
-        allowed_filters.pop()
+#         if bool:
+#             for ingredient in ingredients:
+#                 if ingredient.send_to_nozbe():
+#                     headers = {'Location': reverse('recipe:recipe-detail',
+#                                                    kwargs={'slug':slug},
+#                                                    request=request)}
+#                     return Response(data={'success'}, status=status.HTTP_200_OK,
+#                                     headers=headers)
+#         return Response(data={'Failed, check ingredients slug or contact admin'},
+#                         status=status.HTTP_400_BAD_REQUEST)
 
-        users_in_filtered_groups = \
-            self._return_users_from_filtered_groups(user, filtered_groups)
-        queryset = Recipe.objects.all().filter(user__in=
-                                               users_in_filtered_groups).order_by('-name')
+#     @action(methods=['POST', 'GET'], detail=True, url_path='add-photos')
+#     def upload_image(self, request, slug=None):
+#         """ upload an image to a recipe """
 
-        for filter in request.query_params:
-            if filter in allowed_filters:
-                filter_values = request.query_params[filter].split(',')
-                filter_instances = self._map_raw_data_to_instances(Tag, user,
-                                                                   'slug',
-                                                                   filter_values)
-                query = filter + '__in'
-                queryset = queryset.filter(**{query: filter_instances})
-        return queryset
+#         recipe = self.get_object()
+#         serializer = self.get_serializer(
+#             recipe,
+#             data=request.data
+#         )
 
-    def _return_users_from_filtered_groups(self, user, groups):
-        """ return all users belongs to filtered groups """
+#         if serializer.is_valid():
+#             serializer.save()
+#             headers = {}
+#             if request.method == 'POST':
 
-        users_instances = []
+#                 headers['Location'] = reverse('recipe:recipe-detail',
+#                                               kwargs={'slug': slug},
+#                                               request=request)
+#             return Response(
+#                 serializer.data,
+#                 status=status.HTTP_200_OK,
+#                 headers=headers
+#             )
+#         return Response(
+#             serializer.errors,
+#             status=status.HTTP_400_BAD_REQUEST
+#         )
 
-        if groups is not None:
-            groups = groups.split(',')
-            groups = self._map_raw_data_to_instances(Group, user, 'id', groups)
-        else:
-            groups = user.membership.all()
+#     def _get_filtering(self, request):
+#         """ check if there is any filter applied and return queryset if so """
 
-        users_instances_in_groups = [group.members.all() for group in groups]
+#         allowed_filters = ['tags', 'groups']
+#         user = self.request.user
+#         filtered_groups = request.query_params.get('groups')
+#         allowed_filters.pop()
 
-        for group_members in users_instances_in_groups:
-            for user in group_members:
-                users_instances.append(user)
-        return list(set(users_instances))
+#         users_in_filtered_groups = \
+#             self._return_users_from_filtered_groups(user, filtered_groups)
+#         queryset = Recipe.objects.all().filter(user__in=
+#                                                users_in_filtered_groups).order_by('-name')
 
-    def _map_raw_data_to_instances(self, instance, user, lookup_key, data):
-        """ map provided filtering data to instances """
+#         for filter in request.query_params:
+#             if filter in allowed_filters:
+#                 filter_values = request.query_params[filter].split(',')
+#                 filter_instances = self._map_raw_data_to_instances(Tag, user,
+#                                                                    'slug',
+#                                                                    filter_values)
+#                 query = filter + '__in'
+#                 queryset = queryset.filter(**{query: filter_instances})
+#         return queryset
 
-        instances_list = []
-        for item in data:
-            try:
-                if instance == Group:
-                    objs = user.membership.all()
-                else:
-                    objs = instance.objects.filter(user=user)
-                obj = objs.get(**{lookup_key: item})
-                instances_list.append(obj)
-            except instance.DoesNotExist:
-                pass
-        return instances_list
+#     def _return_users_from_filtered_groups(self, user, groups):
+#         """ return all users belongs to filtered groups """
+
+#         users_instances = []
+
+#         if groups is not None:
+#             groups = groups.split(',')
+#             groups = self._map_raw_data_to_instances(Group, user, 'id', groups)
+#         else:
+#             groups = user.membership.all()
+
+#         users_instances_in_groups = [group.members.all() for group in groups]
+
+#         for group_members in users_instances_in_groups:
+#             for user in group_members:
+#                 users_instances.append(user)
+#         return list(set(users_instances))
+
+#     def _map_raw_data_to_instances(self, instance, user, lookup_key, data):
+#         """ map provided filtering data to instances """
+
+#         instances_list = []
+#         for item in data:
+#             try:
+#                 if instance == Group:
+#                     objs = user.membership.all()
+#                 else:
+#                     objs = instance.objects.filter(user=user)
+#                 obj = objs.get(**{lookup_key: item})
+#                 instances_list.append(obj)
+#             except instance.DoesNotExist:
+#                 pass
+#         return instances_list
 
 
 # class RecipeDetailViewSet(RequiredFieldsResponseMessage,
