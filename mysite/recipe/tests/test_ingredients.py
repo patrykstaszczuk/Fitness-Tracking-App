@@ -131,7 +131,8 @@ class PrivateIngredientApiTests(TestCase):
         user2_ing = sample_ingredient(user=user2, name='test',
                                       calories='1000')
         res = self.client.get(INGREDIENTS_URL)
-        url = rest_reverse('recipe:ingredient-detail', kwargs={'slug': user2_ing.slug}, request=self.request)
+        url = rest_reverse('recipe:ingredient-detail',
+                           kwargs={'slug': user2_ing.slug}, request=self.request)
         url = url + f'?user={user2.id}'
         self.assertEqual(res.json()['data'][0]['url'], str(url))
 
@@ -281,7 +282,8 @@ class PrivateIngredientApiTests(TestCase):
         payload = {
             "user": user2.id
         }
-        res = self.client.delete(ingredient_detail_url(user2_ing.slug), payload)
+        res = self.client.delete(
+            ingredient_detail_url(user2_ing.slug), payload)
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_full_update_ingredient_success(self):
@@ -293,7 +295,6 @@ class PrivateIngredientApiTests(TestCase):
         }
         res = self.client.put(ingredient_detail_url(ingredient.slug), payload)
         ingredient = models.Ingredient.objects.filter(id=ingredient.id)[0]
-
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(ingredient.name, payload['name'])
 
@@ -314,7 +315,7 @@ class PrivateIngredientApiTests(TestCase):
             'tags': self.tag.slug
         }
         res = self.client.patch(ingredient_detail_url(ingredient.slug),
-                                                           payload)
+                                payload)
 
         ingredient = models.Ingredient.objects.filter(id=ingredient.id)[0]
         self.assertEqual(res.status_code, status.HTTP_200_OK)
@@ -329,7 +330,6 @@ class PrivateIngredientApiTests(TestCase):
         }
         res = self.client.put(ingredient_detail_url(ingredient.slug), payload)
         ingredient = models.Ingredient.objects.filter(id=ingredient.id)[0]
-
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(ingredient.tags.first(), self.tag)
 
@@ -345,7 +345,8 @@ class PrivateIngredientApiTests(TestCase):
 
         all_units = models.Unit.objects.all()
 
-        serializer = UnitSerializer(all_units, many=True, context={'request': self.request})
+        serializer = UnitSerializer(all_units, many=True, context={
+                                    'request': self.request})
 
         self.assertEqual(res.data, serializer.data)
 
@@ -356,7 +357,8 @@ class PrivateIngredientApiTests(TestCase):
 
         res = self.client.get(ingredient_detail_url(ing.slug))
 
-        self.assertEqual(res.json()['data']['available_units'][0]['unit'], self.unit.id)
+        self.assertEqual(
+            res.json()['data']['available_units'][0]['unit'], self.unit.id)
 
     def test_retrieve_available_units_for_ingredient(self):
         """ test retrieving all units set to ingredient """
@@ -368,8 +370,10 @@ class PrivateIngredientApiTests(TestCase):
 
         res = self.client.get(ingredient_detail_url(ing.slug))
         all_units = models.Ingredient_Unit.objects.filter(ingredient=ing)
-        serializer = IngredientUnitSerializer(all_units, many=True, context={'request': self.request})
-        self.assertEqual(res.json()['data']['available_units'], serializer.data)
+        serializer = IngredientUnitSerializer(
+            all_units, many=True, context={'request': self.request})
+        self.assertEqual(res.json()['data']
+                         ['available_units'], serializer.data)
 
     def test_create_ingredient_unit_mapping(self):
         """ test creating mapping for new ingredient """
@@ -385,7 +389,7 @@ class PrivateIngredientApiTests(TestCase):
         }
 
         res = self.client.patch(ingredient_detail_url(ing.slug), payload,
-                               format='json')
+                                format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
 
         ing.refresh_from_db()
@@ -403,7 +407,7 @@ class PrivateIngredientApiTests(TestCase):
             }]
         }
         res = self.client.patch(ingredient_detail_url(ing.slug), payload,
-                               format='json')
+                                format='json')
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_update_ingredient_unit_mapping(self):

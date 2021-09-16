@@ -8,7 +8,6 @@ from rest_framework import status
 from recipe import models
 from recipe.serializers import TagSerializer
 
-from django.shortcuts import get_object_or_404
 
 TAG_URL = reverse('recipe:tag-list')
 
@@ -68,7 +67,8 @@ class PrivateTagApiTests(TestCase):
 
         res = self.client.get(TAG_URL)
         tags = models.Tag.objects.filter(user=self.user)
-        serializer = TagSerializer(tags, many=True, context={'request': request})
+        serializer = TagSerializer(
+            tags, many=True, context={'request': request})
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(len(res.data), 2)

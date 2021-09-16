@@ -18,7 +18,7 @@ class Dish(models.Model):
     """ abstract class for any kind of dish. Provided common attributes and methods """
 
     name = models.CharField(max_length=255, blank=False, unique=False,
-                        verbose_name='Name')
+                            verbose_name='Name')
     slug = models.SlugField(blank=False, unique=False)
     calories = models.FloatField(verbose_name='Calories', blank=True, null=True,
                                  default=0, validators=[MinValue(0)])
@@ -33,7 +33,6 @@ class Dish(models.Model):
     class Meta:
         abstract = True
 
-
     def __str__(self) -> str:
         return self.name
 
@@ -41,6 +40,7 @@ class Dish(models.Model):
         """ check if and how many recipes with provided name exists """
         return self.__class__.objects.filter(user=self.user) \
             .filter(name=name).exclude(id=self.id).count()
+
 
 def generate_image_file_path(recipe_instance, filename: str):
     """ generate file path for new recipe image """
@@ -80,75 +80,30 @@ class Recipe(Dish):
     class Meta:
         unique_together = ('user', 'slug')
 
-
     def save(self, *args, **kwargs) -> None:
         """ save object with appropriate slug """
-
-        self.slug = slugify(unidecode(self.name))
-        number_of_recipes_with_same_name = self._check_if_name_exists(
-            self.name)
-        if number_of_recipes_with_same_name > 0:
-            self.slug = self.slug + str(number_of_recipes_with_same_name + 1)
-        if self.id:
-            new_photos = [self.photo1, self.photo2, self.photo3]
-            self._delete_old_photos(new_photos, self.orginal_photos)
+        self.full_clean()
         super().save(*args, **kwargs)
 
-
-    def _delete_old_photos(self, new_photos: list, old_photos: list) -> None:
-        """ check if images change after upload and delete old from folder
-        if so """
-        for old, new in zip(old_photos, new_photos):
-            if new != old and old not in ('', None):
-                try:
-                    path = old.path
-                    if os.path.exists(path):
-                        os.remove(path)
-                except AttributeError:
-                    pass
-
-    def _recalculate_nutritions_values(self) -> None:
-        """ recalculating recipe nutritions values based on ingredients """
-
-        nutritional_fields = ['proteins', 'carbohydrates', 'fats', 'calories']
-        self.proteins = 0
-        self.carbohydrates = 0
-        self.fats = 0
-        self.calories = 0
-        for ingredient in self.ingredients.all():
-            obj = Recipe_Ingredient.objects.get(recipe=self,
-                                                ingredient=ingredient)
-            unit = obj.unit
-            amount = obj.amount
-            if not all([unit, amount]):
-                continue
-            for field in nutritional_fields:
-                current_recipe_field_value = getattr(self, field)
-                ingredient_field_value = getattr(ingredient, field)
-                if ingredient_field_value is None:
-                    ingredient_field_value = 0
-                grams = ingredient.convert_unit_to_grams(unit, amount)
-                setattr(self, field, round((current_recipe_field_value
-                                            + (grams/100)*ingredient_field_value), 2))
-        kwargs = {'force_insert': False}
-        super().save(**kwargs, update_fields=['proteins', 'carbohydrates',
-                                                     'fats', 'calories'])
+    def clean(self):
+        if self.id:
+            new_photos = [self.photo1, self.photo2, self.photo3]
+            for old, new in zip(self.orginal_photos, new_photos):
+                if new != old and old not in ('', None):
+                    try:
+                        path = old.path
+                        if os.path.exists(path):
+                            os.remove(path)
+                    except AttributeError:
+                        pass
 
     def get_absolute_url(self) -> str:
         return reverse('recipe:recipe_detail', kwargs={'slug': self.slug})
 
-    def delete(self, *args, **kwargs) -> None:
-        """ delete all photo folder related to specific user and
-        recipe """
-        path = str(settings.MEDIA_ROOT) + \
-            "/recipes/" + self.user.name + "/" + self.slug
-        if os.path.exists(path):
-            shutil.rmtree(path)
-        super().delete(*args, **kwargs)
-
-    def get_recalculated_calories(self, number_of_portions: int) -> int:
-        """ return calories based on portions """
-        return (self.calories/self.portions) * number_of_portions
+    #
+    # def get_recalculated_calories(self, number_of_portions: int) -> int:
+    #     """ return calories based on portions """
+    #     return (self.calories/self.portions) * number_of_portions
 
     def __init__(self, *args, **kwargs):
         """ save curently used photos in list for latter comparsion """
@@ -191,16 +146,16 @@ class Ingredient(Dish):
                                     name='unique_user_name')
         ]
 
-
     def save(self, *args, **kwargs) -> None:
         """ save object with proper slug """
-        self.slug = slugify(unidecode(self.name)) + '-user-' + str(self.user.id)
+        self.slug = slugify(unidecode(self.name)) + \
+            '-user-' + str(self.user.id)
         number_of_ingredients_with_the_same_name = self._check_if_name_exists(
             self.name)
         if number_of_ingredients_with_the_same_name > 0:
-            self.slug = self.slug + '(' + str(number_of_ingredients_with_the_same_name + 1) +')'
+            self.slug = self.slug + \
+                '(' + str(number_of_ingredients_with_the_same_name + 1) + ')'
         super().save(*args, **kwargs)
-
 
     def send_to_nozbe(self) -> None:
         """ send ingredient instance to nozbe """

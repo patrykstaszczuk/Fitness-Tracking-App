@@ -5,6 +5,7 @@ from rest_framework import fields
 from rest_framework.reverse import reverse
 from django.core.exceptions import FieldError
 
+
 class DynamicFieldsModelSerializer(serializers.Serializer):
 
     def __init__(self, *args, **kwargs):
@@ -17,6 +18,7 @@ class DynamicFieldsModelSerializer(serializers.Serializer):
 
             for field_name in existing - allowed:
                 self.fields.pop(field_name)
+
 
 def create_serializer_class(name, fields):
     return type(name, (serializers.Serializer, ), fields)
@@ -36,6 +38,7 @@ class IngredientOutputSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ingredient
         fields = '__all__'
+
 
 class RecipeOutputSerializer(serializers.ModelSerializer):
     """ serializing Recipe objects for retrieving """
@@ -70,7 +73,7 @@ class RecipeOutputSerializer(serializers.ModelSerializer):
 class RecipeInputSerializer(serializers.Serializer):
     """ serializing data for creating Recipe instance """
 
-    name = serializers.CharField(required=True)
+    name = serializers.CharField(required=False)
     tags = serializers.ListField(child=serializers.SlugField(), required=False)
     ingredients = inline_serializer(many=True, required=False, fields={
         'ingredient': serializers.SlugField(required=True),
@@ -80,7 +83,6 @@ class RecipeInputSerializer(serializers.Serializer):
     portions = serializers.IntegerField(required=False)
     prepare_time = serializers.IntegerField(required=False)
     description = serializers.CharField(required=False)
-
 
 
 def raise_validation_error(instance):

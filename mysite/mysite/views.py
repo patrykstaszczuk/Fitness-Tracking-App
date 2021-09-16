@@ -48,9 +48,9 @@ class RequiredFieldsResponseMessage(ApiErrorsMixin, generics.GenericAPIView):
         """ add links to response """
         context = super().get_renderer_context()
         try:
-            self._serializer_required_fields = get_serializer_required_fields(self.serializer_class())
+            self._serializer_required_fields = get_serializer_required_fields(
+                self.serializer_class())
         except (TypeError, AssertionError):
-            print('No serializer_class defined in viewset')
             return context
 
         if self._serializer_required_fields:
@@ -83,7 +83,8 @@ class StravaCodeApiView(APIView):
         """ get the code from url and return response """
 
         strava_code = request.query_params.get('code')
-        response_message = {'status': 'No Strava code provided in url or other problem occured. Contact site administrator'}
+        response_message = {
+            'status': 'No Strava code provided in url or other problem occured. Contact site administrator'}
         response_status = status.HTTP_400_BAD_REQUEST
         if strava_code:
             if users_selectors.is_auth_to_strava(request.user):

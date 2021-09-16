@@ -8,7 +8,8 @@ from mysite import settings
 from users.models import StravaActivity, StravaApi, Group
 from users import services
 from django.db import models
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
+
 
 def get_user(id: int) -> get_user_model:
     """ return use for given id"""
@@ -17,21 +18,40 @@ def get_user(id: int) -> get_user_model:
     except get_user_model().DoesNotExist:
         raise ObjectDoesNotExist(f'User with id = {id} does not exists')
 
+
 def get_membership(user: get_user_model) -> Iterable[Group]:
     """ return user group memberships """
     return user.membership.all()
+
 
 def get_pending_membership(user: get_user_model) -> Iterable[int]:
     """ return pending membership for user """
     return user.pending_membership.all()
 
+
 def get_user_group(user: get_user_model) -> Group:
     """ return user own group """
     return user.own_group
 
+
+def is_user_in_group(user: get_user_model, groups: Iterable[Group]) -> bool:
+    """ check if user belong to group """
+
+    user_membership = get_membership(user=user)
+    # user_membership = list(get_membership(
+    #     user=user).values_list('id', flat=True))
+
+    if all(group in user_membership for group in groups):
+        return True
+    # if all(group_id in user_membership for group_id in group_ids):
+    #     return True
+    raise ValidationError('Group not found in your membership')
+
+
 def get_bmi(user: get_user_model) -> int:
     """ calculate and return BMI for user """
     return round(user.weight/(user.height/100)**2, 1)
+
 
 def get_activity_properties(activity: dict) -> dict:
     """ return only that properties which are needed """
@@ -49,18 +69,22 @@ def get_activity_properties(activity: dict) -> dict:
             defaults[attr] = None
     return defaults
 
+
 def get_activities(user: get_user_model, date: datetime) -> Iterable[StravaActivity]:
     """ return strava activities for given date """
     return StravaActivity.objects.filter(user=user, date__date=datetime.date(date.year, date.month, date.day))
+
 
 def get_strava_last_request_epoc_time(user: get_user_model) -> int:
     """ return last request time in epoc format """
     return user.strava.last_request_epoc_time
 
-def get_activities_from_strava(user: get_user_model, date: datetime=datetime.date.today()) -> dict:
+
+def get_activities_from_strava(user: get_user_model, date: datetime = datetime.date.today()) -> dict:
 
     one_day_in_seconds = 86400
-    after_epoch_timestamp = int(time.mktime(time.strptime(date.strftime('%Y-%m-%d'), '%Y-%m-%d')))
+    after_epoch_timestamp = int(time.mktime(
+        time.strptime(date.strftime('%Y-%m-%d'), '%Y-%m-%d')))
     before_epoch_timestamp = after_epoch_timestamp + one_day_in_seconds
     params = [
         f'after={after_epoch_timestamp}',
@@ -75,17 +99,21 @@ def get_activities_from_strava(user: get_user_model, date: datetime=datetime.dat
         return process_request(strava_obj, url, header, 'GET')
     return None
 
+
 def can_request_be_send(strava_obj: StravaApi) -> bool:
     """ check whether request can be send with available inforamtions """
     return is_token_valid(strava_obj) or has_needed_information_for_request(strava_obj) and get_new_strava_access_token(strava_obj)
+
 
 def is_token_valid(strava_obj: StravaApi) -> bool:
     """ check if token is still valid based on expirations time """
     return strava_obj.expires_at > time.time()
 
+
 def has_needed_information_for_request(strava_obj: StravaApi) -> bool:
     """ check if StravaApi instance has inforamtions needed for request """
     return all([strava_obj.access_token, strava_obj.refresh_token,       strava_obj.expires_at])
+
 
 def get_new_strava_access_token(strava_obj: StravaApi) -> bool:
     """ request and save new access token based on refresh token parameter """
@@ -100,7 +128,8 @@ def get_new_strava_access_token(strava_obj: StravaApi) -> bool:
         'refresh_token': strava_obj.refresh_token,
         'grant_type': 'refresh_token'
     }
-    res = process_request(strava_obj, settings.STRAVA_AUTH_URL, payload, 'POST')
+    res = process_request(
+        strava_obj, settings.STRAVA_AUTH_URL, payload, 'POST')
     if res:
         try:
             strava_obj.access_token = res['access_token']
@@ -112,9 +141,11 @@ def get_new_strava_access_token(strava_obj: StravaApi) -> bool:
             pass
     return False
 
+
 def get_environ_variables() -> tuple:
     """ return enviromental variables needed for strava authentication """
     return os.environ['STRAVA_CLIENT_ID'], os.environ['STRAVA_CLIENT_SECRET']
+
 
 def process_request(strava_obj: StravaApi, url: str, payload: dict, type: str) -> dict:
     """ process strava request/response """
@@ -133,15 +164,18 @@ def process_request(strava_obj: StravaApi, url: str, payload: dict, type: str) -
             print(response.json())
     return None
 
+
 def send_get_request_to_strava(url: str, payload: dict) -> requests:
     """ send request to strava based on parameters """
     print("Request has been sent")
     return requests.get(url, headers=payload)
 
+
 def send_post_request_to_strava(url: str, payload: dict) -> requests:
     """ send request to strava based on parameters """
     print("Request has been sent")
     return requests.post(url, payload)
+
 
 def prepare_strava_request_url(id: int, params: list = None) -> str:
     """ prepare strava url for request """
@@ -153,9 +187,11 @@ def prepare_strava_request_url(id: int, params: list = None) -> str:
             url += param + '&'
     return url
 
+
 def prepare_authorization_header(strava_obj: StravaApi) -> str:
     """ create authorization header including access token """
     return {'Authorization': f'Bearer {strava_obj.access_token}'}
+
 
 def is_auth_to_strava(user: get_user_model) -> bool:
     """ check if there is associated and valid StravaApi instance. """
@@ -166,4 +202,3 @@ def is_auth_to_strava(user: get_user_model) -> bool:
     except StravaApi.DoesNotExist:
         StravaApi.objects.create(user=user)
     return False
-

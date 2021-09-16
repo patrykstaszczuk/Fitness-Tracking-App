@@ -1,9 +1,10 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.db.utils import IntegrityError
 from rest_framework.test import APIClient
 from rest_framework import status
-from recipe import models
+from recipe import models, services
 
 
 def sample_user(email='test@gmail.com', name='Test', password='testpass',
@@ -48,7 +49,8 @@ class ModelTests(TestCase):
         ingredient = models.Ingredient.objects.create(name='Biała czekolada',
                                                       user=self.user)
         ingredient.tags.add(self.tag)
-        self.assertEqual(ingredient.slug, 'biala-czekolada')
+        self.assertEqual(
+            ingredient.slug, f'biala-czekolada-user-{self.user.id}')
 
     # def test_same_slug_different_ingredients(self):
     #     """ Test does not work as expected, return Integrity Error 1062, despite
@@ -76,6 +78,7 @@ class ModelTests(TestCase):
         """ test the recipe string representation """
         recipe = models.Recipe.objects.create(
             name='Danie',
+            slug='danie',
             user=self.user,
             calories=1000,
             portions=4,
@@ -88,6 +91,7 @@ class ModelTests(TestCase):
         """ test string representation of that table """
         recipe = models.Recipe.objects.create(
             name='Danie',
+            slug='danie',
             user=self.user,
             calories=1000,
             portions=4,
@@ -143,9 +147,3 @@ class ModelTests(TestCase):
         tag = models.Tag.objects.get(name='ready meal')
 
         self.assertIn(tag.name, rmeal.tags.all().values()[0]['name'])
-
-    def test_robustness_of_delete_old_photos_method(self):
-        """ test if _delete_old_photos_methods raise any exceptions with
-        incorrect arguments """
-        recipe = models.Recipe.objects.create(user=self.user, name='test')
-        self.assertFalse(recipe._delete_old_photos([1, 2], [3, 4]))
