@@ -3,12 +3,14 @@ from django.core.exceptions import ValidationError, ObjectDoesNotExist
 
 from django.contrib.auth import get_user_model
 
+
 def get_first_matching_attr(obj, *attrs, default=None):
     for attr in attrs:
         if hasattr(obj, attr):
             return getattr(obj, attr)
 
     return default
+
 
 def get_error_message(exc):
     if hasattr(exc, 'message_dict'):
@@ -23,6 +25,7 @@ def get_error_message(exc):
 
     return error_msg
 
+
 class ApiErrorsMixin:
     """
     Mixin that transforms Django and Python exceptions into rest_framework ones.
@@ -30,7 +33,7 @@ class ApiErrorsMixin:
     https://github.com/HackSoftware/Styleguide-Example/blob/master/styleguide_example/api/mixins.py#L70
     """
     expected_exceptions = {
-        ObjectDoesNotExist: rest_exceptions.ValidationError,
+        ObjectDoesNotExist: rest_exceptions.NotFound,
         # ValueError: rest_exceptions.ValidationError,
         ValidationError: rest_exceptions.ValidationError,
         # PermissionError: rest_exceptions.PermissionDenied

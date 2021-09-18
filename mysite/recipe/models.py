@@ -14,6 +14,14 @@ import requests
 from rest_framework import status
 
 
+def generate_image_file_path(recipe_instance, filename: str):
+    """ generate file path for new recipe image """
+    extention = filename.split('.')[-1]
+    filename = f'{uuid.uuid4()}.{extention}'
+    return os.path.join('recipes/', recipe_instance.user.name,
+                        recipe_instance.slug, filename)
+
+
 class Dish(models.Model):
     """ abstract class for any kind of dish. Provided common attributes and methods """
 
@@ -40,14 +48,6 @@ class Dish(models.Model):
         """ check if and how many recipes with provided name exists """
         return self.__class__.objects.filter(user=self.user) \
             .filter(name=name).exclude(id=self.id).count()
-
-
-def generate_image_file_path(recipe_instance, filename: str):
-    """ generate file path for new recipe image """
-    extention = filename.split('.')[-1]
-    filename = f'{uuid.uuid4()}.{extention}'
-    return os.path.join('recipes/', recipe_instance.user.name,
-                        recipe_instance.slug, filename)
 
 
 class Recipe(Dish):
@@ -113,12 +113,12 @@ class Recipe(Dish):
 
 class Ingredient(Dish):
 
-    GRAM = 'G'
-    MILI = 'ML'
-    UNIT_CHOICE = [
-        (GRAM, 'g'),
-        (MILI, 'ml'),
-    ]
+    # GRAM = 'G'
+    # MILI = 'ML'
+    # UNIT_CHOICE = [
+    #     (GRAM, 'g'),
+    #     (MILI, 'ml'),
+    # ]
 
     SOLID = 'S'
     LIQUID = 'L'
@@ -146,28 +146,16 @@ class Ingredient(Dish):
                                     name='unique_user_name')
         ]
 
-    def save(self, *args, **kwargs) -> None:
-        """ save object with proper slug """
-        self.slug = slugify(unidecode(self.name)) + \
-            '-user-' + str(self.user.id)
-        number_of_ingredients_with_the_same_name = self._check_if_name_exists(
-            self.name)
-        if number_of_ingredients_with_the_same_name > 0:
-            self.slug = self.slug + \
-                '(' + str(number_of_ingredients_with_the_same_name + 1) + ')'
-        super().save(*args, **kwargs)
-
-    def send_to_nozbe(self) -> None:
-        """ send ingredient instance to nozbe """
-
-        res = requests.post('https://api.nozbe.com:3000/task',
-                            headers={'Authorization':
-                                     os.environ['NOZBE_SECRET']},
-                            data={'name': self.name, 'project_id':
-                                  os.environ['NOZBE_PROJECT_ID'],
-                                  'client_id': os.environ['NOZBE_CLIENT_ID']})
-        if res.status_code == status.HTTP_200_OK:
-            return True
+    # def save(self, *args, **kwargs) -> None:
+    #     """ save object with proper slug """
+    #     self.slug = slugify(unidecode(self.name)) + \
+    #         '-user-' + str(self.user.id)
+    #     number_of_ingredients_with_the_same_name = self._check_if_name_exists(
+    #         self.name)
+    #     if number_of_ingredients_with_the_same_name > 0:
+    #         self.slug = self.slug + \
+    #             '(' + str(number_of_ingredients_with_the_same_name + 1) + ')'
+    #     super().save(*args, **kwargs)
 
     def get_calories(self) -> int:
         """ return ingredient calories """
@@ -198,17 +186,6 @@ class ReadyMeals(Ingredient):
     class Meta:
         proxy = True
 
-    def save(self, *args, **kwargs):
-        """ set default tag for ready meal or create that tag if not exists """
-
-        if not self.id:
-            super().save(*args, **kwargs)
-            tag, created = Tag.objects.get_or_create(name='Ready Meal',
-                                                     defaults={"user": self.user})
-            self.tags.add(tag)
-        else:
-            super().save(*args, **kwargs)
-
     def __str__(self):
         return self.name
 
@@ -219,18 +196,6 @@ class Tag(models.Model):
     name = models.CharField(max_length=25)
 
     slug = models.SlugField(blank=False, unique=False)
-
-    def save(self, *args, **kwargs):
-        """ two tags can have same slug eg 'sól' and 'sol' both
-            have slug 'sol' """
-        self.slug = slugify(unidecode(self.name))
-        if self.check_if_slug_exists(self.slug) and not self.id:
-            self.slug = self.slug + "2"
-
-        super().save(*args, **kwargs)
-
-    def check_if_slug_exists(self, slug):
-        return Tag.objects.filter(user=self.user).filter(slug=slug).count()
 
     def __str__(self):
         return self.name

@@ -20,7 +20,7 @@ def image_upload_url(recipe_slug):
     return reverse('recipe:recipe-upload-image', args=[recipe_slug, ])
 
 
-class PrivateTestCases(TestCase):
+class PrivateImageUploadApiTests(TestCase):
     """ test image uploading scenarios """
 
     def setUp(self):
@@ -38,6 +38,7 @@ class PrivateTestCases(TestCase):
 
         defaults = {
             'name': 'Danie testowe',
+            'slug': 'danie-testowe',
             'calories': 1000,
             'prepare_time': 50,
             'portions': 4,
@@ -69,7 +70,6 @@ class PrivateTestCases(TestCase):
             img = Image.new('RGB', (10, 10))
             img.save(ntf, format='JPEG')
             ntf.seek(0)
-
             res = self.client.post(url, {'photo1': ntf}, format='multipart')
         self.sample_recipe.refresh_from_db()
         self.assertEqual(res.status_code, status.HTTP_200_OK)
@@ -160,10 +160,8 @@ class PrivateTestCases(TestCase):
             img.save(ntf2, format='JPEG')
             ntf.seek(0)
             ntf2.seek(0)
-
-            res = self.client.post(url, {'photo1': ntf}, format='multipart')
-
-            res = self.client.post(url, {'photo2': ntf2}, format='multipart')
+            res = self.client.post(
+                url, {'photo1': ntf, 'photo2': ntf2}, format='multipart')
             self.sample_recipe.refresh_from_db()
             self.assertEqual(res.status_code, status.HTTP_200_OK)
             self.assertIn('photo1', res.data)

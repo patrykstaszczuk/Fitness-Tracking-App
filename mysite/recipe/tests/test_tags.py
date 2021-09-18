@@ -5,15 +5,16 @@ from django.urls import reverse
 from rest_framework.test import APIClient, APIRequestFactory
 from rest_framework import status
 
-from recipe import models
-from recipe.serializers import TagSerializer
+from recipe import models, services
+from recipe import serializers
 
 
-TAG_URL = reverse('recipe:tag-list')
+TAG_LIST_URL = reverse('recipe:tag-list')
+TAG_CREATE_URL = reverse('recipe:tag-create')
 
 
-def reverse_tag_detail(slug):
-    return reverse('recipe:tag-detail', kwargs={'slug': slug})
+def reverse_tag_update(slug):
+    return reverse('recipe:tag-update', kwargs={'slug': slug})
 
 
 def sample_user(email='user2@gmail.com', name='test2'):
@@ -36,7 +37,7 @@ class PublicTagTestsApi(TestCase):
 
     def test_login_required(self):
         """ test if unauthenticated user has no access to site """
-        res = self.client.get(TAG_URL)
+        res = self.client.get(TAG_LIST_URL)
 
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -63,11 +64,11 @@ class PrivateTagApiTests(TestCase):
         models.Tag.objects.create(name='Wegański', user=self.user)
         models.Tag.objects.create(name='Zupa', user=self.user)
 
-        request = self.factory.get(TAG_URL)
+        request = self.factory.get(TAG_LIST_URL)
 
-        res = self.client.get(TAG_URL)
+        res = self.client.get(TAG_LIST_URL)
         tags = models.Tag.objects.filter(user=self.user)
-        serializer = TagSerializer(
+        serializer = serializers.TagOutputSerializer(
             tags, many=True, context={'request': request})
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
@@ -76,12 +77,12 @@ class PrivateTagApiTests(TestCase):
 
     def test_retrieve_tags_limited_to_user(self):
         """ test retrieve tags which are created by specific user """
-        tag = models.Tag.objects.create(name='Zupa', user=self.user)
+        tag = services.tag_create(user=self.user, data={'name': 'Zupa'})
 
         user2 = sample_user()
         models.Tag.objects.create(name='Obiad', user=user2)
 
-        res = self.client.get(TAG_URL)
+        res = self.client.get(TAG_LIST_URL)
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(len(res.data), 1)
@@ -93,17 +94,18 @@ class PrivateTagApiTests(TestCase):
             'name': 'Nowy Tag',
             'user': self.user
         }
-        res = self.client.post(TAG_URL, payload)
+        res = self.client.post(TAG_CREATE_URL, payload)
 
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(res.json()['data']['slug'], 'nowy-tag')
 
-    def test_create_tag_to_long(self):
-        """ test create tag with name to long """
+    def test_create_tag_name_too_long(self):
+        """ test create tag with name too long """
         payload = {
             'name': 'nazwa jest zbyt dlug max 15 znakow',
             'user': self.user
         }
-        res = self.client.post(TAG_URL, payload)
+        res = self.client.post(TAG_CREATE_URL, payload)
 
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -113,57 +115,56 @@ class PrivateTagApiTests(TestCase):
             'name': '',
             'user': self.user
         }
-        res = self.client.post(TAG_URL, payload)
+        res = self.client.post(TAG_CREATE_URL, payload)
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_tag_invalid_name(self):
         """ test creating tag with name which is already is db """
-        models.Tag.objects.create(name='Nazwa', user=self.user)
+        services.tag_create(user=self.user, data={'name': 'nazwa'})
 
         payload = {
             'name': 'Nazwa',
             'user': self.user
         }
-        res = self.client.post(TAG_URL, payload)
+        res = self.client.post(TAG_CREATE_URL, payload)
 
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_full_update_tag_success(self):
-        """ test updating tag succes """
-        tag = models.Tag.objects.create(name='nazwa', user=self.user)
-
-        payload = {
-            'name': 'new2345',
-        }
-        res = self.client.put(reverse_tag_detail(tag.slug), payload)
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertNotEqual(tag.name, payload['name'])
-
-    def test_tag_update_if_name_not_change(self):
-        """ test tag update if the name is not change """
-        tag = models.Tag.objects.create(name='nazwa', user=self.user)
-        payload = {
-            'name': 'nazwa'
-        }
-        res = self.client.put(reverse_tag_detail(tag.slug), payload)
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-
-    def test_create_tag_for_different_user_success(self):
+    def test_create_tag_by_different_user_success(self):
         """ test update tag with name which is already used but created
             by different user"""
         user2 = sample_user()
-        models.Tag.objects.create(name='nazwa', user=user2)
+        services.tag_create(user=user2, data={'name': 'nazwa'})
 
-        res = self.client.post(TAG_URL, {'name': 'nazwa'})
+        res = self.client.post(TAG_CREATE_URL, {'name': 'nazwa'})
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
 
         tags = models.Tag.objects.all()
         self.assertEqual(len(tags), 2)
 
-    def test_delete_tag_success(self):
-        tag = models.Tag.objects.create(name='nazwa', user=self.user)
+    def test_full_update_tag_success(self):
+        """ test updating tag succes """
+        tag = services.tag_create(user=self.user, data={'name': 'nazwa'})
 
-        res = self.client.delete(reverse_tag_detail(tag.slug), follow=True)
+        payload = {
+            'name': 'new2345',
+        }
+        res = self.client.put(reverse_tag_update(tag.slug), payload)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertNotEqual(tag.name, payload['name'])
+
+    def test_tag_update_if_name_not_change(self):
+        """ test tag update if the name is not change """
+        tag = services.tag_create(user=self.user, data={'name': 'nazwa'})
+        payload = {
+            'name': 'nazwa'
+        }
+        res = self.client.put(reverse_tag_update(tag.slug), payload)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+    def test_delete_tag_success(self):
+        tag = services.tag_create(user=self.user, data={'name': 'nazwa'})
+        res = self.client.delete(reverse_tag_update(tag.slug), follow=True)
         self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
 
         tags = models.Tag.objects.filter(id=tag.id).exists()
@@ -173,10 +174,10 @@ class PrivateTagApiTests(TestCase):
     def test_delete_tag_only_for_requested_user(self):
         """ test that only tag for requested user is deleted """
         user2 = sample_user()
-        tag = models.Tag.objects.create(name='tag', user=self.user)
-        models.Tag.objects.create(name='tag', user=user2)
+        tag = services.tag_create(user=self.user, data={'name': 'tag'})
+        tag = services.tag_create(user=user2, data={'name': 'tag'})
 
-        res = self.client.delete(reverse_tag_detail(tag.slug))
+        res = self.client.delete(reverse_tag_update(tag.slug))
 
         self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
 

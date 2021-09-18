@@ -45,9 +45,8 @@ class ModelTests(TestCase):
 
     def test_ingredient_slug(self):
         """ test the ingredient slug """
-
-        ingredient = models.Ingredient.objects.create(name='Biała czekolada',
-                                                      user=self.user)
+        ingredient = services.ingredient_create(user=self.user,
+                                                data={'name': 'Biała czekolada'})
         ingredient.tags.add(self.tag)
         self.assertEqual(
             ingredient.slug, f'biala-czekolada-user-{self.user.id}')
@@ -141,8 +140,8 @@ class ModelTests(TestCase):
 
     def test_default_tag_for_ready_meals(self):
         """ test default tag for ready meals """
-
-        rmeal = models.ReadyMeals.objects.create(name='ready', user=self.user)
+        rmeal = services.ingredient_create(
+            user=self.user, data={'ready_meal': True, 'name': 'ready'})
 
         tag = models.Tag.objects.get(name='ready meal')
 

@@ -7,7 +7,6 @@ from rest_framework.test import APIClient, APITestCase, APIRequestFactory
 from rest_framework import status
 
 from recipe import models, services
-from recipe.serializers import IngredientSerializer
 from recipe import serializers
 
 from unittest.mock import patch, MagicMock
@@ -41,12 +40,13 @@ def sample_recipe(user, **params):
 
 def sample_tag(user, name):
     """ create and return sampel tag """
-    return models.Tag.objects.create(user=user, name=name)
+    return services.tag_create(user, {'name': name})
 
 
 def sample_ingredient(**values):
     """ create sample ingredeint """
-    return models.Ingredient.objects.create(**values)
+    user = values.pop('user')
+    return services.ingredient_create(user=user, data=values)
 
 
 def sample_unit(name, short_name):
@@ -415,15 +415,18 @@ class PrivateRecipeApiTests(APITestCase):
 
         new_ing = models.Ingredient.objects.create(
             user=self.user,
-            name='Czosnek'
+            name='Czosnek',
+            slug='czosnek'
         )
         new_ing2 = models.Ingredient.objects.create(
             user=self.user,
-            name='Czosnek2'
+            name='Czosnek2',
+            slug='czosnek2'
         )
         new_tag = models.Tag.objects.create(
             name='Wegetarianski',
-            user=self.user
+            user=self.user,
+            slug='wegetarianski'
         )
         payload = {
             'name': 'nowa nazwa dla dania',

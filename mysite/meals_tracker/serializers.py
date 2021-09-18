@@ -2,7 +2,7 @@ from rest_framework import serializers
 from meals_tracker import models
 from rest_framework.reverse import reverse
 from recipe.models import Recipe, Ingredient
-from recipe.serializers import UnitSerializer
+from recipe.serializers import UnitOutputSerializer
 
 
 class DatesSerializer(serializers.Serializer):
@@ -94,12 +94,14 @@ class RetrieveIngredientSerializer(serializers.ModelSerializer):
 
     def get_unit(self, obj):
         """ return unit used to define ingredient amount """
-        unit = models.IngredientAmount.objects.get(ingredient=obj, meal=self.meal).unit
+        unit = models.IngredientAmount.objects.get(
+            ingredient=obj, meal=self.meal).unit
         return UnitSerializer(unit).data
 
     def get_amount(self, obj):
         """ return amount of ingredient """
-        amount = models.IngredientAmount.objects.get(ingredient=obj, meal=self.meal).amount
+        amount = models.IngredientAmount.objects.get(
+            ingredient=obj, meal=self.meal).amount
         return amount
 
     def __init__(self, *args, **kwargs):
@@ -113,7 +115,8 @@ class MealsTrackerSerializer(serializers.ModelSerializer):
 
     recipes = serializers.SerializerMethodField()
     ingredients = serializers.SerializerMethodField()
-    url = serializers.HyperlinkedIdentityField(view_name='meals_tracker:meal-detail')
+    url = serializers.HyperlinkedIdentityField(
+        view_name='meals_tracker:meal-detail')
     category = MealCategorySerializer(read_only=True)
 
     class Meta:
@@ -127,13 +130,13 @@ class MealsTrackerSerializer(serializers.ModelSerializer):
 
         recipes = obj.recipes.all()
         try:
-            request = self.context['request'] # for API testing only
+            request = self.context['request']  # for API testing only
         except KeyError:
             request = None
 
         data = RetrieveRecipeSerializer(recipes,
                                         context={'request': request,
-                                        'meal_instance': obj},
+                                                 'meal_instance': obj},
                                         read_only=True, many=True).data
 
         return data
@@ -143,12 +146,12 @@ class MealsTrackerSerializer(serializers.ModelSerializer):
 
         ingredients = obj.ingredients.all()
         try:
-            request = self.context['request'] # for API testing only
+            request = self.context['request']  # for API testing only
         except KeyError:
             request = None
         data = RetrieveIngredientSerializer(ingredients,
                                             context={'request': request,
-                                            'meal_instance': obj},
+                                                     'meal_instance': obj},
                                             read_only=True, many=True).data
         return data
 
@@ -160,7 +163,8 @@ class CreateUpdateMealSerializer(MealsTrackerSerializer):
                                       many=True)
     ingredients = IngredientAmountSerializer(write_only=True, required=False,
                                              many=True)
-    category = serializers.PrimaryKeyRelatedField(queryset=models.MealCategory.objects.all())
+    category = serializers.PrimaryKeyRelatedField(
+        queryset=models.MealCategory.objects.all())
 
     def validate_recipes(self, recipes):
         """ check if user is allowed to use recipes """
@@ -171,7 +175,8 @@ class CreateUpdateMealSerializer(MealsTrackerSerializer):
                 raise serializers.ValidationError(f"{recipe['recipe'].id} \
                 No such recipe in your recipes or group recipes")
             if 'portion' not in recipe:
-                raise serializers.ValidationError('recipe and portion must be set at the same time')
+                raise serializers.ValidationError(
+                    'recipe and portion must be set at the same time')
         return recipes
 
     def to_internal_value(self, values):
@@ -181,7 +186,7 @@ class CreateUpdateMealSerializer(MealsTrackerSerializer):
         data = super().to_internal_value(values)
         if initial_values.keys() != data.keys():
             raise serializers.ValidationError({'non-field-error':
-                                              'Bad structure for json request'})
+                                               'Bad structure for json request'})
         return data
 
     def to_representation(self, instance):
@@ -256,9 +261,11 @@ class CreateUpdateMealSerializer(MealsTrackerSerializer):
                 ingredient['meal'] = instance
                 if ingredient['ingredient'] in instance.ingredients.all():
                     models.IngredientAmount.objects.filter(ingredient=ingredient['ingredient'],
-                                                  meal=instance).update(**ingredient)
+                                                           meal=instance).update(**ingredient)
                 else:
-                    new_ingredients.append(instance.ingredients.through(**ingredient))
+                    new_ingredients.append(
+                        instance.ingredients.through(**ingredient))
             if new_ingredients:
-                instance.ingredients.through.objects.bulk_create(new_ingredients)
+                instance.ingredients.through.objects.bulk_create(
+                    new_ingredients)
         return instance

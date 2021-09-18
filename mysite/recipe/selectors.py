@@ -1,11 +1,11 @@
 from django.contrib.auth import get_user_model
 from django.http.request import QueryDict
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.db.models.query import QuerySet
 from recipe.models import Recipe, Ingredient, Unit, Ingredient_Unit, Tag
 from users.models import Group
 from users import selectors as users_selectors
-from typing import Iterable
+from typing import Iterable, Union
 import requests
 import os
 
@@ -125,9 +125,9 @@ def get_nozbe_request_information() -> tuple([str, str, str]):
             contanct admin")
 
 
-def check_if_name_exists(user: get_user_model, name: str) -> int:
+def check_if_name_exists(instance: Union[Tag, Recipe]) -> int:
     """ return number of recipes with same name and user """
-    return Recipe.objects.filter(user=user, name=name).count()
+    return Recipe.objects.filter(user=instance.user, name=instance.name).count()
 
 
 def unit_map_id_to_instance(unit_id: int) -> Unit:
@@ -170,24 +170,63 @@ def map_data_to_instances(user: get_user_model, ingredients: dict) -> dict:
         ingredient = ingredient_map_slug_to_object(
             [ingredient_slug, ])[0]
         item.update({'ingredient': ingredient})
-        # try:
-        #     instance = Ingredient.objects.get(slug=ingredient_slug)
-        #     item.update({'ingredient': instance})
-        # except Ingredient.DoesNotExist:
-        #     raise ValidationError(
-        #         f'{ingredient_slug} such slug does not exists!')
 
         unit = unit_map_id_to_instance(unit_id)
         if unit_is_mapped_to_ingredient(unit=unit, ingredient=ingredient):
             item.update({'unit': unit})
-        # try:
-        #     unit = Unit.objects.get(id=unit_id)
-        #     item.update({'unit': unit})
-        # except Unit.DoesNotExist:
-        #     raise ValidationError(f'{unit_id} does not exists!')
     return ingredients
 
 
-def tags_get(user: get_user_model) -> Iterable[Tag]:
-    """ return tag created by user """
+def tag_list(user: get_user_model) -> Iterable[Tag]:
+    """ return tags created by user """
     return Tag.objects.filter(user=user)
+
+
+def tag_get(user: get_user_model, slug: str) -> Tag:
+    """ return tag object """
+    try:
+        return Tag.objects.get(user=user, slug=slug)
+    except Tag.DoesNotExist:
+        raise ObjectDoesNotExist(f"Tag with slug {slug} does not exists!")
+
+
+def ingredient_list(user: get_user_model) -> Iterable[Ingredient]:
+    """ return ingredients created by user """
+    return Ingredient.objects.all()
+
+
+def ingredient_get(slug: str) -> Ingredient:
+    """ return ingredient object. Ingrediens are common whats why
+     we dont filter queryset by user """
+    try:
+        return Ingredient.objects.get(slug=slug)
+    except Ingredient.DoesNotExist:
+        raise ObjectDoesNotExist(
+            f"Ingredient with slug {slug} does not exists!")
+
+
+def ingredient_get_for_requested_user(user: get_user_model, slug: str) -> Ingredient:
+    """ filter all ingredients by requested user """
+    try:
+        return Ingredient.objects.get(user=user, slug=slug)
+    except Ingredient.DoesNotExist:
+        raise ObjectDoesNotExist(
+            f"Ingredient with slug {slug} does not exists!")
+
+
+def ingredient_get_available_units(ingredient: Ingredient) -> Iterable[Ingredient_Unit]:
+    """ return available units for ingredient """
+    return Ingredient_Unit.objects.filter(ingredient=ingredient)
+
+
+def unit_get(id: int, default: bool) -> Unit:
+    """ return unit """
+    if default:
+        return Unit.objects.get_or_create(name='gram')
+    return Unit.objects.get(id=id)
+
+
+def unit_list() -> Iterable[Unit]:
+    """ return all available units """
+    return Unit.objects.all()
+    return Unit.objects.all()
