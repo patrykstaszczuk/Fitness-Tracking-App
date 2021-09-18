@@ -219,6 +219,18 @@ def ingredient_get_available_units(ingredient: Ingredient) -> Iterable[Ingredien
     return Ingredient_Unit.objects.filter(ingredient=ingredient)
 
 
+def ingredient_convert_unit_to_grams(ingredient: Ingredient, unit: Unit, amount: int) -> int:
+    """ convert amount of given unit to amount of given unit in grams """
+    if unit.name == 'gram':
+        return amount
+    try:
+        obj = Ingredient_Unit.objects.get(
+            ingredient=ingredient.id, unit=unit)
+    except Ingredient_Unit.DoesNotExist:
+        raise ValidationError(f"{unit} - {ingredient.name} no such mapping")
+    return obj.grams_in_one_unit * amount
+
+
 def unit_get(id: int, default: bool) -> Unit:
     """ return unit """
     if default:

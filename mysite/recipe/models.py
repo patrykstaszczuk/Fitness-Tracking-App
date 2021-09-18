@@ -100,11 +100,6 @@ class Recipe(Dish):
     def get_absolute_url(self) -> str:
         return reverse('recipe:recipe_detail', kwargs={'slug': self.slug})
 
-    #
-    # def get_recalculated_calories(self, number_of_portions: int) -> int:
-    #     """ return calories based on portions """
-    #     return (self.calories/self.portions) * number_of_portions
-
     def __init__(self, *args, **kwargs):
         """ save curently used photos in list for latter comparsion """
         super().__init__(*args, **kwargs)
@@ -112,13 +107,6 @@ class Recipe(Dish):
 
 
 class Ingredient(Dish):
-
-    # GRAM = 'G'
-    # MILI = 'ML'
-    # UNIT_CHOICE = [
-    #     (GRAM, 'g'),
-    #     (MILI, 'ml'),
-    # ]
 
     SOLID = 'S'
     LIQUID = 'L'
@@ -146,38 +134,23 @@ class Ingredient(Dish):
                                     name='unique_user_name')
         ]
 
-    # def save(self, *args, **kwargs) -> None:
-    #     """ save object with proper slug """
-    #     self.slug = slugify(unidecode(self.name)) + \
-    #         '-user-' + str(self.user.id)
-    #     number_of_ingredients_with_the_same_name = self._check_if_name_exists(
-    #         self.name)
-    #     if number_of_ingredients_with_the_same_name > 0:
-    #         self.slug = self.slug + \
-    #             '(' + str(number_of_ingredients_with_the_same_name + 1) + ')'
-    #     super().save(*args, **kwargs)
-
-    def get_calories(self) -> int:
-        """ return ingredient calories """
-        return self.calories
-
-    def convert_unit_to_grams(self, unit, amount):
-        """ return the unit and amount in grams/mililiters defined for
-        ingredient """
-
-        if unit.name == 'gram':
-            return amount
-        try:
-            obj = Ingredient_Unit.objects.get(
-                ingredient=self.id, unit=unit)
-        except Ingredient_Unit.DoesNotExist:
-            raise ValidationError(f"{unit} - {self.name} no such mapping")
-        return obj.grams_in_one_unit * amount
-
-    def calculate_calories(self, unit, amount):
-        """ calculate calories based on unit and amount """
-        return (self.convert_unit_to_grams(unit, amount)/100) * \
-            self.get_calories()
+    # def convert_unit_to_grams(self, unit, amount):
+    #     """ return the unit and amount in grams/mililiters defined for
+    #     ingredient """
+    #
+    #     if unit.name == 'gram':
+    #         return amount
+    #     try:
+    #         obj = Ingredient_Unit.objects.get(
+    #             ingredient=self.id, unit=unit)
+    #     except Ingredient_Unit.DoesNotExist:
+    #         raise ValidationError(f"{unit} - {self.name} no such mapping")
+    #     return obj.grams_in_one_unit * amount
+    #
+    # def calculate_calories(self, unit, amount):
+    #     """ calculate calories based on unit and amount """
+    #     return (self.convert_unit_to_grams(unit, amount)/100) * \
+    #         self.get_calories()
 
 
 class ReadyMeals(Ingredient):

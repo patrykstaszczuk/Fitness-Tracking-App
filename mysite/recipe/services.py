@@ -159,7 +159,8 @@ def recalculate_nutritions_values(recipe: Recipe) -> None:
             ingredient_field_value = getattr(ingredient, field)
             if ingredient_field_value is None:
                 ingredient_field_value = 0
-            grams = ingredient.convert_unit_to_grams(unit, amount)
+            grams = selectors.ingredient_convert_unit_to_grams(
+                ingredient, unit, amount)
             setattr(recipe, field, round((current_recipe_field_value
                                           + (grams/100)*ingredient_field_value), 2))
     kwargs = {'force_insert': False}
