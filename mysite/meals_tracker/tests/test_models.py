@@ -2,23 +2,18 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from meals_tracker import models
 from recipe.models import Recipe, Ingredient, Unit
+from recipe import services as recipe_services
 import datetime
 
 
 def sample_recipe(user, name='test', calories=0, **kwargs):
     """ create sample recipe """
-    return Recipe.objects.create(
-        user=user,
-        name=name,
-        calories=calories,
-        **kwargs
-    )
+    return recipe_services.create_recipe(user=user, data={'name': name, 'calories': calories})
 
 
 def sample_ingredient(**kwargs):
-    return Ingredient.objects.create(
-        **kwargs
-    )
+    user = kwargs.get('user')
+    return recipe_services.ingredient_create(user=user, data=kwargs)
 
 
 def sample_category(name='breakfast'):

@@ -8,7 +8,7 @@ from recipe import serializers
 from rest_framework import permissions
 
 from mysite.renderers import CustomRenderer
-from mysite.views import RequiredFieldsResponseMessage
+from mysite.views import RequiredFieldsResponseMessage, BaseAuthPermClass
 
 from recipe import selectors, services
 
@@ -24,70 +24,6 @@ class CanRetrieveRecipeDetail(BasePermission):
             if request.user in obj.user.own_group.members.all():
                 return True
         return False
-
-
-class BaseAuthPermClass:
-    authentication_classes = (TokenAuthentication, )
-    permission_classes = (IsAuthenticated, )
-    renderer_classes = [CustomRenderer, ]
-
-
-class BaseRecipeAttrViewSet(RequiredFieldsResponseMessage, viewsets.ModelViewSet):
-    """ Base viewset for user owned recipe atributes """
-    authentication_classes = (TokenAuthentication, )
-    permission_classes = (IsAuthenticated, )
-    renderer_classes = [CustomRenderer, ]
-    lookup_field = "slug"
-
-    def get_queryset(self, extra_action=False):
-        """ return objects for the current authenticated user only """
-
-        if extra_action:
-            user_in_url = self.request.query_params.get('user', None)
-            if user_in_url and self.action == 'retrieve':
-                return self.queryset.filter(user=user_in_url)
-            elif user_in_url and self.action not in permissions.SAFE_METHODS:
-                return self.http_method_not_allowed(self.request)
-        return self.queryset.filter(user=self.request.user)
-
-    def perform_create(self, serializer):
-        """ create a new object """
-        serializer.save(user=self.request.user)
-
-    def perfom_update(self, serializer):
-        """ update an existing object """
-        serializer.save(user=self.request.user)
-
-    def get_serializer_context(self):
-        """ set user to context """
-        context = super().get_serializer_context()
-        context['user'] = self.request.user
-        return context
-
-
-# class IngredientViewSet(BaseRecipeAttrViewSet):
-#     """ Manage ingredient in the database """
-#     serializer_class = serializers.IngredientSerializer
-#     queryset = Ingredient.objects.all()
-#
-#     def get_queryset(self):
-#         """
-#         list -> all ingredients in db
-#         retrieve -> depends on user in query query
-#         non-safe methods -> only requrested user objects
-#         """
-#         if self.action in ['list', ]:
-#             return self.queryset
-#         else:
-#             return super().get_queryset(extra_action=True)
-#
-#     def get_serializer_class(self):
-#         """ return different serializer if ready_meal flag is True """
-#
-#         flag = self.request.data.get('ready_meal')
-#         if flag is True:
-#             return serializers.ReadyMealIngredientSerializer
-#         return self.serializer_class
 
 
 class IngredientListApi(BaseAuthPermClass, RequiredFieldsResponseMessage):

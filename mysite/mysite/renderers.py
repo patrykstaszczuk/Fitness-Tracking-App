@@ -3,7 +3,7 @@ from rest_framework.reverse import reverse
 
 
 class CustomRenderer(JSONRenderer):
-#class CustomRenderer(BrowsableAPIRenderer, JSONRenderer):
+    #class CustomRenderer(BrowsableAPIRenderer, JSONRenderer):
 
     def get_default_renderer(self, view):
         return JSONRenderer()

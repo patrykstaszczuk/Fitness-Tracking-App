@@ -1,122 +1,96 @@
-
-from django.shortcuts import render
-import json
-from django.core.serializers.json import DjangoJSONEncoder
-from rest_framework.decorators import action
-from rest_framework import viewsets, status
-from rest_framework.authentication import TokenAuthentication
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.reverse import reverse
+from rest_framework import status
 from rest_framework.response import Response
-from rest_framework.generics import ListAPIView
-from rest_framework.mixins import ListModelMixin
-from django.core.exceptions import ValidationError
-from meals_tracker import models
-from meals_tracker import serializers
-
-import datetime
-
-from mysite.renderers import CustomRenderer
-from mysite.views import RequiredFieldsResponseMessage
+from meals_tracker import serializers, selectors, services
+from mysite.views import RequiredFieldsResponseMessage, BaseAuthPermClass
 
 
-class MealsTrackerViewSet(RequiredFieldsResponseMessage, viewsets.ModelViewSet):
-    """ ViewSets for managing meals """
+class MealsTrackerDeleteApi(BaseAuthPermClass, RequiredFieldsResponseMessage):
+    """ API for deleting meal """
 
-    authentication_classes = (TokenAuthentication, )
-    permission_classes = (IsAuthenticated, )
-    renderer_classes = [CustomRenderer, ]
-    serializer_class = serializers.MealsTrackerSerializer
-    queryset = models.Meal.objects.all()
+    def delete(self, request, *args, **kwargs):
+        """ handling delete meal request """
+        meal = selectors.meal_get(user=request.user, id=kwargs.get('pk'))
+        meal.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
-    def get_serializer_class(self, extra_action=False):
-        """ return appriopriate serializer for action """
 
-        if extra_action and self.action in ['list', 'retrieve']:
-            return serializers.CreateUpdateMealSerializer
-        if self.action in ['create', 'update', 'partial_update']:
-            return serializers.CreateUpdateMealSerializer
-        return self.serializer_class
+class MealsTrackerListApi(BaseAuthPermClass, RequiredFieldsResponseMessage):
+    """ API for listing meals """
 
-    def perform_create(self, serializer):
-        """ create a new object """
-        serializer.save(user=self.request.user)
+    def get(self, request, *args, **kwargs):
+        """ return list of meals. If date in GET params,
+        return melas for given date, else for today """
+        date = request.query_params.get('date')
+        meals = selectors.meal_list(user=request.user, date=date)
+        serializer = serializers.MealOutputSerializer(meals, many=True)
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
 
-    def get_queryset(self):
-        """ return meals for specific date and request user """
 
-        if self.action == 'retrieve':
-            return self.queryset.filter(user=self.request.user)
-        date = self._get_date()
-        if date:
-            try:
-                date = self._validate_date(date)
-            except (ValueError, ValidationError) as e:
-                self.query_params_errors.update({"date": str(e)})
-                return None
-        else:
-            date = datetime.date.today()
-        return self.queryset.filter(user=self.request.user).filter(date=date)
+class MealsTrackerCreateApi(BaseAuthPermClass, RequiredFieldsResponseMessage):
+    """ API for creating meals """
 
-    def list(self, request, *args, **kwargs):
-        """ check if there is an erros in provided query params """
-        response = super().list(request, *args, **kwargs)
-        if self.query_params_errors:
-            return Response(data=self.query_params_errors,
-                            status=status.HTTP_400_BAD_REQUEST)
-        return response
+    def post(self, request, *args, **kwargs):
+        """ handle post request """
 
-    def get_renderer_context(self):
-        """ add extra info to response """
-        context = super().get_renderer_context()
-        links = [
-            {"today": reverse('meals_tracker:meal-list', request=self.request)},
-            {"categories":
-                reverse('meals_tracker:categories', request=self.request)},
-            {"availabe-dates":
-                reverse('meals_tracker:meal-available-dates',
-                        request=self.request)}
-        ]
-        context['links'] = links
+        serializer = serializers.MealInputSerializer(data=request.data)
 
-        return context
+        if serializer.is_valid():
+            meal = services.meal_post_handler(
+                user=request.user, data=serializer.data)
+            serializer = serializers.MealOutputSerializer(meal)
+            # headers = {}
+            # headers['Location'] = reverse(
+            #     'meals_tracker:meal-list', request=request)
+            return Response(data=serializer.data, status=status.HTTP_201_CREATED)
+        return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def _validate_date(self, date):
-        """ validate if provided date is in valid format and does not exceed
-        today """
-        date = datetime.datetime.strptime(date, '%Y-%m-%d').date()
-        today = datetime.date.today()
-        if date > today:
-            raise ValidationError(f"{date} > {today}, you cannot filter by \
-                                 future date")
-        return date
 
-    def _get_date(self):
-        """ get date from query params """
-        return self.request.query_params.get('date')
+class MealsTrackerUpdateApi(BaseAuthPermClass, RequiredFieldsResponseMessage):
+    """ API for updating meals """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.query_params_errors = {}
+    def put(self, request, *args, **kwargs):
+        """ handle put request """
+        meal_id = kwargs.get('pk')
+        serializer = serializers.MealInputSerializer(data=request.data)
 
-    @action(methods=['GET'], detail=False, url_path='available-dates')
-    def available_dates(self, request):
-        """ endpoint for retrieving all dates where any meals was provided """
-
-        if request.user:
-            dates = models.Meal.objects.filter(user=request.user).values('date')
-            serializer = serializers.DatesSerializer(dates, many=True,
-                                                     request=request,
-                                                     )
+        if serializer.is_valid():
+            meal = selectors.meal_get(user=request.user, id=meal_id)
+            updated_meal = services.meal_put_handler(
+                instance=meal, data=serializer.data)
+            serializer = serializers.MealOutputSerializer(updated_meal)
             return Response(data=serializer.data, status=status.HTTP_200_OK)
-        return Response(data=None, status=status.HTTP_404_NOT_FOUND)
+        return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request, *args, **kwargs):
+        """ return put request """
+        meal_id = kwargs.get('pk')
+        serializer = serializers.MealInputSerializer(data=request.data)
+
+        if serializer.is_valid():
+            meal = selectors.meal_get(user=request.user, id=meal_id)
+            updated_meal = services.meal_patch_handler(
+                instance=meal, data=serializer.data)
+            serializer = serializers.MealOutputSerializer(updated_meal)
+            return Response(data=serializer.data, status=status.HTTP_200_OK)
+        return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class MealCategoryListView(RequiredFieldsResponseMessage, ListAPIView):
+class MealsAvailableDatesApi(BaseAuthPermClass, RequiredFieldsResponseMessage):
+    """ API for retrievin all available dates when meals was saved """
+
+    def get(self, request, *args, **kwargs):
+        """ """
+        dates = selectors.meal_get_available_dates(user=request.user)
+        serializer = serializers.MealDateOutputSerializer(dates, many=True)
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+
+class MealCategoryApi(BaseAuthPermClass, RequiredFieldsResponseMessage):
     """ view for retrieving available meal categories """
 
-    authentication_classes = (TokenAuthentication, )
-    permission_classes = (IsAuthenticated, )
-    renderer_classes = [CustomRenderer, ]
-    serializer_class = serializers.MealCategorySerializer
-    queryset = models.MealCategory.objects.all()
+    def get(self, request, *args, **kwargs):
+        """ retrieving all available categories """
+        all_categories = selectors.meal_category_list()
+        serializer = serializers.MealCategoryOutputSerializer(
+            all_categories, many=True)
+        return Response(data=serializer.data, status=status.HTTP_200_OK)

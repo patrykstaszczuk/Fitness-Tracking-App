@@ -134,24 +134,6 @@ class Ingredient(Dish):
                                     name='unique_user_name')
         ]
 
-    # def convert_unit_to_grams(self, unit, amount):
-    #     """ return the unit and amount in grams/mililiters defined for
-    #     ingredient """
-    #
-    #     if unit.name == 'gram':
-    #         return amount
-    #     try:
-    #         obj = Ingredient_Unit.objects.get(
-    #             ingredient=self.id, unit=unit)
-    #     except Ingredient_Unit.DoesNotExist:
-    #         raise ValidationError(f"{unit} - {self.name} no such mapping")
-    #     return obj.grams_in_one_unit * amount
-    #
-    # def calculate_calories(self, unit, amount):
-    #     """ calculate calories based on unit and amount """
-    #     return (self.convert_unit_to_grams(unit, amount)/100) * \
-    #         self.get_calories()
-
 
 class ReadyMeals(Ingredient):
     """ proxy model for ready meals """

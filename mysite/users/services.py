@@ -3,7 +3,7 @@ import datetime
 import time
 from mysite import settings
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from users.models import StravaActivity, StravaApi
 
 
@@ -31,7 +31,10 @@ def change_password(user: get_user_model, data: dict) -> None:
 def send_group_invitation(user: get_user_model, data: dict[int]) -> bool:
     """ set pending membership for users IDs in data """
     for user_id in data['pending_membership']:
-        invited_user = selectors.get_user(user_id['id'])
+        try:
+            invited_user = selectors.get_user(user_id['id'])
+        except ObjectDoesNotExist:
+            raise ValidationError('User with provided id does not exists!')
         if invited_user == user:
             raise ValidationError('You cannot invite yourself')
         invited_user.pending_membership.add(user.own_group.id)
@@ -62,13 +65,17 @@ def deny_group_invitation(user: get_user_model, groups_ids: list[int]) -> bool:
 
 def leave_group(user: get_user_model, group_id: int) -> None:
     """ remove group from user membership """
-    if not isinstance(group_id.get('id'), int):
+    group_id = group_id.get('id')
+    if not isinstance(group_id, int):
         raise ValidationError('group_id must be a number!')
-    if user.own_group.id == group_id['id']:
+    if user.own_group.id == group_id:
         raise ValidationError('You cannot leave own group!')
 
-    if selectors.is_user_in_group(user, group_ids=[group_id, ]):
-        user.membership.remove(group_id['id'])
+    group = selectors.get_groups_by_ids([group_id, ]).first()
+    if not group:
+        raise ValidationError('Such group does not exists')
+    if selectors.is_user_in_group(user, [group, ]):
+        user.membership.remove(group)
 
 
 def authorize_to_strava(user: get_user_model, strava_code: str) -> bool:

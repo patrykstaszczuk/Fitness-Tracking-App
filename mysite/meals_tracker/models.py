@@ -11,7 +11,8 @@ from recipe.models import Recipe, Ingredient, Unit
 
 class Meal(models.Model):
 
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL,
+                             on_delete=models.PROTECT)
     date = models.DateField(default=datetime.date.today)
     # name = models.CharField(max_length=50, blank=False)
     calories = models.PositiveSmallIntegerField(null=False, blank=True,
@@ -19,7 +20,8 @@ class Meal(models.Model):
     category = models.ForeignKey('MealCategory', on_delete=models.PROTECT,
                                  null=False, related_name='meal', blank=False)
     recipes = models.ManyToManyField(Recipe, through='RecipePortion')
-    ingredients = models.ManyToManyField(Ingredient, through='IngredientAmount')
+    ingredients = models.ManyToManyField(
+        Ingredient, through='IngredientAmount')
 
     def __str__(self):
         """ string representation """
@@ -28,22 +30,23 @@ class Meal(models.Model):
     def set_calories(self):
         """ recalculate calories when m2m change or specific Recipe is being
             saved """
-        self.calories = 0
-        for recipe in self.recipes.all():
-            obj = RecipePortion.objects.get(recipe=recipe, meal=self)
-            if recipe.calories is not None:
-                self.calories += recipe.get_recalculated_calories(obj.portion)
-        for ingredient in self.ingredients.all():
-            obj = IngredientAmount.objects.get(ingredient=ingredient, meal=self)
-            self.calories += ingredient.calculate_calories(unit=obj.unit,
-                                                           amount=obj.amount)
+        pass
+        # self.calories = 0
+        # for recipe in self.recipes.all():
+        #     obj = RecipePortion.objects.get(recipe=recipe, meal=self)
+        #     if recipe.calories is not None:
+        #         self.calories += recipe.get_recalculated_calories(obj.portion)
+        # for ingredient in self.ingredients.all():
+        #     obj = IngredientAmount.objects.get(ingredient=ingredient, meal=self)
+        #     self.calories += ingredient.calculate_calories(unit=obj.unit,
+        #                                                    amount=obj.amount)
 
-    def save(self, *args, **kwargs):
-        """ call set_calories() method """
-        super().save(*args, **kwargs)
-        self.set_calories()
-        kwargs['force_insert'] = False
-        super().save(*args, **kwargs, update_fields=['calories', ])
+    # def save(self, *args, **kwargs):
+    #     """ call set_calories() method """
+    #     super().save(*args, **kwargs)
+    #     self.set_calories()
+    #     kwargs['force_insert'] = False
+    #     super().save(*args, **kwargs, update_fields=['calories', ])
 
 
 class RecipePortion(models.Model):
@@ -84,16 +87,3 @@ class MealCategory(models.Model):
     def __str__(self):
         """ string representation """
         return self.name
-
-
-@receiver(post_save, sender=Recipe)
-@receiver(m2m_changed, sender=RecipePortion)
-@receiver(m2m_changed, sender=IngredientAmount)
-def _recalculate_total_meal_calories(sender, instance, action=None, **kwargs):
-    """ call Meal instance function to recalculate calories """
-    if (sender in [RecipePortion, IngredientAmount]) and action == 'post_add':
-        instance.save()
-    elif sender == Recipe:
-        meals = Meal.objects.filter(recipes=instance.id)
-        for meal in meals:
-            meal.save()

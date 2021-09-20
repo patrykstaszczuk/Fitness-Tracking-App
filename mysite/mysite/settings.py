@@ -57,7 +57,7 @@ INSTALLED_APPS = [
     'core',
     'users',
     'recipe.apps.RecipeConfig',
-    'meals_tracker',
+    'meals_tracker.apps.MealsTrackerConfig',
     'health'
 ]
 
@@ -78,7 +78,7 @@ ROOT_URLCONF = 'mysite.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [TEMPLATE_DIR,],
+        'DIRS': [TEMPLATE_DIR, ],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [

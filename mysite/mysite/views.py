@@ -5,6 +5,8 @@ from rest_framework.reverse import reverse
 from rest_framework import generics, fields
 from rest_framework.response import Response
 from rest_framework import authentication, permissions, status
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.permissions import IsAuthenticated
 from mysite.renderers import CustomRenderer
 from mysite.exceptions import ApiErrorsMixin
 from rest_framework.views import APIView
@@ -18,7 +20,7 @@ def api_root(request, format=None):
     return Response({
         'account': reverse('users:profile', request=request, format=format),
         'fitness': reverse('health:dashboard', request=request, format=format),
-        'meals-tracker': reverse('meals_tracker:api-root', request=request, format=format),
+        'meals-tracker': reverse('meals_tracker:meal-list', request=request, format=format),
         'food': reverse('recipe:api-root', request=request, format=format),
     })
 
@@ -71,6 +73,12 @@ class RequiredFieldsResponseMessage(ApiErrorsMixin, generics.GenericAPIView):
     def __init__(self, *args, **kwargs):
         self._serializer_required_fields = None
         super().__init__(*args, **kwargs)
+
+
+class BaseAuthPermClass:
+    authentication_classes = (TokenAuthentication, )
+    permission_classes = (IsAuthenticated, )
+    renderer_classes = [CustomRenderer, ]
 
 
 class StravaCodeApiView(APIView):

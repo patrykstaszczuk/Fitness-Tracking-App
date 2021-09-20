@@ -69,7 +69,7 @@ def clear_m2m_relation(instance):
         return None
 
 
-def pop_m2m_fields(model: Union[Recipe, Ingredient], user: get_user_model, data: dict) -> tuple:
+def pop_m2m_fields(model: Union[Recipe, Ingredient], user: get_user_model, data: dict) -> dict:
     """ pop relational fields from data and return it """
     if model == Ingredient:
         return_dict = {'tags': [], 'units': []}

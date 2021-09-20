@@ -11,6 +11,6 @@ class CoreApiTests(TestCase):
         """ test retrieving links to apps """
 
         self.client = APIClient()
-        url = reverse('api_root')
+        url = reverse('api-root')
         res = self.client.get(url)
         self.assertEqual(res.status_code, status.HTTP_200_OK)

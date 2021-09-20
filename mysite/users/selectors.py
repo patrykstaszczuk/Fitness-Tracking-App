@@ -34,6 +34,11 @@ def get_user_group(user: get_user_model) -> Group:
     return user.own_group
 
 
+def get_groups_by_ids(group_ids: list[int]) -> Iterable[Group]:
+    """ return group based on group id """
+    return Group.objects.filter(id__in=group_ids)
+
+
 def is_user_in_group(user: get_user_model, groups: Iterable[Group]) -> bool:
     """ check if user belong to group """
 

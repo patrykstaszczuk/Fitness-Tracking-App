@@ -49,7 +49,8 @@ def sample_user(email='test2@gmail.com', name='test2'):
 
 def sample_meal(user):
     """ create and return meal object """
-    recipe = Recipe.objects.create(user=user, name='test', portions=4)
+    recipe = Recipe.objects.create(
+        user=user, name='test', slug='test', portions=4)
     unit = Unit.objects.create(name='gram')
     category = MealCategory.objects.create(name='breakfast')
     ingredient = Ingredient.objects.create(user=user, name='ing',
@@ -59,6 +60,7 @@ def sample_meal(user):
     meal = Meal.objects.create(user=user, category=category)
     meal.recipes.add(recipe, through_defaults={"portion": 1})
     return meal
+
 
 class PrivateHealthApiTests(TestCase):
     """ TestCases for health testing """
@@ -118,16 +120,21 @@ class PrivateHealthApiTests(TestCase):
 
         user2 = sample_user()
         category = MealCategory.objects.create(name='breakfast')
-        recipe = Recipe.objects.create(user=self.user, name='test', calories=1000, portions=4)
+        recipe = Recipe.objects.create(
+            user=self.user, name='test', slug='test', calories=1000, portions=4)
         meal1 = Meal.objects.create(user=self.user, category=category)
-        meal1.recipes.add(recipe, through_defaults={"recipe": recipe, "portion": 1})
+        meal1.recipes.add(recipe, through_defaults={
+                          "recipe": recipe, "portion": 1})
         meal2 = Meal.objects.create(user=self.user, category=category)
-        ingredient = Ingredient.objects.create(user=user2, name='skladnik', calories=500)
+        ingredient = Ingredient.objects.create(
+            user=user2, name='skladnik', slug='skaldnik', calories=500)
         unit = Unit.objects.get(name='gram')
-        meal2.ingredients.add(ingredient, through_defaults={"amount": 100, "unit": unit})
+        meal2.ingredients.add(ingredient, through_defaults={
+                              "amount": 100, "unit": unit})
         res = self.client.get(USER_DAILY_HEALTH_DASHBOARD)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(res.json()['data']['calories'], recipe.calories/4 + ingredient.calories)
+        self.assertEqual(res.json()['data']['calories'],
+                         recipe.calories/4 + ingredient.calories)
 
     def test_retrieve_daily_health_statistics_limited_to_user(self):
         """ test retrieving statistics belongs to request user only """
@@ -170,14 +177,13 @@ class PrivateHealthApiTests(TestCase):
             'daily_thoughts': 'This will be a greate day!'
         }
         res = self.client.patch(USER_DAILY_HEALTH_DASHBOARD, payload,
-                               format='json')
+                                format='json')
         daily_data = models.HealthDiary.objects.filter(user=self.user). \
             get(date=datetime.date.today())
         serializer = health_serializers.HealthDiaryOutputSerializer(daily_data)
 
         self.assertEqual(res.data, serializer.data)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-
 
     def test_update_user_daily_health_statistics_with_patch(self):
         """ test updating user diary with patch request """
@@ -207,7 +213,7 @@ class PrivateHealthApiTests(TestCase):
         }
 
         res = self.client.patch(USER_DAILY_HEALTH_DASHBOARD, payload,
-                               format='json')
+                                format='json')
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_updating_user_diary_forbidden_fields_failed(self):
@@ -219,7 +225,7 @@ class PrivateHealthApiTests(TestCase):
         }
 
         res = self.client.patch(USER_DAILY_HEALTH_DASHBOARD, payload,
-                               format='json')
+                                format='json')
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_updating_user_weight_with_null(self):
@@ -233,7 +239,7 @@ class PrivateHealthApiTests(TestCase):
             'daily_thoughts': ''
             }
         res = self.client.patch(USER_DAILY_HEALTH_DASHBOARD, payload,
-                              format='json')
+                                format='json')
         diary.refresh_from_db()
         serializer = health_serializers.HealthDiaryOutputSerializer(diary)
 
@@ -245,16 +251,17 @@ class PrivateHealthApiTests(TestCase):
 
         diaries_list = []
         diaries_list.append(models.HealthDiary.objects.create(user=self.user,
-                            date='2021-05-27', weight=73.2))
+                                                              date='2021-05-27', weight=73.2))
         diaries_list.append(models.HealthDiary.objects.create(user=self.user,
-                            date='2021-05-26', weight=73.2))
+                                                              date='2021-05-26', weight=73.2))
         diaries_list.append(models.HealthDiary.objects.create(user=self.user,
-                            date='2021-05-25', weight=73.2))
+                                                              date='2021-05-25', weight=73.2))
         diaries_list.append(models.HealthDiary.objects.create(user=self.user,
-                            date='2021-05-24', weight=73.2))
+                                                              date='2021-05-24', weight=73.2))
 
         res = self.client.get(USER_HEALTH_STATISTIC_RAPORT)
-        serializer = health_serializers.HealthDiaryOutputSerializer(diaries_list,  many=True,)
+        serializer = health_serializers.HealthDiaryOutputSerializer(
+            diaries_list,  many=True,)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
 
@@ -272,8 +279,10 @@ class PrivateHealthApiTests(TestCase):
 
         res = self.client.get(USER_HEALTH_STATISTIC_RAPORT)
 
-        u2_serializer = health_serializers.HealthDiaryOutputSerializer(user2_diary)
-        serializer = health_serializers.HealthDiaryOutputSerializer(diaries, many=True)
+        u2_serializer = health_serializers.HealthDiaryOutputSerializer(
+            user2_diary)
+        serializer = health_serializers.HealthDiaryOutputSerializer(
+            diaries, many=True)
         self.assertNotIn(u2_serializer, res.data)
         self.assertEqual(res.data, serializer.data)
 
@@ -300,7 +309,8 @@ class PrivateHealthApiTests(TestCase):
 
     def test_retrieving_health_statistic_detail(self):
         """ test retrieving health statistic history detail """
-        test = models.HealthDiary.objects.create(user=self.user, date=datetime.date(2021, 3, 22))
+        test = models.HealthDiary.objects.create(
+            user=self.user, date=datetime.date(2021, 3, 22))
         models.HealthDiary.objects.create(user=self.user)
         diary = models.HealthDiary.objects.create(user=self.user,
                                                   date=datetime.date(2021, 5, 22), weight=65)
@@ -483,11 +493,12 @@ class PrivateHealthApiTests(TestCase):
             'name': 'test',
             'calories': 1000,
             'start_date_local': start_date_local
-        },]
+        }, ]
         mock2.return_value = activities
         mock.return_value = activities[0]
         res = self.client.get(USER_DAILY_HEALTH_DASHBOARD)
-        data = HealthDiary.objects.get(date=datetime.date.today(), user=self.user)
+        data = HealthDiary.objects.get(
+            date=datetime.date.today(), user=self.user)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(data.calories, meal.calories)
         self.assertEqual(res.json()['data']['calories'], data.calories)

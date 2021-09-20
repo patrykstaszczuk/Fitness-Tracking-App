@@ -335,7 +335,8 @@ class PrivateUserApiTests(TestCase):
 
         get_user_groups = self.user.membership.all()
 
-        serializer1 = serializers.GroupOutputSerializer(get_user_groups, many=True)
+        serializer1 = serializers.GroupOutputSerializer(
+            get_user_groups, many=True)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(serializer1.data, res.data)
         self.assertEqual(self.user.membership.all().count(), 2)
@@ -388,7 +389,7 @@ class PrivateUserApiTests(TestCase):
               'pending_membership': [
                 {'id': user2.id},
                 {'id': user3.id},
-            ],
+                  ],
         }
         res = self.client.post(send_invitation_url(), payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
@@ -400,7 +401,7 @@ class PrivateUserApiTests(TestCase):
     def test_sending_invitation_to_yourself_failed(self):
 
         payload = {
-            'pending_membership': [{'id': self.user.id},],
+            'pending_membership': [{'id': self.user.id}, ],
         }
         res = self.client.post(send_invitation_url(), payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
@@ -409,7 +410,7 @@ class PrivateUserApiTests(TestCase):
         """ test sening invitation to non existing user """
 
         payload = {
-            'pending_membership': [{'id': 3},]
+            'pending_membership': [{'id': 3}, ]
         }
         res = self.client.post(send_invitation_url(), payload,
                                format='json')
@@ -585,7 +586,8 @@ class PrivateUserApiTests(TestCase):
         data = {'expires_at': 123, 'refresh_token': 123,
                 'access_token': 123}
         mock_auth.return_value = data
-        mock_time.side_effect = [time.time()-1, time.time()-35, time.time()-3610]
+        mock_time.side_effect = [
+            time.time()-1, time.time()-35, time.time()-3610]
 
         url = reverse('strava-auth')
         payload = {
@@ -599,5 +601,6 @@ class PrivateUserApiTests(TestCase):
         res = self.client.get(url, payload)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.user.strava.refresh_from_db()
-        self.assertTrue(selectors.has_needed_information_for_request(self.user.strava))
+        self.assertTrue(
+            selectors.has_needed_information_for_request(self.user.strava))
         self.assertEqual(res.json()['data']['status'], 'Ok')

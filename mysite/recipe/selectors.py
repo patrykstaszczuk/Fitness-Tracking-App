@@ -23,9 +23,9 @@ def get_recipes(user: get_user_model, url_user: int = None,
     return Recipe.objects.filter(user__in=users)
 
 
-def get_groups_by_ids(group_ids: list[int]) -> Iterable[Group]:
-    """ return group based on group id """
-    return Group.objects.filter(id__in=group_ids)
+def recipe_calculate_calories_based_on_portion(portion: int, recipe: Recipe) -> int:
+    """ return recipe calories based on portion """
+    return portion * (recipe.calories/recipe.portions)
 
 
 def prepare_queryset(user: get_user_model, filters: QueryDict) -> QuerySet:
@@ -54,7 +54,7 @@ def get_user_id_from_groups(user_groups: Iterable[Group]) -> list[int]:
 def filter_queryset_by_groups(user: get_user_model, list_of_values: list) -> QuerySet:
     """ filter queryset by groups """
     list_of_values = list(map(int, list_of_values))
-    group_instances = get_groups_by_ids(list_of_values)
+    group_instances = users_selectors.get_groups_by_ids(list_of_values)
 
     if len(list_of_values) != group_instances.count():
         raise ValidationError('Invalid group id/ids')
@@ -229,6 +229,11 @@ def ingredient_convert_unit_to_grams(ingredient: Ingredient, unit: Unit, amount:
     except Ingredient_Unit.DoesNotExist:
         raise ValidationError(f"{unit} - {ingredient.name} no such mapping")
     return obj.grams_in_one_unit * amount
+
+
+def ingredient_calculate_calories(ingredient: Ingredient, unit: Unit, amount: int) -> int:
+    """ return calcualted calories based on unit and amount """
+    return (ingredient_convert_unit_to_grams(ingredient, unit, amount)/100) * ingredient.calories
 
 
 def unit_get(id: int, default: bool) -> Unit:
