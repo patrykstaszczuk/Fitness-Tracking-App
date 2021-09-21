@@ -119,6 +119,7 @@ class RecipeOutputSerializer(serializers.ModelSerializer):
         try:
             self.user = self.context['user']
         except KeyError:
+            print(self.context)
             self.user = self.context['request'].user
 
 

@@ -18,6 +18,7 @@ from django.urls import path, include
 from django.conf.urls.static import static
 from django.conf import settings
 from mysite import views
+import debug_toolbar
 
 app_name = 'mysite'
 
@@ -29,4 +30,5 @@ urlpatterns = [
     path('meals-tracker/', include('meals_tracker.urls')),
     path('food/', include('recipe.urls')),
     path('strava-auth/', views.StravaCodeApiView.as_view(), name='strava-auth'),
+    path('__debug__/', include(debug_toolbar.urls)),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
