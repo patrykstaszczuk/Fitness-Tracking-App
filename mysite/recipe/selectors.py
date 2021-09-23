@@ -5,53 +5,51 @@ from django.db.models.query import QuerySet
 from recipe.models import Recipe, Ingredient, Unit, Ingredient_Unit, Tag
 from users.models import Group
 from users import selectors as users_selectors
-from typing import Iterable, Union
+from typing import Iterable, Union, List
 import requests
 import os
 
 
-def get_recipes(user: get_user_model, url_user: int = None,
-                filters: QueryDict = None) -> Iterable[Recipe]:
-    """ return all available recipes for user """
+def recipe_get(user: get_user_model, slug: str) -> Recipe:
+    """ return recipe object """
+    try:
+        return Recipe.objects.get(user=user, slug=slug)
+    except ValueError as e:
+        raise ValidationError(e)
+    except ObjectDoesNotExist:
+        raise ObjectDoesNotExist(
+            f'Recipe with provided slug {slug} does not exists!')
 
-    if url_user:
-        return Recipe.objects.filter(user=url_user)
+
+def recipe_list(user: get_user_model, filters: QueryDict = None) -> list[Recipe]:
+    """ retrieve list of recipes """
+    user_groups = users_selectors.group_get_membership(user)
+    list_of_users_ids = users_selectors.group_retrieve_founders(user_groups)
+
+    default_queryset = Recipe.objects.filter(
+        user__id__in=list_of_users_ids).prefetch_related('tags', 'ingredients')
     if filters:
-        return prepare_queryset(user, filters)
-    user_groups = user.membership.all()
-    users = get_user_id_from_groups(user_groups)
-    return Recipe.objects.filter(user__in=users)
+        return filter_queryset(user, filters, default_queryset)
+    return default_queryset
 
 
-def recipe_calculate_calories_based_on_portion(portion: int, recipe: Recipe) -> int:
-    """ return recipe calories based on portion """
-    return portion * (recipe.calories/recipe.portions)
-
-
-def prepare_queryset(user: get_user_model, filters: QueryDict) -> QuerySet:
-    """ prepare queryset based on filters """
-
-    queryset = Recipe.objects.filter(user=user)
+def filter_queryset(user: get_user_model, filters: QueryDict, default_queryset: QuerySet) -> list[Recipe]:
+    """ apply filters on queryset and return it """
+    queryset = default_queryset
     allowed_filters = ['tags', 'groups']
     for field in allowed_filters:
         if field in filters:
             list_of_values = filters[field].split(',')
             if field == 'groups':
-                queryset = filter_queryset_by_groups(user, list_of_values)
+                queryset = filter_queryset_by_groups(
+                    user, list_of_values, queryset)
             if field == 'tags':
-                queryset = filter_queryset_by_tags(user, list_of_values)
+                queryset = filter_queryset_by_tags(
+                    user, list_of_values, queryset)
     return queryset
 
 
-def get_user_id_from_groups(user_groups: Iterable[Group]) -> list[int]:
-    """ return user id from groups """
-    ids = []
-    for group in user_groups:
-        ids.append(group.founder.id)
-    return ids
-
-
-def filter_queryset_by_groups(user: get_user_model, list_of_values: list) -> QuerySet:
+def filter_queryset_by_groups(user: get_user_model, list_of_values: list, queryset: QuerySet) -> QuerySet:
     """ filter queryset by groups """
     list_of_values = list(map(int, list_of_values))
     group_instances = users_selectors.get_groups_by_ids(list_of_values)
@@ -60,18 +58,35 @@ def filter_queryset_by_groups(user: get_user_model, list_of_values: list) -> Que
         raise ValidationError('Invalid group id/ids')
 
     users_selectors.is_user_in_group(user, group_instances)
-    users = get_user_id_from_groups(group_instances)
-    return Recipe.objects.filter(user__in=users)
+    users = groups_retrieve_founders(group_instances)
+    return queryset.filter(user__in=users)
 
 
-def filter_queryset_by_tags(user: get_user_model, list_of_values: list[str]):
+def filter_queryset_by_tags(user: get_user_model, list_of_values: list[str], queryset: QuerySet):
     """ filter queryset by tags """
 
     map_tags_slug_to_instances(user, list_of_values)
     query = 'tags__slug__in'
-    queryset = Recipe.objects.filter(
+    return queryset.filter(
         user=user).filter(**{query: list_of_values})
-    return queryset
+
+
+def recipe_check_if_user_can_retrieve(requested_user: get_user_model,
+                                      recipe_creator_id: int) -> None:
+    """ check if requested user can view recipes created by specific user """
+    recipe_creator_group = users_selectors.group_get_by_user_id(
+        recipe_creator_id)
+    try:
+        if requested_user not in recipe_creator_group.members.all():
+            raise ValidationError('You are not a member of given user group!')
+    except AttributeError as e:
+        print(f'{e} func: recipe_check_if_user_can_retrieve')
+        raise ValidationError('Internal error, contanct administrator')
+
+
+def recipe_calculate_calories_based_on_portion(portion: int, recipe: Recipe) -> int:
+    """ return recipe calories based on portion """
+    return portion * (recipe.calories/recipe.portions)
 
 
 def send_ingredients_to_nozbe(slug_list: list) -> bool:
@@ -190,6 +205,15 @@ def tag_get(user: get_user_model, slug: str) -> Tag:
         raise ObjectDoesNotExist(f"Tag with slug {slug} does not exists!")
 
 
+def tag_get_multi_by_slugs(user: get_user_model, slugs: list[str]) -> list[Tag]:
+    """ return tags by provided slugs or raise error """
+    tag_instances = Tag.objects.filter(user=user, slug__in=slugs)
+    if len(tag_instances) != len(slugs):
+        raise ObjectDoesNotExist(
+            'At least one of proviede slug cannot be mapped to tag')
+    return tag_instances
+
+
 def ingredient_list(user: get_user_model) -> Iterable[Ingredient]:
     """ return ingredients created by user """
     return Ingredient.objects.all()
@@ -203,6 +227,15 @@ def ingredient_get(slug: str) -> Ingredient:
     except Ingredient.DoesNotExist:
         raise ObjectDoesNotExist(
             f"Ingredient with slug {slug} does not exists!")
+
+
+def ingredient_get_multi_by_slugs(slugs: list[str]) -> list[Ingredient]:
+    """ return ingredients by provided slugs or raise error if not exists """
+    ingredient_instances = Ingredient.objects.filter(slug__in=slugs)
+    if len(ingredient_instances) != len(slugs):
+        raise ObjectDoesNotExist(
+            'At least one of provided slug cannot be mapped to ingredient')
+    return ingredient_instances
 
 
 def ingredient_get_for_requested_user(user: get_user_model, slug: str) -> Ingredient:
@@ -245,5 +278,10 @@ def unit_get(id: int, default: bool) -> Unit:
 
 def unit_list() -> Iterable[Unit]:
     """ return all available units """
+    return Unit.objects.all()
+    return Unit.objects.all()
+    return Unit.objects.all()
+    return Unit.objects.all()
+    return Unit.objects.all()
     return Unit.objects.all()
     return Unit.objects.all()

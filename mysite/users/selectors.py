@@ -11,7 +11,7 @@ from django.db import models
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 
 
-def get_user(id: int) -> get_user_model:
+def user_get_by_id(id: int) -> get_user_model:
     """ return use for given id"""
     try:
         return get_user_model().objects.get(id=id)
@@ -19,19 +19,12 @@ def get_user(id: int) -> get_user_model:
         raise ObjectDoesNotExist(f'User with id = {id} does not exists')
 
 
-def get_membership(user: get_user_model) -> Iterable[Group]:
-    """ return user group memberships """
-    return user.membership.all()
-
-
-def get_pending_membership(user: get_user_model) -> Iterable[int]:
-    """ return pending membership for user """
-    return user.pending_membership.all()
-
-
-def get_user_group(user: get_user_model) -> Group:
-    """ return user own group """
-    return user.own_group
+def group_get_by_user_id(user_id: int) -> Group:
+    """ return group creater by user with given id  """
+    try:
+        return Group.objects.get(founder__id=user_id)
+    except Group.DoesNotExist:
+        raise ObjectDoesNotExist()
 
 
 def get_groups_by_ids(group_ids: list[int]) -> Iterable[Group]:
@@ -39,10 +32,29 @@ def get_groups_by_ids(group_ids: list[int]) -> Iterable[Group]:
     return Group.objects.filter(id__in=group_ids)
 
 
+def group_get_membership(user: get_user_model) -> Iterable[Group]:
+    """ return user group memberships """
+    return user.membership.all()
+
+
+def group_retrieve_founders(groups: list[Group]) -> int:
+    """ retrieve gorups founders """
+    return [user for user in groups.values_list('founder', flat=True)]
+
+
+def group_check_if_given_user_belong_to_common_groupdsa():
+    pass
+
+
+def get_pending_membership(user: get_user_model) -> Iterable[int]:
+    """ return pending membership for user """
+    return user.pending_membership.all()
+
+
 def is_user_in_group(user: get_user_model, groups: Iterable[Group]) -> bool:
     """ check if user belong to group """
 
-    user_membership = get_membership(user=user)
+    user_membership = group_get_membership(user=user)
     # user_membership = list(get_membership(
     #     user=user).values_list('id', flat=True))
 
@@ -206,4 +218,5 @@ def is_auth_to_strava(user: get_user_model) -> bool:
             return True
     except StravaApi.DoesNotExist:
         StravaApi.objects.create(user=user)
+    return False
     return False

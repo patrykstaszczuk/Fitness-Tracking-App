@@ -32,7 +32,7 @@ def send_group_invitation(user: get_user_model, data: dict[int]) -> bool:
     """ set pending membership for users IDs in data """
     for user_id in data['pending_membership']:
         try:
-            invited_user = selectors.get_user(user_id['id'])
+            invited_user = selectors.get_user_by_id(user_id['id'])
         except ObjectDoesNotExist:
             raise ValidationError('User with provided id does not exists!')
         if invited_user == user:

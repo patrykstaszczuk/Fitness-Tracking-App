@@ -10,6 +10,119 @@ from recipe import selectors
 import os
 import shutil
 import uuid
+from dataclasses import dataclass
+from abc import ABC, abstractmethod
+
+
+def pop_m2m_fields(model: Union[Recipe, Ingredient], user: get_user_model, data: dict) -> dict:
+    """ pop relational fields from data and return it """
+    if model == Ingredient:
+        return_dict = {'tags': [], 'units': []}
+        if 'tags' in data:
+            return_dict['tags'] = selectors.map_tags_slug_to_instances(
+                user=user, tags_slug=data.pop('tags'))
+        if 'units' in data:
+            return_dict['units'] = data.pop('units')
+            for unit in return_dict['units']:
+                unit['unit'] = selectors.unit_map_id_to_instance(unit['unit'])
+        return_dict.update({'data': data})
+        return return_dict
+    elif model == Recipe:
+        return_dict = {'tags': [], 'ingredients': []}
+        if 'tags' in data:
+            return_dict['tags'] = selectors.map_tags_slug_to_instances(
+                user=user, tags_slug=data.pop('tags'))
+        if 'ingredients' in data:
+            return_dict['ingredients'] = selectors.map_data_to_instances(
+                user=user, ingredients=data.pop('ingredients'))
+        return_dict.update({'data': data})
+        return return_dict
+
+
+class Dish(ABC):
+
+    @abstractmethod
+    def set_slug(self):
+        pass
+
+    @abstractmethod
+    def validate(self):
+        pass
+
+
+class M2MHandler(ABC):
+    """ abstrack class for m2m handlers """
+
+    @abstractmethod
+    def pop_m2m_fields(self, data: dict) -> dict:
+        pass
+
+    @abstractmethod
+    def save_m2m_fields(self, instance: Union[Recipe, Ingredient]) -> None:
+        pass
+
+
+class RecipeM2MHandler(M2MHandler):
+    """ recipe m2m handler """
+
+    def pop_m2m_fields(self, data) -> dict:
+        """ pop recipe m2m fields """
+        for field in Recipe._meta.many_to_many:
+            if data.get(field.name) is not None:
+                setattr(self, field.name, data.pop(field.name))
+        return data
+
+    def save_m2m_fields(self, recipe: Recipe) -> None:
+        """ save recipe m2m fields """
+        recipe.tags.set(self.tags)
+        if self.ingredients:
+            for item in self.ingredients:
+                ingredient = item.pop('ingredient')
+                item.update({'recipe': recipe})
+                recipe.ingredients.add(ingredient, through_defaults={**item})
+
+
+@dataclass
+class RecipeService(Dish, RecipeM2MHandler):
+    user: get_user_model
+    data: dict
+    tags: list[Tag]
+    ingredients: list[Recipe_Ingredient] = None
+
+    def create(self):
+        """ create recipe based on parameters """
+        self.validate()
+        recipe = Recipe(user=self.user, **self.data)
+        recipe.slug = self.set_slug(recipe)
+        recipe.save()
+        self.save_m2m_fields(recipe)
+        return recipe
+
+    def set_slug(self, recipe: Recipe) -> str:
+        """ set proper slug """
+        slug = slugify(self.data['name'])
+        number_of_repeared_names = selectors.check_if_name_exists(recipe)
+        if number_of_repeared_names > 0:
+            slug += str(number_of_repeared_names + 1)
+        return slug
+
+    def validate(self):
+        """ validate data """
+        self.tags = selectors.tag_get_multi_by_slugs(
+            user=self.user, slugs=self.tags)
+
+        if self.ingredients:
+            ingredient_slugs = tuple()
+            for item in self.ingredients:
+                ingredient_slugs.append(item['ingredient'])
+            ingredient_instances = selectors.ingredient_get_multi_by_slugs(
+                ingredient_slugs)
+            for item, instance in zip(self.ingredients, ingredient_instances):
+                item['ingredient'] = instance
+
+    def __init__(self, user, data):
+        self.user = user
+        self.data = self.pop_m2m_fields(data)
 
 
 def create_recipe(user: get_user_model, data: dict) -> Recipe:
@@ -253,4 +366,5 @@ def object_update_with_m2m(obj: Union[Recipe, Ingredient], data: dict, method: s
     data_dict.pop('data')
     save_m2m_fields(obj, data_dict)
     obj.save()
+    return obj
     return obj

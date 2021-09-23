@@ -4,6 +4,82 @@ from recipe.models import Ingredient, Tag, Recipe, Recipe_Ingredient, Unit, \
 from rest_framework import fields
 from rest_framework.reverse import reverse
 from django.core.exceptions import FieldError
+from recipe.fields import CustomTagField
+
+
+def create_serializer_class(name, fields):
+    return type(name, (serializers.Serializer, ), fields)
+
+
+def inline_serializer(*, fields, data=None, **kwargs):
+    serializer_class = create_serializer_class(name='', fields=fields)
+    if data is not None:
+        return serializer_class(data=data, **kwargs)
+
+    return serializer_class(**kwargs)
+
+
+class RecipeListOutputSerializer(serializers.ModelSerializer):
+    """ serializing list of recipe objects """
+
+    url = serializers.HyperlinkedIdentityField(view_name='recipe:recipe-detail',
+                                               lookup_field='slug')
+    tags = serializers.StringRelatedField(many=True)
+
+    class Meta:
+        model = Recipe
+        fields = (
+            'url',
+            'user',
+            'name',
+            'slug',
+            'calories',
+            'tags'
+        )
+
+    def to_representation(self, instance):
+        """ update url field for recipes created by other user to avoid
+         multi objects retrieving in detail view """
+        ret = super().to_representation(instance)
+        if ret['user'] != self.user.id:
+            ret['url'] = reverse("recipe:recipe-detail", kwargs={
+                                 'slug': ret['slug']},
+                                 request=self.context['request']) + f"?user={ret['user']}"
+        return ret
+
+    def __init__(self, *args, **kwargs):
+        """ set user """
+        super().__init__(*args, **kwargs)
+        try:
+            self.user = self.context['user']
+        except KeyError:
+            self.user = self.context['request'].user
+
+
+class RecipeDetailOutputSerializer(serializers.ModelSerializer):
+    """ serializing recipe object """
+
+    tags = CustomTagField(many=True, read_only=True)
+
+    class Meta:
+        model = Recipe
+        fields = '__all__'
+
+
+class RecipeCreateInputSerializer(serializers.Serializer):
+    """ serializing data for creating Recipe instance """
+
+    name = serializers.CharField(required=False)
+    tags = serializers.ListField(
+        child=serializers.SlugField(), required=True)
+    ingredients = inline_serializer(many=True, required=False, fields={
+        'ingredient': serializers.SlugField(required=True),
+        'amount': serializers.IntegerField(required=True),
+        'unit': serializers.IntegerField(required=True)
+    })
+    portions = serializers.IntegerField(required=True)
+    prepare_time = serializers.IntegerField(required=False)
+    description = serializers.CharField(required=False)
 
 
 class DynamicFieldsModelSerializer(serializers.ModelSerializer):
@@ -18,18 +94,6 @@ class DynamicFieldsModelSerializer(serializers.ModelSerializer):
 
             for field_name in existing - allowed:
                 self.fields.pop(field_name)
-
-
-def create_serializer_class(name, fields):
-    return type(name, (serializers.Serializer, ), fields)
-
-
-def inline_serializer(*, fields, data=None, **kwargs):
-    serializer_class = create_serializer_class(name='', fields=fields)
-    if data is not None:
-        return serializer_class(data=data, **kwargs)
-
-    return serializer_class(**kwargs)
 
 
 class UnitOutputSerializer(serializers.ModelSerializer):
@@ -92,13 +156,32 @@ class IngredientInputSerializer(serializers.Serializer):
     zinc = serializers.FloatField(min_value=0, required=False)
 
 
-class RecipeOutputSerializer(serializers.ModelSerializer):
+class RecipeOutputSerializer(DynamicFieldsModelSerializer):
+    """ serialzier for outcomming Recipe objects """
+
+    url = serializers.HyperlinkedIdentityField(view_name='recipe:recipe-detail',
+                                               lookup_field='slug')
+
+    class Meta:
+        model = Recipe
+        fields = '__all__'
+
+    def to_representation(self, instance):
+        """ update url field for recipes created by other user to avoid multi objects retrieving in detail view """
+        ret = super().to_representation(instance)
+        if ret['user'] != self.user.id:
+            ret['url'] = reverse("recipe:recipe-detail", kwargs={
+                                    'slug': ret['slug']}, request=self.context['request']) + f"?user={ret['user']}"
+        return ret
+
+
+class RecipeOutputSerializer2(serializers.ModelSerializer):
     """ serializing Recipe objects for retrieving """
 
     url = serializers.HyperlinkedIdentityField(view_name='recipe:recipe-detail',
                                                lookup_field='slug')
-    tags = serializers.StringRelatedField(many=True)
-    ingredients = IngredientOutputSerializer(many=True)
+    #tags = serializers.StringRelatedField(many=True)
+    #ingredients = IngredientOutputSerializer(many=True)
 
     class Meta:
         model = Recipe
@@ -119,23 +202,7 @@ class RecipeOutputSerializer(serializers.ModelSerializer):
         try:
             self.user = self.context['user']
         except KeyError:
-            print(self.context)
             self.user = self.context['request'].user
-
-
-class RecipeInputSerializer(serializers.Serializer):
-    """ serializing data for creating Recipe instance """
-
-    name = serializers.CharField(required=False)
-    tags = serializers.ListField(child=serializers.SlugField(), required=False)
-    ingredients = inline_serializer(many=True, required=False, fields={
-        'ingredient': serializers.SlugField(required=True),
-        'amount': serializers.IntegerField(required=True),
-        'unit': serializers.IntegerField(required=True)
-    })
-    portions = serializers.IntegerField(required=False)
-    prepare_time = serializers.IntegerField(required=False)
-    description = serializers.CharField(required=False)
 
 
 class TagOutputSerializer(serializers.ModelSerializer):

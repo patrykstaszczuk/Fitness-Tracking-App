@@ -34,7 +34,6 @@ class ApiErrorsMixin:
     """
     expected_exceptions = {
         ObjectDoesNotExist: rest_exceptions.NotFound,
-        # ValueError: rest_exceptions.ValidationError,
         ValidationError: rest_exceptions.ValidationError,
         # PermissionError: rest_exceptions.PermissionDenied
     }
