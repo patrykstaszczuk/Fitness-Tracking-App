@@ -5,11 +5,13 @@ from rest_framework.reverse import reverse as rest_reverse
 
 from rest_framework.test import APIClient, APIRequestFactory
 from rest_framework import status
-from recipe import serializers
-from recipe import models, services
+
+from recipe import models
+from recipe.serializers import IngredientSerializer, UnitSerializer,  \
+    IngredientUnitSerializer
+
 
 INGREDIENTS_URL = reverse('recipe:ingredient-list')
-INGREDIENT_CREATE_URL = reverse('recipe:ingredient-create')
 UNITS = reverse('recipe:units')
 
 
@@ -17,17 +19,12 @@ def ingredient_detail_url(slug):
     return reverse('recipe:ingredient-detail', kwargs={'slug': slug})
 
 
-def ingredient_update_url(slug):
-    return reverse('recipe:ingredient-update', kwargs={'slug': slug})
-
-
 def sample_ingredient(**kwargs):
-    user = kwargs.pop('user')
-    return services.ingredient_create(user=user, data=kwargs)
+    return models.Ingredient.objects.create(**kwargs)
 
 
 def sample_tag(name, user):
-    return services.tag_create(user=user, data={'name': name})
+    return models.Tag.objects.create(name=name, user=user)
 
 
 def sample_user(email='user2@gmail.com', name='test2'):
@@ -125,19 +122,19 @@ class PrivateIngredientApiTests(TestCase):
         self.assertEqual(res.json()['data']['calories'],
                          float(user2_ing.calories))
 
-    # def test_retrieving_proper_url_for_other_user_ingredient(self):
-    #     """ test that url returned by serializer is user tag in GET
-    #     query params """
-    #     print("\n\n\n")
-    #     print("self.queryset != Ingredient.objects.alll() ???? ")
-    #     user2 = sample_user()
-    #     user2_ing = sample_ingredient(user=user2, name='test',
-    #                                   calories='1000')
-    #     res = self.client.get(INGREDIENTS_URL)
-    #     url = rest_reverse('recipe:ingredient-detail',
-    #                        kwargs={'slug': user2_ing.slug}, request=self.request)
-    #     url = url + f'?user={user2.id}'
-    #     self.assertEqual(res.json()['data'][0]['url'], str(url))
+    def test_retrieving_proper_url_for_other_user_ingredient(self):
+        """ test that url returned by serializer is user tag in GET
+        query params """
+        print("\n\n\n")
+        print("self.queryset != Ingredient.objects.alll() ???? ")
+        user2 = sample_user()
+        user2_ing = sample_ingredient(user=user2, name='test',
+                                      calories='1000')
+        res = self.client.get(INGREDIENTS_URL)
+        url = rest_reverse('recipe:ingredient-detail',
+                           kwargs={'slug': user2_ing.slug}, request=self.request)
+        url = url + f'?user={user2.id}'
+        self.assertEqual(res.json()['data'][0]['url'], str(url))
 
     def test_retrieve_calories_from_ingredient(self):
         """ test getting amount of calories in 100g of ingredient """
@@ -176,15 +173,9 @@ class PrivateIngredientApiTests(TestCase):
         """ test creating new ingredient """
         payload = {
             'name': 'Cebula',
-            'tags': [self.tag.slug, ],
-            'units': [{'unit': self.unit.id, 'grams_in_one_unit': 100}],
-            'calories': 100,
-            'proteins': 20,
-            'carbohydrates': 20,
-            'fats': 20,
+            'tags': self.tag.slug
         }
-        res = self.client.post(INGREDIENT_CREATE_URL, payload, format='json')
-        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        res = self.client.post(INGREDIENTS_URL, payload)
         exists = models.Ingredient.objects.filter(
             user=self.user,
             name=payload['name']
@@ -203,13 +194,13 @@ class PrivateIngredientApiTests(TestCase):
             'carbohydrates': 60,
             'fats': 20
         }
-        res = self.client.post(INGREDIENT_CREATE_URL, payload, format='json')
+        res = self.client.post(INGREDIENTS_URL, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
 
         rmeal = models.ReadyMeals.objects.get(name=payload['name'])
         self.assertEqual('Ready Meal', rmeal.tags.all()[0].name)
 
-    def test_create_ready_meal_with_invalid_flag_failed(self):
+    def test_create_ready_meal_with_invalid_flag(self):
         """ test creating ready meal but with invalid ready meal flag """
 
         payload = {
@@ -220,25 +211,28 @@ class PrivateIngredientApiTests(TestCase):
             'carbohydrates': 60,
             'fats': 20
         }
-        res = self.client.post(INGREDIENT_CREATE_URL, payload, format='json')
-        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        res = self.client.post(INGREDIENTS_URL, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+
+        rmeal = models.ReadyMeals.objects.get(name=payload['name'])
+        self.assertEqual(len(rmeal.tags.all()), 0)
 
     def test_create_ingredient_invalid(self):
         """ test create ingredient with invalid payload """
         payload = {'name': ''}
-        res = self.client.post(INGREDIENT_CREATE_URL, payload)
+        res = self.client.post(INGREDIENTS_URL, payload)
 
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_ingredient_repeated_name(self):
         """ test create ingredient which already is in database """
-        sample_ingredient(name='Majonez', user=self.user, slug='majonez')
+        sample_ingredient(name='Majonez', user=self.user)
 
         payload = {
             'name': 'Majonez',
             'user': self.user.id,
         }
-        res = self.client.post(INGREDIENT_CREATE_URL, payload, format='json')
+        res = self.client.post(INGREDIENTS_URL, payload)
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_ingredient_with_invalid_calories_filed(self):
@@ -249,7 +243,7 @@ class PrivateIngredientApiTests(TestCase):
             'calories': -1,
         }
 
-        res = self.client.post(INGREDIENT_CREATE_URL, payload, format='json')
+        res = self.client.post(INGREDIENTS_URL, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_ingredient_success_different_user(self):
@@ -263,7 +257,7 @@ class PrivateIngredientApiTests(TestCase):
             'tags': self.tag.slug
         }
 
-        res = self.client.post(INGREDIENT_CREATE_URL, payload)
+        res = self.client.post(INGREDIENTS_URL, payload)
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
 
         ingredients = models.Ingredient.objects.filter(user=user2) \
@@ -299,7 +293,7 @@ class PrivateIngredientApiTests(TestCase):
             'name': 'Mąka',
             'tags': self.tag.slug
         }
-        res = self.client.put(ingredient_update_url(ingredient.slug), payload)
+        res = self.client.put(ingredient_detail_url(ingredient.slug), payload)
         ingredient = models.Ingredient.objects.filter(id=ingredient.id)[0]
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(ingredient.name, payload['name'])
@@ -311,7 +305,7 @@ class PrivateIngredientApiTests(TestCase):
         payload = {
             "name": 'test2'
         }
-        res = self.client.put(ingredient_update_url(user2_ing.slug), payload)
+        res = self.client.put(ingredient_detail_url(user2_ing.slug), payload)
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_partial_ingredient_update_success(self):
@@ -320,7 +314,7 @@ class PrivateIngredientApiTests(TestCase):
         payload = {
             'tags': self.tag.slug
         }
-        res = self.client.patch(ingredient_update_url(ingredient.slug),
+        res = self.client.patch(ingredient_detail_url(ingredient.slug),
                                 payload)
 
         ingredient = models.Ingredient.objects.filter(id=ingredient.id)[0]
@@ -334,7 +328,7 @@ class PrivateIngredientApiTests(TestCase):
             'name': 'Majonez',
             'tags': self.tag.slug
         }
-        res = self.client.put(ingredient_update_url(ingredient.slug), payload)
+        res = self.client.put(ingredient_detail_url(ingredient.slug), payload)
         ingredient = models.Ingredient.objects.filter(id=ingredient.id)[0]
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(ingredient.tags.first(), self.tag)
@@ -351,19 +345,20 @@ class PrivateIngredientApiTests(TestCase):
 
         all_units = models.Unit.objects.all()
 
-        serializer = serializers.UnitOutputSerializer(all_units, many=True, context={
-                                          'request': self.request})
+        serializer = UnitSerializer(all_units, many=True, context={
+                                    'request': self.request})
 
         self.assertEqual(res.data, serializer.data)
 
     def test_retrieve_default_unit_for_ingredient(self):
         """ test retrieving all units set to ingredient """
 
-        ing = sample_ingredient(user=self.user, name='Cukinia', slug='cukinia')
+        ing = sample_ingredient(user=self.user, name='Cukinia')
 
         res = self.client.get(ingredient_detail_url(ing.slug))
+
         self.assertEqual(
-            res.json()['data']['available_units'][0]['unit']['id'], self.unit.id)
+            res.json()['data']['available_units'][0]['unit'], self.unit.id)
 
     def test_retrieve_available_units_for_ingredient(self):
         """ test retrieving all units set to ingredient """
@@ -375,8 +370,8 @@ class PrivateIngredientApiTests(TestCase):
 
         res = self.client.get(ingredient_detail_url(ing.slug))
         all_units = models.Ingredient_Unit.objects.filter(ingredient=ing)
-        serializer = serializers.IngredientUnitOutputSerializer(
-            all_units, many=True)
+        serializer = IngredientUnitSerializer(
+            all_units, many=True, context={'request': self.request})
         self.assertEqual(res.json()['data']
                          ['available_units'], serializer.data)
 
@@ -392,10 +387,11 @@ class PrivateIngredientApiTests(TestCase):
                 }
             ]
         }
-        res = self.client.patch(ingredient_update_url(ing.slug), payload,
+
+        res = self.client.patch(ingredient_detail_url(ing.slug), payload,
                                 format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        test = models.Ingredient_Unit.objects.filter(ingredient=ing)
+
         ing.refresh_from_db()
         self.assertEqual(len(ing.units.all()), 2)
 
@@ -410,7 +406,7 @@ class PrivateIngredientApiTests(TestCase):
                 'grams_in_one_unit': 100
             }]
         }
-        res = self.client.patch(ingredient_update_url(ing.slug), payload,
+        res = self.client.patch(ingredient_detail_url(ing.slug), payload,
                                 format='json')
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -427,11 +423,10 @@ class PrivateIngredientApiTests(TestCase):
                 'grams_in_one_unit': 100
             }]
         }
-        res = self.client.patch(ingredient_update_url(ing.slug), payload,
+        res = self.client.patch(ingredient_detail_url(ing.slug), payload,
                                 format='json')
-
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(res.json()['data']['available_units'][0]['grams_in_one_unit'],
+        self.assertEqual(res.json()['data']['available_units'][1]['grams_in_one_unit'],
                          100)
     # @patch('uuid.uuid4')
     # def test_recipe_file_name_uuid(self, mock_uuid):

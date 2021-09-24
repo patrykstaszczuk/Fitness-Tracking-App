@@ -7,6 +7,18 @@ class CustomTagField(RelatedField):
     def to_representation(self, value):
         tag = {
             'id': value.id,
+            'slug': value.slug,
             'name': value.name
         }
         return tag
+
+
+# class CustomUnitField(RelatedField):
+#     """ custom unit-ingredient mapping field """
+#
+#     def to_representation(self, value):
+#         tag = {
+#             'id': value.id,
+#             'name': value.name
+#         }
+#         return tag

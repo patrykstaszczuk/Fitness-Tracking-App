@@ -1,7 +1,5 @@
-from rest_framework.decorators import action
 from rest_framework.reverse import reverse
-from rest_framework import viewsets, status
-from rest_framework import serializers
+from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.request import Request
@@ -10,7 +8,7 @@ from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework import permissions
 
 from mysite.renderers import CustomRenderer
-from mysite.views import RequiredFieldsResponseMessage, BaseAuthPermClass
+from mysite.views import BaseAuthPermClass
 from mysite.exceptions import ApiErrorsMixin
 
 from recipe import selectors, services, serializers
@@ -130,66 +128,6 @@ from users import selectors as users_selectors
 #         return Response(status=status.HTTP_204_NO_CONTENT)
 #
 #
-# class TagListApi(BaseAuthPermClass, RequiredFieldsResponseMessage):
-#     """ API for listing tags """
-#
-#     def get(self, request, *args, **kwargs):
-#         """ handling get request """
-#         user_tags = selectors.tag_list(user=request.user)
-#         context = self.get_serializer_context()
-#         serializer = serializers.TagOutputSerializer(user_tags, many=True,
-#                                                      context=context)
-#         return Response(data=serializer.data, status=status.HTTP_200_OK)
-#
-#
-# class TagCreateApi(BaseAuthPermClass, RequiredFieldsResponseMessage):
-#     """ API for creating tags """
-#
-#     def post(self, request, *args, **kwargs):
-#         """ handling post request """
-#         serializer = serializers.TagInputSerializer(data=request.data)
-#         if serializer.is_valid():
-#             tag = services.tag_create(user=request.user, data=serializer.data)
-#             serializer = serializers.TagOutputSerializer(
-#                 tag, context=self.get_serializer_context())
-#             return Response(data=serializer.data, status=status.HTTP_201_CREATED)
-#         return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-#
-#
-# class TagUpdateApi(BaseAuthPermClass, RequiredFieldsResponseMessage):
-#     """ API for updating and deleteing tag """
-#
-#     def put(self, request, *args, **kwargs):
-#         """ handling put action """
-#         slug = kwargs.get('slug')
-#         tag = selectors.tag_get_multi_by_slugs(user=request.user, slug=[slug, ]).first()
-#
-#         serializer = serializers.TagInputSerializer(data=request.data)
-#         if serializer.is_valid():
-#             tag = services.tag_update(tag=tag, data=serializer.data)
-#             serializer = serializers.TagOutputSerializer(
-#                 instance=tag, context=self.get_serializer_context())
-#             return Response(data=serializer.data, status=status.HTTP_200_OK)
-#         return Response(data=serializer.errors,
-#                         status=status.HTTP_400_BAD_REQUEST)
-#
-#     def delete(self, request, *args, **kwargs):
-#         """ handling delete action """
-#         slug = kwargs.get('slug')
-#         tag = selectors.tag_get_multi_by_slugs(user=request.user, slug=[slug, ]).first()
-#         tag.delete()
-#         return Response(status=status.HTTP_204_NO_CONTENT)
-#
-
-# class RecipeListView(BaseViewClass):
-#     """ API for listing available recipes """
-#
-#     def get(self, request, *args, **kwargs):
-#         """ return list of recipes available to user """
-#         recipes = selectors.recipe_list_handler(user=request.user)
-#         serializer = serializers.RecipeOutputSerializer(
-#             recipes, many=True, context=self.get_serializer_context())
-#         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
 
 class BaseViewClass(BaseAuthPermClass, ApiErrorsMixin, APIView):
@@ -212,7 +150,8 @@ class RecipeBaseViewClass(BaseViewClass):
     def set_location_in_header(self, recipe_slug: str, request: Request) -> dict:
         """ set location with proper url in header """
         return {'Location': reverse(
-            'recipe:recipe-detail', request=request, kwargs={'slug': recipe_slug})}
+            'recipe:recipe-detail', request=request,
+                kwargs={'slug': recipe_slug})}
 
 
 class RecipeListApi(RecipeBaseViewClass):
@@ -267,5 +206,163 @@ class RecipeCreateApi(RecipeBaseViewClass):
             recipe = recipe_service.create()
             headers = self.set_location_in_header(recipe.slug, request)
             return Response(status=status.HTTP_201_CREATED, headers=headers)
-        print(serializer.errors)
+        return Response(data=serializer.errors,
+                        status=status.HTTP_400_BAD_REQUEST)
+
+
+class BaseTagViewClass(BaseViewClass):
+    """ base class for tag APIs """
+
+    def set_location_in_header(self, tag_slug: str, request: Request) -> dict:
+        """ set location with proper url in header """
+        return {'Location': reverse(
+            'recipe:tag-detail', request=request, kwargs={'slug': tag_slug})}
+
+
+class TagListApi(BaseTagViewClass):
+    """ API for listing tags """
+
+    def get(self, request, *args, **kwargs):
+        """ handling get request """
+        user_tags = selectors.tag_list(user=request.user)
+        serializer = serializers.TagOutputSerializer(user_tags, many=True)
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+
+class TagDetailApi(BaseTagViewClass):
+    """ API for listing tags """
+
+    def get(self, request, *args, **kwargs):
+        """ handling get request """
+        slug = kwargs.get('slug')
+        user_tag = selectors.tag_get(user=request.user, slug=slug)
+        serializer = serializers.TagOutputSerializer(user_tag)
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+
+class TagCreateApi(BaseTagViewClass):
+    """ API for creating tags """
+
+    def post(self, request, *args, **kwargs):
+        """ handling post request """
+        serializer = serializers.TagInputSerializer(data=request.data)
+        if serializer.is_valid():
+            tag_service = services.TagService(
+                user=request.user, data=serializer.data)
+            tag = tag_service.create()
+            headers = self.set_location_in_header(tag.slug, request=request)
+            return Response(status=status.HTTP_201_CREATED, headers=headers)
+        return Response(data=serializer.errors,
+                        status=status.HTTP_400_BAD_REQUEST)
+
+
+class TagUpdateApi(BaseTagViewClass):
+    """ API for updating and deleteing tag """
+
+    def put(self, request, *args, **kwargs):
+        """ handling put action """
+        slug = kwargs.get('slug')
+        tag = selectors.tag_get(request.user, slug)
+        serializer = serializers.TagInputSerializer(data=request.data)
+        if serializer.is_valid():
+            tag_service = services.TagService(request.user, serializer.data)
+            tag = tag_service.update(instance=tag)
+            headers = self.set_location_in_header(tag.slug, request)
+            return Response(status=status.HTTP_200_OK)
+        return Response(data=serializer.errors,
+                        status=status.HTTP_400_BAD_REQUEST)
+
+
+class TagDeleteApi(BaseTagViewClass):
+    """ API for deleteing tags """
+
+    def delete(self, request, *args, **kwargs):
+        """ retrieve and delete tag """
+        slug = kwargs.get('slug')
+        tag = selectors.tag_get(request.user, slug)
+        tag.delete()
+        return Response(data=None, status=status.HTTP_200_OK)
+
+
+class IngredientBaseViewClass(BaseViewClass):
+    """ base class for ingredients APIs """
+
+    def set_location_in_header(self, ingredient_slug: str, request: Request) -> dict:
+        """ set location with proper url in header """
+        return {'Location': reverse(
+            'recipe:ingredient-detail', request=request, kwargs={'slug': ingredient_slug})}
+
+
+class IngredientListApi(IngredientBaseViewClass):
+    """ API for handlig ingredients list """
+
+    def get(self, request, *args, **kwargs):
+        """ handling get request """
+        user_ingredients = selectors.ingredient_list(user=request.user)
+        serializer = serializers.IngredientListOutputSerializer(
+            user_ingredients, many=True, context=self.get_serializer_context())
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+
+class IngredientDetailApi(IngredientBaseViewClass):
+    """ API for handling ingredient detail """
+
+    def get(self, request, *args, **kwargs):
+        """ handling get request """
+        slug = kwargs.get('slug')
+        ingredient = selectors.ingredient_get(slug)
+        serializer = serializers.IngredientDetailOutputSerializer(
+            ingredient)
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+
+class IngredientCreateApi(IngredientBaseViewClass):
+    """ API for creating ingredients """
+
+    def post(self, request, *args, **kwargs):
+        """ handling post request """
+        serializer = serializers.IngredientInputSerializer(data=request.data)
+        if serializer.is_valid():
+            data = serializer.data
+            ingredient_service = services.IngredientService(
+                user=request.user, data=data)
+            ingredient = ingredient_service.create()
+            headers = self.set_location_in_header(ingredient.slug, request)
+            return Response(status=status.HTTP_201_CREATED, headers=headers)
+        return Response(data=serializer.errors,
+                        status=status.HTTP_400_BAD_REQUEST)
+
+
+class IngredientUpdateApi(IngredientBaseViewClass):
+    """ API for updating ingredients """
+
+    def put(self, request, *args, **kwargs):
+        """ handling update request """
+        request = self.request
+        slug = kwargs.get('slug')
+        partial = kwargs.get('partial', False)
+        ingredient = selectors.ingredient_get_only_for_user(request.user, slug)
+        serializer = serializers.IngredientUpdateSerializer(data=request.data)
+        if serializer.is_valid():
+            ingredient_service = services.IngredientService(
+                user=request.user, data=serializer.data)
+            ingredient = ingredient_service.update(ingredient, partial=partial)
+            headers = self.set_location_in_header(ingredient.slug, request)
+            return Response(status=status.HTTP_200_OK, headers=headers)
         return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request, *args, **kwargs):
+        """ handle update like patch but set partial as true """
+        kwargs.update({'partial': True})
+        return self.put(self, request, *args, **kwargs)
+
+
+class IngredientDeleteApi(IngredientBaseViewClass):
+    """ API for delete ingredients """
+
+    def delete(self, request, *args, **kwargs):
+        """ handling delete request """
+        slug = kwargs.get('slug')
+        ingredient = selectors.ingredient_get_only_for_user(request.user, slug)
+        services.IngredientService.delete(ingredient)
+        return Response(status=status.HTTP_200_OK)

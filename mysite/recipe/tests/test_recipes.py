@@ -139,5 +139,58 @@ class RecipeApiTests(TestCase):
         self.assertIn('location', res._headers)
         url = res._headers['location'][1]
         res = self.client.get(url)
-        print(res.data)
         self.assertEqual(len(res.data['tags']), 1)
+
+    def test_create_recipe_with_two_tags_success(self):
+        tag1 = sample_tag(user=self.auth_user, name='tag1')
+        tag2 = sample_tag(user=self.auth_user, name='tag2')
+        payload = {
+            'name': 'recipe',
+            'portions': 3,
+            'tags': [tag1.slug, tag2.slug]
+        }
+        res = self.client.post(RECIPE_CREATE, payload)
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertIn('location', res._headers)
+        url = res._headers['location'][1]
+        res = self.client.get(url)
+        self.assertEqual(len(res.data['tags']), 2)
+
+    def test_create_recipe_without_tag_failed(self):
+        payload = {
+            'name': 'teest',
+            'portions': 3
+        }
+        res = self.client.post(RECIPE_CREATE, payload)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_recipe_with_non_existing_tag_failed(self):
+        payload = {
+            'name': 'teest',
+            'portions': 3,
+            'tags': ['str']
+        }
+        res = self.client.post(RECIPE_CREATE, payload)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_create_recipe_with_other_user_tag_failed(self):
+        user2 = sample_user(email='test2@gmail.com', name='test')
+        tag = sample_tag(user=user2, name='test')
+
+        payload = {
+            'name': 'teest',
+            'portions': 3,
+            'tags': [tag.slug]
+        }
+        res = self.client.post(RECIPE_CREATE, payload)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_create_recipe_repeated_name_failed(self):
+        sample_recipe(user=self.auth_user, name='test')
+        tag = sample_tag(user=self.auth_user, name='tag')
+        payload = {
+            'name': 'test',
+            'tags': [tag.slug, ]
+        }
+        res = self.client.post(RECIPE_CREATE, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)

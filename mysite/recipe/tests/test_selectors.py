@@ -1,11 +1,10 @@
-from django.test import TestCase, SimpleTestCase
+from django.test import SimpleTestCase
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError, ObjectDoesNotExist
+from django.core.exceptions import ValidationError
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
-from recipe import services, selectors
-from recipe.models import Recipe
+from recipe import selectors
 
 
 class RecipeSelectorsTests(SimpleTestCase):
@@ -20,10 +19,6 @@ class RecipeSelectorsTests(SimpleTestCase):
     def test_recipe_get_selector_with_invalid_user_type_failed(self):
         with self.assertRaises(ValidationError):
             selectors.recipe_get(user='test', slug='1232')
-
-    def test_recipe_get_selector_with_invalid_slug_failed(self):
-        with self.assertRaises(ObjectDoesNotExist):
-            selectors.recipe_get(user=self.user, slug=123)
 
     @patch('recipe.models.Recipe.objects.filter')
     @patch('users.selectors.group_get_membership')

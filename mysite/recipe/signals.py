@@ -20,13 +20,13 @@ def _count_calories_based_on_ingredients(sender, instance, action=None,
             # recipe._recalculate_nutritions_values()
 
 
-@receiver(post_save, sender=Ingredient)
-def _add_default_unit_for_ingredient(sender, instance, action=None, **kwargs):
-    """ add default unit for new ingredient """
-    gram_unit_instance, created = selectors.unit_get(id=None, default=True)
-    services.save_ingredient_m2m_fields(
-        instance, {'units': [{'unit': gram_unit_instance, 'grams_in_one_unit': 100}]})
-
-    # gram_unit_instance, crated = Unit.objects.get_or_create(name='gram')
-    # instance.units.add(gram_unit_instance,  through_defaults={
-    #                    'grams_in_one_unit': 100})
+# @receiver(post_save, sender=Ingredient)
+# def _add_default_unit_for_ingredient(sender, instance, action=None, **kwargs):
+#     """ add default unit for new ingredient """
+#     gram_unit_instance, created = selectors.unit_get(id=None, default=True)
+#     if created:
+#         data = {
+#             'units': [{'unit': gram_unit_instance, 'grams_in_one_unit': 100}]}
+#         ingredient_service = services.IngredientService(
+#             user=instance.user, data=data)
+#         ingredient_service.save_m2m_fields(instance)

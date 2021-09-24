@@ -19,6 +19,22 @@ urlpatterns = [
     path('recipes/<pk>/<slug>', views.GroupRecipeDetailApi.as_view(),
          name='group-recipe-detail'),
 
+    path('tags/', views.TagListApi.as_view(), name='tag-list'),
+    path('tags/create', views.TagCreateApi.as_view(), name='tag-create'),
+    path('tags/<slug>', views.TagDetailApi.as_view(), name='tag-detail'),
+    path('tags/<slug>/update', views.TagUpdateApi.as_view(), name='tag-update'),
+    path('tags/<slug>/delete', views.TagDeleteApi.as_view(), name='tag-delete'),
+
+    path('ingredients/', views.IngredientListApi.as_view(), name='ingredient-list'),
+    path('ingredients/create', views.IngredientCreateApi.as_view(),
+         name='ingredient-create'),
+    path('ingredients/<slug>/update', views.IngredientUpdateApi.as_view(),
+         name='ingredient-update'),
+    path('ingredients/<slug>/delete', views.IngredientDeleteApi.as_view(),
+         name='ingredient-delete'),
+    path('ingredients/<slug>', views.IngredientDetailApi.as_view(),
+         name='ingredient-detail'),
+
     # path('available-units/', views.UnitViewSet.as_view(),
     #      name='units'),
     # path('tags/', views.TagListApi.as_view(), name='tag-list'),
