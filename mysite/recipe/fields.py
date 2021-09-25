@@ -1,4 +1,5 @@
 from rest_framework.serializers import RelatedField
+from django.urls import reverse
 
 
 class CustomTagField(RelatedField):
@@ -11,6 +12,21 @@ class CustomTagField(RelatedField):
             'name': value.name
         }
         return tag
+
+
+class CustomIngredientField(RelatedField):
+    """ custom ingredient field with extra information about amount of unit """
+
+    def to_representation(self, value):
+        ingredient = {
+            'id': value.id,
+            'slug': value.slug,
+            'name': value.name,
+            'calories': value.calories,
+            'unit': value.recipe_ingredient_set.all()[0].unit.name,
+            'amount': value.recipe_ingredient_set.all()[0].amount
+        }
+        return ingredient
 
 
 # class CustomUnitField(RelatedField):

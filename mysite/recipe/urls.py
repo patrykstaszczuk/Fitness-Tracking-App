@@ -34,9 +34,8 @@ urlpatterns = [
          name='ingredient-delete'),
     path('ingredients/<slug>', views.IngredientDetailApi.as_view(),
          name='ingredient-detail'),
-
-    # path('available-units/', views.UnitViewSet.as_view(),
-    #      name='units'),
+    path('available-units/', views.UnitListApi.as_view(),
+         name='unit-list'),
     # path('tags/', views.TagListApi.as_view(), name='tag-list'),
     # path('tags/create', views.TagCreateApi.as_view(), name='tag-create'),
     # path('tags/<slug>/update', views.TagUpdateApi.as_view(),

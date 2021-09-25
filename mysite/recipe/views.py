@@ -116,18 +116,6 @@ from users import selectors as users_selectors
 #         return self.put(request, *args, **kwargs)
 #
 #
-# class UnitViewSet(BaseAuthPermClass, RequiredFieldsResponseMessage):
-#     """ viewset for retrieving available units """
-#
-#     def get(self, request, *args, **kwargs):
-#         """ return all avilable units """
-#         units = selectors.unit_list()
-#         if units.count() > 0:
-#             serializer = serializers.UnitOutputSerializer(units, many=True)
-#             return Response(data=serializer.data, status=status.HTTP_200_OK)
-#         return Response(status=status.HTTP_204_NO_CONTENT)
-#
-#
 
 
 class BaseViewClass(BaseAuthPermClass, ApiErrorsMixin, APIView):
@@ -173,7 +161,11 @@ class RecipeDetilApi(RecipeBaseViewClass):
         """ retrive specific recipe based on slug """
         slug = kwargs.get('slug')
         recipe = selectors.recipe_get(user=request.user, slug=slug)
-        serializer = serializers.RecipeDetailOutputSerializer(recipe)
+        serializer = serializers.RecipeDetailOutputSerializer(
+            recipe, context=self.get_serializer_context())
+        #
+        # response_data = selectors.recipe_append_unit_amount_information_to_ingredients(
+        #     serializer.data)
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
 
@@ -366,3 +358,15 @@ class IngredientDeleteApi(IngredientBaseViewClass):
         ingredient = selectors.ingredient_get_only_for_user(request.user, slug)
         services.IngredientService.delete(ingredient)
         return Response(status=status.HTTP_200_OK)
+
+
+class UnitListApi(BaseViewClass):
+    """ viewfor retrieving available units """
+
+    def get(self, request, *args, **kwargs):
+        """ return all avilable units """
+        units = selectors.unit_list()
+        if units.count() > 0:
+            serializer = serializers.UnitOutputSerializer(units, many=True)
+            return Response(data=serializer.data, status=status.HTTP_200_OK)
+        return Response(status=status.HTTP_204_NO_CONTENT)

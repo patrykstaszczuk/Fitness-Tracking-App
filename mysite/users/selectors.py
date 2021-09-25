@@ -29,12 +29,12 @@ def group_get_by_user_id(user_id: int) -> Group:
 
 def get_groups_by_ids(group_ids: list[int]) -> Iterable[Group]:
     """ return group based on group id """
-    return Group.objects.filter(id__in=group_ids)
+    return Group.objects.filter(id__in=group_ids).prefetch_related('founder', 'members')
 
 
 def group_get_membership(user: get_user_model) -> Iterable[Group]:
     """ return user group memberships """
-    return user.membership.all()
+    return user.membership.all().prefetch_related('founder', 'members')
 
 
 def group_retrieve_founders(groups: list[Group]) -> int:
@@ -53,15 +53,9 @@ def get_pending_membership(user: get_user_model) -> Iterable[int]:
 
 def is_user_in_group(user: get_user_model, groups: Iterable[Group]) -> bool:
     """ check if user belong to group """
-
     user_membership = group_get_membership(user=user)
-    # user_membership = list(get_membership(
-    #     user=user).values_list('id', flat=True))
-
     if all(group in user_membership for group in groups):
         return True
-    # if all(group_id in user_membership for group_id in group_ids):
-    #     return True
     raise ValidationError('Group not found in your membership')
 
 

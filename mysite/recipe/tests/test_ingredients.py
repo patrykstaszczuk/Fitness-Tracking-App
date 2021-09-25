@@ -167,6 +167,31 @@ class IngredientApiTests(TestCase):
         res = self.client.post(INGREDIENT_CREATE, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_create_ingredient_with_invalid_unit(self):
+        payload = {
+            'name': 'test',
+            'units': [{'unit': 'invalid unit', 'grams_in_one_unit': 100}]
+        }
+        res = self.client.post(INGREDIENT_CREATE, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_ingredient_with_invalid_grams_in_unit(self):
+        unit = Unit.objects.create(name='test unit')
+        payload = {
+            'name': 'test',
+            'units': [{'unit': unit.id, 'grams_in_one_unit': {'invali': 'invalid'}}]
+        }
+        res = self.client.post(INGREDIENT_CREATE, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_ingredient_with_invalid_tags(self):
+        payload = {
+            'name': 'test',
+            'tags': [1, 2, 3]
+        }
+        res = self.client.post(INGREDIENT_CREATE, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
     def test_create_ingredient_missing_required_field(self):
         payload = {
             'calories': 100
@@ -265,3 +290,12 @@ class IngredientApiTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
         ings = Ingredient.objects.filter(user=user2)
         self.assertEqual(len(ings), 1)
+
+    def test_retrieving_available_units(self):
+        Unit.objects.create(name='unit1')
+        Unit.objects.create(name='unit2')
+        Unit.objects.create(name='unit3')
+        Unit.objects.create(name='unit4')
+
+        res = self.client.get(reverse('recipe:unit-list'))
+        self.assertEqual(len(res.data), 4)

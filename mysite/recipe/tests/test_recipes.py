@@ -98,10 +98,51 @@ class RecipeApiTests(TestCase):
         self.assertEqual(len(res.data), 2)
 
     def test_filtering_recipes_by_tags(self):
-        pass
+        recipe1 = sample_recipe(user=self.auth_user, name='test')
+        recipe2 = sample_recipe(user=self.auth_user, name='test2')
+        sample_recipe(user=self.auth_user, name='test3')
+        tag1 = sample_tag(user=self.auth_user, name='tag1')
+        tag2 = sample_tag(user=self.auth_user, name='tag2')
+        recipe1.tags.add(tag1)
+        recipe2.tags.add(tag2)
+
+        res = self.client.get(
+            RECIPES_LIST, {'tags': f'{tag1.slug},{tag2.slug}'})
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 2)
+
+    def test_filtering_recipes_by_invalida_tags(self):
+        user2 = sample_user('2@gmail.com', 'name')
+        recipe1 = sample_recipe(user=self.auth_user, name='test')
+        tag1 = sample_tag(user=self.auth_user, name='tag1')
+        tag2 = sample_tag(user=user2, name='tag2')
+        recipe1.tags.add(tag1)
+
+        res = self.client.get(
+            RECIPES_LIST, {'tags': f'{tag1.slug},{tag2.slug}'})
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_filtering_recipes_by_groups(self):
-        pass
+        user2 = sample_user('2@gmail.com', 'user2')
+        user2_group = user2.own_group
+        user2_group.members.add(self.auth_user)
+
+        recipe1 = sample_recipe(user=self.auth_user, name='user1 recipe')
+        recipe2 = sample_recipe(user=user2, name='user2 recipe')
+
+        res = self.client.get(RECIPES_LIST, {'groups': f'{user2_group.id}'})
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 1)
+
+    def test_filtering_recipes_by_invalid_groups(self):
+        user2 = sample_user('2@gmail.com', 'user2')
+        user2_group = user2.own_group
+        recipe1 = sample_recipe(user=self.auth_user, name='user1 recipe')
+        recipe2 = sample_recipe(user=user2, name='user2 recipe')
+
+        res = self.client.get(RECIPES_LIST, {'groups': f'{user2_group.id}'})
+        print(res.data)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_get_recipe_detail_success(self):
         recipe = sample_recipe(user=self.auth_user, name='recipe')
@@ -194,3 +235,6 @@ class RecipeApiTests(TestCase):
         }
         res = self.client.post(RECIPE_CREATE, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_recipe_with_ingredients(self):
+        pass

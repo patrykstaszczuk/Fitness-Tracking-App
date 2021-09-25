@@ -4,7 +4,7 @@ from recipe.models import Ingredient, Tag, Recipe, Recipe_Ingredient, Unit, \
 from rest_framework import fields
 from rest_framework.reverse import reverse
 from django.core.exceptions import FieldError
-from recipe.fields import CustomTagField
+from recipe.fields import CustomTagField, CustomIngredientField
 
 
 def create_serializer_class(name, fields):
@@ -60,10 +60,25 @@ class RecipeDetailOutputSerializer(serializers.ModelSerializer):
     """ serializing recipe object """
 
     tags = CustomTagField(many=True, read_only=True)
+    ingredients = CustomIngredientField(source='get_ingredients',
+                                        many=True, read_only=True, )
 
     class Meta:
         model = Recipe
         fields = '__all__'
+
+    def to_representation(self, instance):
+        """ apend urls for tags and ingredients """
+        ret = super().to_representation(instance)
+        for tag in ret['tags']:
+            tag.update({'url': reverse('recipe:tag-detail',
+                                       request=self.context['request'],
+                                       kwargs={'slug': tag['slug']})})
+        for ingredient in ret['ingredients']:
+            ingredient.update({'url': reverse('recipe:ingredient-detail',
+                                              request=self.context['request'],
+                                              kwargs={'slug': ingredient['slug']})})
+        return ret
 
 
 class RecipeCreateInputSerializer(serializers.Serializer):
@@ -180,6 +195,15 @@ class IngredientUpdateSerializer(IngredientInputSerializer):
     """ set name as non required since its update """
 
     name = serializers.CharField(max_length=255, required=False)
+
+
+class UnitOutputSerializer(serializers.ModelSerializer):
+    """ serializing available units """
+
+    class Meta:
+        model = Unit
+        fields = '__all__'
+
 # class DynamicFieldsModelSerializer(serializers.ModelSerializer):
 #
 #     def __init__(self, *args, **kwargs):

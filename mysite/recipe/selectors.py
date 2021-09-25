@@ -29,11 +29,11 @@ def recipe_list(user: get_user_model, filters: QueryDict = None) -> list[Recipe]
     default_queryset = Recipe.objects.filter(
         user__id__in=list_of_users_ids).prefetch_related('tags', 'ingredients')
     if filters:
-        return filter_queryset(user, filters, default_queryset)
+        return filter_queryset(user, filters, default_queryset, user_groups)
     return default_queryset
 
 
-def filter_queryset(user: get_user_model, filters: QueryDict, default_queryset: QuerySet) -> list[Recipe]:
+def filter_queryset(user: get_user_model, filters: QueryDict, default_queryset: QuerySet, user_groups: list[Group]) -> list[Recipe]:
     """ apply filters on queryset and return it """
     queryset = default_queryset
     allowed_filters = ['tags', 'groups']
@@ -42,33 +42,26 @@ def filter_queryset(user: get_user_model, filters: QueryDict, default_queryset: 
             list_of_values = filters[field].split(',')
             if field == 'groups':
                 queryset = filter_queryset_by_groups(
-                    user, list_of_values, queryset)
+                    list_of_values, queryset, user_groups)
             if field == 'tags':
                 queryset = filter_queryset_by_tags(
                     user, list_of_values, queryset)
     return queryset
 
 
-def filter_queryset_by_groups(user: get_user_model, list_of_values: list, queryset: QuerySet) -> QuerySet:
+def filter_queryset_by_groups(list_of_values: list, queryset: QuerySet, user_groups: list[Group]) -> QuerySet:
     """ filter queryset by groups """
     list_of_values = list(map(int, list_of_values))
-    group_instances = users_selectors.get_groups_by_ids(list_of_values)
-
-    if len(list_of_values) != group_instances.count():
+    group_ids = user_groups.values_list('id', flat=True)
+    if not all(list_of_values[id] in group_ids for id in range(len(list_of_values))):
         raise ValidationError('Invalid group id/ids')
-
-    users_selectors.is_user_in_group(user, group_instances)
-    users = groups_retrieve_founders(group_instances)
-    return queryset.filter(user__in=users)
+    return queryset.filter(user__in=list_of_values)
 
 
-def filter_queryset_by_tags(user: get_user_model, list_of_values: list[str], queryset: QuerySet):
+def filter_queryset_by_tags(user: get_user_model, tag_slugs: list[str], queryset: QuerySet):
     """ filter queryset by tags """
-
-    map_tags_slug_to_instances(user, list_of_values)
-    query = 'tags__slug__in'
-    return queryset.filter(
-        user=user).filter(**{query: list_of_values})
+    tags_instances = tag_get_multi_by_slugs(user, tag_slugs)
+    return queryset.filter(tags__in=list(tags_instances))
 
 
 def recipe_check_if_user_can_retrieve(requested_user: get_user_model,
@@ -82,6 +75,14 @@ def recipe_check_if_user_can_retrieve(requested_user: get_user_model,
     except AttributeError as e:
         print(f'{e} func: recipe_check_if_user_can_retrieve')
         raise ValidationError('Internal error, contanct administrator')
+
+
+def recipe_append_unit_amount_information_to_ingredients(data: dict) -> dict:
+    """ for each ingredient in recipe append info about amount of given unit """
+    if 'ingredients' in data:
+        for ingredient in data['ingredients']:
+            for item in ingredient.ingredient_amount_set.all():
+                print(item)
 
 
 def tag_list(user: get_user_model) -> Iterable[Tag]:
