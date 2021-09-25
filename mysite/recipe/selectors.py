@@ -77,14 +77,6 @@ def recipe_check_if_user_can_retrieve(requested_user: get_user_model,
         raise ValidationError('Internal error, contanct administrator')
 
 
-def recipe_append_unit_amount_information_to_ingredients(data: dict) -> dict:
-    """ for each ingredient in recipe append info about amount of given unit """
-    if 'ingredients' in data:
-        for ingredient in data['ingredients']:
-            for item in ingredient.ingredient_amount_set.all():
-                print(item)
-
-
 def tag_list(user: get_user_model) -> Iterable[Tag]:
     """ return tags created by user """
     return Tag.objects.filter(user=user)
