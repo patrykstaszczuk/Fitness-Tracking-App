@@ -11,12 +11,15 @@ def _count_calories_based_on_ingredients(sender, instance, action=None,
                                          **kwargs):
     """ sum up calories from all recipe ingredients """
     if action in ['post_add', 'post_remove', 'post_clear']:
-        services.recalculate_nutritions_values(recipe=instance)
-        # instance._recalculate_nutritions_values()
+        services.RecipeService.recalculate_nutritions_values(recipe=instance)
+        # services.recalculate_nutritions_values(recipe=instance)
     elif sender == Ingredient:
-        recipes = Recipe.objects.filter(ingredients=instance.id)
+        recipes = Recipe.objects.filter(ingredients=instance.id).prefetch_related(
+            'ingredients', 'ingredient__recipe_ingredient_set')
         for recipe in recipes:
-            services.recalculate_nutritions_values(recipe=recipe)
+            services.RecipeService.recalculate_nutritions_values(
+                recipe=instance)
+            # services.recalculate_nutritions_values(recipe=recipe)
             # recipe._recalculate_nutritions_values()
 
 
@@ -29,4 +32,6 @@ def _count_calories_based_on_ingredients(sender, instance, action=None,
 #             'units': [{'unit': gram_unit_instance, 'grams_in_one_unit': 100}]}
 #         ingredient_service = services.IngredientService(
 #             user=instance.user, data=data)
+#         ingredient_service.save_m2m_fields(instance)
+#         ingredient_service.save_m2m_fields(instance)
 #         ingredient_service.save_m2m_fields(instance)

@@ -1,6 +1,6 @@
 from django.test import SimpleTestCase
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, ObjectDoesNotExist
 
 from unittest.mock import patch
 
@@ -31,5 +31,5 @@ class RecipeSelectorsTests(SimpleTestCase):
     @patch('users.selectors.group_get_by_user_id')
     def test_recipe_check_if_user_can_be_retreive_invalid_recipe_creator_group_output(self, mock):
         mock.return_value = 'string'
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(ObjectDoesNotExist):
             selectors.recipe_check_if_user_can_retrieve(self.user, 'whatever')

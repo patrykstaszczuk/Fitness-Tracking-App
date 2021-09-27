@@ -78,7 +78,7 @@ class Recipe(Dish):
     orginal_photos = []
 
     class Meta:
-        unique_together = ('user', 'slug')
+        unique_together = ('user', 'name')
 
     def save(self, *args, **kwargs) -> None:
         """ save object with appropriate slug """

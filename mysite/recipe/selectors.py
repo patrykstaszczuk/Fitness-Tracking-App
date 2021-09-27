@@ -67,6 +67,10 @@ def filter_queryset_by_tags(user: get_user_model, tag_slugs: list[str], queryset
 def recipe_check_if_user_can_retrieve(requested_user: get_user_model,
                                       recipe_creator_id: int) -> None:
     """ check if requested user can view recipes created by specific user """
+    try:
+        recipe_creator_id = int(recipe_creator_id)
+    except ValueError:
+        raise ObjectDoesNotExist()
     recipe_creator_group = users_selectors.group_get_by_user_id(
         recipe_creator_id)
     try:
@@ -139,11 +143,22 @@ def ingredient_get_multi_by_slugs(slugs: list[str]) -> list[Ingredient]:
 
 def unit_get_multi_by_ids(ids: list[int]) -> list[Unit]:
     """ return units by provided ids or raise object does not exists """
-    unit_instances = Unit.objects.filter(id__in=ids)
-    if len(unit_instances) != len(ids):
-        raise ObjectDoesNotExist(
-            'At least one of provided id cannot be mapped to unit')
-    return unit_instances
+    all_units = Unit.objects.all()
+    mapped_instances = []
+    for id in ids:
+        try:
+            mapped_instances.append(all_units.get(id=id))
+        except Unit.DoesNotExist:
+            raise ObjectDoesNotExist(f'Unit with id {id} does not exists!')
+    return mapped_instances
+
+    #
+    # if not all(id in unit_instances for id in ids):
+    #     raise ObjectDoesNotExist(
+    #         {'unit': 'At least one of provided id cannot be mapped to unit'})
+    #
+    # for id in uni
+    # return unit_instances
 ####################################
 
 

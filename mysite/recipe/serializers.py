@@ -84,7 +84,7 @@ class RecipeDetailOutputSerializer(serializers.ModelSerializer):
 class RecipeCreateInputSerializer(serializers.Serializer):
     """ serializing data for creating Recipe instance """
 
-    name = serializers.CharField(required=False)
+    name = serializers.CharField(required=True)
     tags = serializers.ListField(
         child=serializers.SlugField(), required=True)
     ingredients = inline_serializer(many=True, required=False, fields={
@@ -95,6 +95,14 @@ class RecipeCreateInputSerializer(serializers.Serializer):
     portions = serializers.IntegerField(required=True)
     prepare_time = serializers.IntegerField(required=False)
     description = serializers.CharField(required=False)
+
+
+class RecipePatchInputSerializer(RecipeCreateInputSerializer):
+    """ set name and tags as not required during update """
+    name = serializers.CharField(required=False)
+    tags = serializers.ListField(
+        child=serializers.SlugField(), required=False)
+    portions = serializers.IntegerField(required=False)
 
 
 class TagOutputSerializer(serializers.ModelSerializer):
