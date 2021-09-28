@@ -18,13 +18,20 @@ class CustomIngredientField(RelatedField):
     """ custom ingredient field with extra information about amount of unit """
 
     def to_representation(self, value):
+        try:
+            unit = value.recipe_ingredient_set.all()[0].unit.name
+            amount = value.recipe_ingredient_set.all()[0].amount
+        except AttributeError:
+            unit = None
+            amount = None
+
         ingredient = {
             'id': value.id,
             'slug': value.slug,
             'name': value.name,
             'calories': value.calories,
-            'unit': value.recipe_ingredient_set.all()[0].unit.name,
-            'amount': value.recipe_ingredient_set.all()[0].amount
+            'unit': unit,
+            'amount': amount,
         }
         return ingredient
 

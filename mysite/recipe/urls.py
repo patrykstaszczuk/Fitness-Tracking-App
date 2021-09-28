@@ -18,6 +18,8 @@ urlpatterns = [
     path('recipes/<slug>/update',
          views.RecipeUpdateApi.as_view(), name='recipe-update'),
     path('recipes/<slug>', views.RecipeDetilApi.as_view(), name='recipe-detail'),
+    path('recipes/<slug>/send-to-nozbe',
+         views.RecipeSendIngredientsToNozbe.as_view(), name='recipe-send-to-nozbe'),
     path('recipes/group/<pk>/<slug>', views.GroupRecipeDetailApi.as_view(),
          name='group-recipe-detail'),
     path('recipes/<slug>/delete',

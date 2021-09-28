@@ -1,15 +1,11 @@
 from django.contrib.auth import get_user_model
-from django.conf import settings
 from django.utils.text import slugify
-from django.db.utils import IntegrityError
 from unidecode import unidecode
 from django.core.exceptions import ValidationError
 
 from typing import Optional
-from recipe.models import Recipe, Tag, Ingredient, Recipe_Ingredient, Unit, Ingredient_Unit
+from recipe.models import Recipe, Tag, Ingredient
 from recipe import selectors
-import os
-import shutil
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 
@@ -59,80 +55,6 @@ class M2MHandler(ABC):
     def _clear_m2m_relation() -> None:
         """ clear all m2m instance relations """
         pass
-
-
-class Validator(ABC):
-    """ base class for different validation types """
-
-    @abstractmethod
-    def validate(self):
-        """ perfom validation """
-
-    # @abstractmethod
-    # def create_validation(self):
-    #     """ perform validation during create """
-    #     pass
-    #
-    # @abstractmethod
-    # def update_validation(self):
-    #     """ perform validation during update """
-    #     pass
-
-@dataclass
-class IngredientUnitValidator(Validator):
-    """ validate ingredient """
-    ingredients: list[dict]
-
-    def validate(self) -> list[dict]:
-        """ check if ingredients are available to user """
-        ingredient_slugs = []
-        unit_ids = []
-        for item in self.ingredients or []:
-            ingredient_slugs.append(item['ingredient'])
-            unit_ids.append(item['unit'])
-        ingredient_instances = selectors.ingredient_get_multi_by_slugs(
-            ingredient_slugs)
-        unit_instances = selectors.unit_get_multi_by_ids(unit_ids)
-        for item, instance, unit in zip(self.ingredients, ingredient_instances, unit_instances):
-            item['ingredient'] = instance
-            item['unit'] = unit
-        return self.ingredients
-
-
-@dataclass
-class TagValidator(Validator):
-    """ validate tag """
-    tags: list[str]
-    user: get_user_model
-
-    def validate(self) -> list[Tag]:
-        """ check if tag is available for user """
-        return selectors.tag_get_multi_by_slugs(
-            user=self.user, slugs=self.tags)
-
-# class RecipeValidator(Validator):
-#
-#     def create_validation(self):
-#         """ perform validation during create """
-#         if hasattr(self, 'tags'):
-#             self.tags = selectors.tag_get_multi_by_slugs(
-#                 user=self.user, slugs=self.tags)
-#         if hasattr(self, 'ingredients'):
-#             ingredient_slugs = []
-#             unit_ids = []
-#             for item in self.ingredients or []:
-#                 ingredient_slugs.append(item['ingredient'])
-#                 unit_ids.append(item['unit'])
-#             ingredient_instances = selectors.ingredient_get_multi_by_slugs(
-#                 ingredient_slugs)
-#             unit_instances = selectors.unit_get_multi_by_ids(unit_ids)
-#             for item, instance, unit in zip(self.ingredients, ingredient_instances, unit_instances):
-#                 item['ingredient'] = instance
-#                 item['unit'] = unit
-#
-#     def update_validation(self):
-#         """ perform validation during update """
-#         pass
 
 
 class RecipeM2MHandler(M2MHandler):
@@ -203,30 +125,23 @@ class RecipeService(Dish, RecipeM2MHandler):
         return Recipe.objects.filter(user=self.user, name=name)
 
     def _validate(self):
+        """ validate data """
         if hasattr(self, 'tags'):
-            validator = TagValidator(tags=self.tags, user=self.user)
-            self.tags = validator.validate()
+            self.tags = selectors.tag_get_multi_by_slugs(
+                user=self.user, slugs=self.tags)
+
         if hasattr(self, 'ingredients'):
-            validator = IngredientUnitValidator(self.ingredients)
-            self.ingredients = validator.validate()
-    # def _validate(self):
-    #     """ validate data """
-    #     if hasattr(self, 'tags'):
-    #         self.tags = selectors.tag_get_multi_by_slugs(
-    #             user=self.user, slugs=self.tags)
-    #
-    #     if hasattr(self, 'ingredients'):
-    #         ingredient_slugs = []
-    #         unit_ids = []
-    #         for item in self.ingredients or []:
-    #             ingredient_slugs.append(item['ingredient'])
-    #             unit_ids.append(item['unit'])
-    #         ingredient_instances = selectors.ingredient_get_multi_by_slugs(
-    #             ingredient_slugs)
-    #         unit_instances = selectors.unit_get_multi_by_ids(unit_ids)
-    #         for item, instance, unit in zip(self.ingredients, ingredient_instances, unit_instances):
-    #             item['ingredient'] = instance
-    #             item['unit'] = unit
+            ingredient_slugs = []
+            unit_ids = []
+            for item in self.ingredients or []:
+                ingredient_slugs.append(item['ingredient'])
+                unit_ids.append(item['unit'])
+            ingredient_instances = selectors.ingredient_get_multi_by_slugs(
+                ingredient_slugs)
+            unit_instances = selectors.unit_get_multi_by_ids(unit_ids)
+            for item, instance, unit in zip(self.ingredients, ingredient_instances, unit_instances):
+                item['ingredient'] = instance
+                item['unit'] = unit
 
     @staticmethod
     def recalculate_nutritions_values(recipe: Recipe) -> None:
@@ -346,7 +261,7 @@ class IngredientM2MHandler(M2MHandler):
         self.instance.units.clear()
 
 
-@dataclass()
+@dataclass
 class IngredientService(Dish, IngredientM2MHandler):
     user: get_user_model
     data: dict
@@ -377,14 +292,14 @@ class IngredientService(Dish, IngredientM2MHandler):
         self.instance.save()
         return self.instance
 
-    def _check_if_name_exists(self, name: str) -> list[Tag]:
+    def _check_if_name_exists(self, name: str) -> list[Ingredient]:
         """ return number of tags with same name and user """
-        return Tag.objects.filter(user=self.user, name=name)
+        return Ingredient.objects.filter(name=name)
 
     def _validate(self) -> bool:
         """ overall validation """
         name = self.data.get('name')
-        if self._check_if_name_exists(name).count() > 0:
+        if self._check_if_name_exists(name).filter(user=self.user).count() > 0:
             raise ValidationError(
                 f'You alredy have ingredient with name {name}!')
         if hasattr(self, 'tags'):
@@ -397,9 +312,6 @@ class IngredientService(Dish, IngredientM2MHandler):
             for item, unit in zip(self.units, unit_instances):
                 item['unit'] = unit
 
-    def _validate_update(self):
-        """ overall validation during update """
-
     def _set_slug(self, instance: Ingredient) -> str:
         """ set appropriate slug """
         slug = slugify(unidecode(instance.name)) + \
@@ -408,10 +320,6 @@ class IngredientService(Dish, IngredientM2MHandler):
         if number_of_repeared_names > 0:
             slug += str(number_of_repeared_names + 1)
         return slug
-
-    def _check_if_name_exists(self, name: str) -> list[Ingredient]:
-        """ return number of ingredients with same name and user """
-        return Ingredient.objects.filter(user=self.user, name=name)
 
     def _handle_ready_meal(self) -> bool:
         """ append ready_meal tag to ingredient service tags """
@@ -450,34 +358,3 @@ class IngredientService(Dish, IngredientM2MHandler):
 #     recipe.save()
 #
 #
-
-
-#
-# def recalculate_nutritions_values(recipe: Recipe) -> None:
-#     """ recalculating recipe nutritions values based on ingredients """
-#     nutritional_fields = ['proteins', 'carbohydrates', 'fats', 'calories']
-#     for field in nutritional_fields:
-#         setattr(recipe, field, 0)
-#
-#     for ingredient in recipe.ingredients.all():
-#         obj = Recipe_Ingredient.objects.get(recipe=recipe,
-#                                             ingredient=ingredient)
-#         unit = obj.unit
-#         amount = obj.amount
-#         if not all([unit, amount]):
-#             continue
-#
-#         for field in nutritional_fields:
-#             current_recipe_field_value = getattr(recipe, field)
-#             ingredient_field_value = getattr(ingredient, field)
-#             if ingredient_field_value is None:
-#                 ingredient_field_value = 0
-#             grams = selectors.ingredient_convert_unit_to_grams(
-#                 ingredient, unit, amount)
-#             setattr(recipe, field, round((current_recipe_field_value
-#                                           + (grams/100)*ingredient_field_value), 2))
-#     kwargs = {'force_insert': False}
-#     recipe.save(**kwargs, update_fields=['proteins', 'carbohydrates',
-#                                          'fats', 'calories'])
-#     recipe.save(**kwargs, update_fields=['proteins', 'carbohydrates',
-#                                          'fats', 'calories'])

@@ -81,6 +81,11 @@ def recipe_check_if_user_can_retrieve(requested_user: get_user_model,
         raise ValidationError('Internal error, contanct administrator')
 
 
+def recipe_calculate_calories_based_on_portion(portion: int, recipe: Recipe) -> int:
+    """ return recipe calories based on portion """
+    return portion * (recipe.calories/recipe.portions)
+
+
 def tag_list(user: get_user_model) -> Iterable[Tag]:
     """ return tags created by user """
     return Tag.objects.filter(user=user)
@@ -141,144 +146,6 @@ def ingredient_get_multi_by_slugs(slugs: list[str]) -> list[Ingredient]:
     return ingredient_instances
 
 
-def unit_get_multi_by_ids(ids: list[int]) -> list[Unit]:
-    """ return units by provided ids or raise object does not exists """
-    all_units = Unit.objects.all()
-    mapped_instances = []
-    for id in ids:
-        try:
-            mapped_instances.append(all_units.get(id=id))
-        except Unit.DoesNotExist:
-            raise ObjectDoesNotExist(f'Unit with id {id} does not exists!')
-    return mapped_instances
-
-    #
-    # if not all(id in unit_instances for id in ids):
-    #     raise ObjectDoesNotExist(
-    #         {'unit': 'At least one of provided id cannot be mapped to unit'})
-    #
-    # for id in uni
-    # return unit_instances
-####################################
-
-
-def recipe_calculate_calories_based_on_portion(portion: int, recipe: Recipe) -> int:
-    """ return recipe calories based on portion """
-    return portion * (recipe.calories/recipe.portions)
-
-
-def send_ingredients_to_nozbe(slug_list: list) -> bool:
-    """ send chosen ingredients to nozbe """
-
-    if is_slug_list_too_long(slug_list):
-        return False
-    ingredients = ingredient_map_slug_to_object(slug_list)
-    secret, client_id, project_id = get_nozbe_request_information()
-    for ingredient in ingredients:
-        res = send_request_to_nozbe(ingredient, secret, client_id, project_id)
-        if res.status_code != 200:
-            return False
-    return True
-
-
-def is_slug_list_too_long(slug_list: list) -> bool:
-    """ check if list too long """
-    return len(slug_list) > 25
-
-
-def send_request_to_nozbe(ingredient: Ingredient, secret: str, client_id: int,
-                          project_id: int) -> requests:
-    """ send request to nozbe API """
-    url = 'https://api.nozbe.com:3000/task'
-    res = requests.post(url, headers={'Authorization': secret},
-                        data={'name': ingredient.name, 'project_id':
-                              project_id, 'client_id': client_id})
-    return res
-
-
-def ingredient_map_slug_to_object(slug_list: list) -> list[Ingredient]:
-    """ map ingredient slug to ingredient instance """
-    list_of_instances = []
-    for slug in slug_list:
-        try:
-            ingredient = Ingredient.objects.get(slug=slug)
-            list_of_instances.append(ingredient)
-        except Ingredient.DoesNotExist:
-            raise ValidationError(f'{slug} cannot be mapped to ingredient')
-    return list_of_instances
-
-
-def get_nozbe_request_information() -> tuple([str, str, str]):
-    """ return authorization code """
-    try:
-        return os.environ['NOZBE_SECRET'], os.environ['NOZBE_CLIENT_ID'], \
-            os.environ['NOZBE_PROJECT_ID']
-    except KeyError:
-        raise ValidationError("Cannot retrieve nozbe informations,\
-            contanct admin")
-
-
-def unit_map_id_to_instance(unit_id: int) -> Unit:
-    """ map id to real instance or raise an error """
-    try:
-        unit = Unit.objects.get(id=unit_id)
-    except Unit.DoesNotExist:
-        raise ValidationError(f'unit with id ={unit_id} does not exists')
-    return unit
-
-
-def unit_is_mapped_to_ingredient(unit: Unit, ingredient: Ingredient) -> bool:
-    """ check if ingredient has been mapped to Unit """
-    try:
-        Ingredient_Unit.objects.get(ingredient=ingredient, unit=unit)
-        return True
-    except Ingredient_Unit.DoesNotExist:
-        raise ValidationError(f'{ingredient} is has no defined {unit} as unit')
-    return False
-
-
-# def map_tags_slug_to_instances(user: get_user_model, tags_slug: list[str]) -> Iterable[Tag]:
-#     """ map tag's slug string to instances """
-#     tag_instances = []
-#     available_tags = Tag.objects.filter(user=user)
-#     for tag in tags_slug:
-#         if tag in list(available_tags.values_list('slug', flat=True)):
-#             tag_instances.append(available_tags.get(slug=tag))
-#         else:
-#             raise ValidationError({'tags': f'{tag} does not exsists!'})
-#     return tag_instances
-#
-#
-# def map_data_to_instances(user: get_user_model, ingredients: dict) -> dict:
-#     """ map ingredient slug in data to instances """
-#     for item in ingredients:
-#         ingredient_slug = item.get('ingredient')
-#         unit_id = item.get('unit')
-#
-#         ingredient = ingredient_map_slug_to_object(
-#             [ingredient_slug, ])[0]
-#         item.update({'ingredient': ingredient})
-#
-#         unit = unit_map_id_to_instance(unit_id)
-#         if unit_is_mapped_to_ingredient(unit=unit, ingredient=ingredient):
-#             item.update({'unit': unit})
-#     return ingredients
-
-
-# def ingredient_get_for_requested_user(user: get_user_model, slug: str) -> Ingredient:
-#     """ filter all ingredients by requested user """
-#     try:
-#         return Ingredient.objects.get(user=user, slug=slug)
-#     except Ingredient.DoesNotExist:
-#         raise ObjectDoesNotExist(
-#             f"Ingredient with slug {slug} does not exists!")
-
-
-def ingredient_get_available_units(ingredient: Ingredient) -> Iterable[Ingredient_Unit]:
-    """ return available units for ingredient """
-    return Ingredient_Unit.objects.filter(ingredient=ingredient)
-
-
 def ingredient_convert_unit_to_grams(ingredient: Ingredient, unit: Unit, amount: int) -> int:
     """ convert amount of given unit to amount of given unit in grams """
     if unit.name == 'gram':
@@ -296,19 +163,77 @@ def ingredient_calculate_calories(ingredient: Ingredient, unit: Unit, amount: in
     return (ingredient_convert_unit_to_grams(ingredient, unit, amount)/100) * ingredient.calories
 
 
+def ingredient_send_to_nozbe(slug_list: list) -> bool:
+    """ send chosen ingredients to nozbe """
+
+    if is_slug_list_too_long(slug_list):
+        return False
+    ingredients = ingredient_get_multi_by_slugs(slug_list)
+    secret, client_id, project_id = get_nozbe_request_information()
+    for ingredient in ingredients:
+        res = send_request_to_nozbe(ingredient, secret, client_id, project_id)
+        if res.status_code != 200:
+            return False
+    return True
+
+
+def is_slug_list_too_long(slug_list: list) -> bool:
+    """ check if list too long """
+    return len(slug_list) > 25
+
+
+def get_nozbe_request_information() -> tuple([str, str, str]):
+    """ return authorization code """
+    try:
+        return os.environ['NOZBE_SECRET'], os.environ['NOZBE_CLIENT_ID'], \
+            os.environ['NOZBE_PROJECT_ID']
+    except KeyError:
+        raise ValidationError("Cannot retrieve nozbe informations,\
+            contanct admin")
+
+
+def send_request_to_nozbe(ingredient: Ingredient, secret: str, client_id: int,
+                          project_id: int) -> requests:
+    """ send request to nozbe API """
+    url = 'https://api.nozbe.com:3000/task'
+    res = requests.post(url, headers={'Authorization': secret},
+                        data={'name': ingredient.name, 'project_id':
+                              project_id, 'client_id': client_id})
+    return res
+
+
 def unit_get(id: int, default: bool) -> Unit:
     """ return unit """
     if default:
         return Unit.objects.get_or_create(name='gram')
-    return Unit.objects.get(id=id)
+    try:
+        return Unit.objects.get(id=id)
+    except Unit.DoesNotExist:
+        raise ObjectDoesNotExist(f'No unit with id {id}')
 
 
 def unit_list() -> Iterable[Unit]:
     """ return all available units """
     return Unit.objects.all()
-    return Unit.objects.all()
-    return Unit.objects.all()
-    return Unit.objects.all()
-    return Unit.objects.all()
-    return Unit.objects.all()
-    return Unit.objects.all()
+
+
+def unit_get_multi_by_ids(ids: list[int]) -> list[Unit]:
+    """ return units by provided ids or raise object does not exists """
+    all_units = Unit.objects.all()
+    mapped_instances = []
+    for id in ids:
+        try:
+            mapped_instances.append(all_units.get(id=id))
+        except Unit.DoesNotExist:
+            raise ObjectDoesNotExist(f'Unit with id {id} does not exists!')
+    return mapped_instances
+
+
+# def unit_is_mapped_to_ingredient(unit: Unit, ingredient: Ingredient) -> bool:
+#     """ check if ingredient has been mapped to Unit """
+#     try:
+#         Ingredient_Unit.objects.get(ingredient=ingredient, unit=unit)
+#         return True
+#     except Ingredient_Unit.DoesNotExist:
+#         raise ValidationError(f'{ingredient} is has no defined {unit} as unit')
+#     return False

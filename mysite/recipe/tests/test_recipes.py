@@ -7,8 +7,10 @@ from rest_framework.test import force_authenticate
 from rest_framework.test import APIClient
 from rest_framework import status
 
-from recipe.models import Recipe, Tag, Ingredient, Unit
+from recipe.models import Recipe, Tag, Ingredient, Unit, Ingredient_Unit
 from recipe.services import IngredientService
+
+from unittest.mock import patch, MagicMock
 
 
 def recipe_detail_url(slug: str) -> str:
@@ -496,4 +498,261 @@ class RecipeApiTests(TestCase):
         recipe = sample_recipe(user2, 'test')
 
         res = self.client.delete(recipe_delete_url(recipe.slug))
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_retrieve_recipe_calories_based_on_ingredients(self):
+        ing1 = sample_ingredient(
+            user=self.auth_user,
+            name='Cukinia',
+            calories=345,
+            potassium=200,
+            iron=50,
+            )
+        ing2 = sample_ingredient(
+            user=self.auth_user,
+            name='Cukinia2',
+            calories=345,
+            potassium=200,
+            iron=50,
+            )
+        ing3 = sample_ingredient(
+            user=self.auth_user,
+            name='Cukinia3',
+            calories=345,
+            potassium=200,
+            iron=50,
+            )
+        default_unit = ing1.units.all()[0]
+        recipe = sample_recipe(user=self.auth_user, name='Testowa')
+        recipe.ingredients.add(ing1, through_defaults={
+                               'amount': 100, 'unit': default_unit})
+        recipe.ingredients.add(ing2, through_defaults={
+                               'amount': 100, 'unit': default_unit})
+        recipe.ingredients.add(ing3, through_defaults={
+                               'amount': 100, 'unit': default_unit})
+        recipe.refresh_from_db()
+        res = self.client.get(recipe_detail_url(recipe.slug))
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['calories'], ing1.calories + ing2.calories
+                         + ing3.calories)
+
+    def test_retrieving_calories_based_on_ingredients_with_no_portions_set(self):
+        """ test geting 0 calories for ingredients where there is not
+        portion set """
+
+        ing1 = sample_ingredient(
+            user=self.auth_user, name='Test1', calories=100
+        )
+        ing2 = sample_ingredient(
+            user=self.auth_user, name='Test2', calories=300
+        )
+        default_unit = Unit.objects.get(name='gram')
+        recipe = sample_recipe(user=self.auth_user, name='Testowy')
+        recipe.ingredients.add(ing1, through_defaults={'amount': 50, 'unit':
+                                                       default_unit})
+        recipe.ingredients.add(ing2)
+        recipe.refresh_from_db()
+        res = self.client.get(recipe_detail_url(recipe.slug))
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['calories'], ing1.calories/2)
+
+    def test_recalculating_calories_during_ingredient_update(self):
+
+        ing1 = sample_ingredient(
+            user=self.auth_user, name='Test', calories=100)
+        ing2 = sample_ingredient(
+            user=self.auth_user, name='Test2', calories=100)
+        ing3 = sample_ingredient(
+            user=self.auth_user, name='Test3', calories=100)
+        default_unit = Unit.objects.get(name='gram')
+        recipe = sample_recipe(user=self.auth_user, name='Cukinia')
+        recipe.ingredients.add(ing1, through_defaults={
+                               'amount': 100, 'unit': default_unit})
+        recipe.ingredients.add(ing2, through_defaults={
+                               'amount': 100, 'unit': default_unit})
+        res = self.client.get(recipe_detail_url(recipe.slug))
+        self.assertEqual(res.data['calories'],
+                         ing1.calories + ing2.calories)
+
+        recipe.ingredients.add(ing3, through_defaults={
+                               'amount': 100, 'unit': default_unit})
+        res = self.client.get(recipe_detail_url(recipe.slug))
+        self.assertEqual(res.data['calories'], ing1.calories + ing2.calories
+                         + ing3.calories)
+
+    def test_recalculating_calories_during_ingredient_update_via_api(self):
+
+        ing1 = sample_ingredient(
+            user=self.auth_user, name='Test1', calories=100)
+        ing2 = sample_ingredient(
+            user=self.auth_user, name='Test2', calories=200)
+        ing3 = sample_ingredient(
+            user=self.auth_user, name='Test3', calories=400)
+        default_unit = Unit.objects.get(name='gram')
+        recipe = sample_recipe(user=self.auth_user, name='Testowy')
+        recipe.ingredients.add(ing1, through_defaults={
+                               'amount': 100, 'unit': default_unit})
+        recipe.ingredients.add(ing2, through_defaults={
+                               'amount': 100, 'unit': default_unit})
+
+        res = self.client.get(recipe_detail_url(recipe.slug))
+        self.assertEqual(res.data['calories'],
+                         ing1.calories+ing2.calories)
+
+        tag = sample_tag(user=self.auth_user, name='Test')
+        payload = {
+            'tags': [tag.slug, ],
+            'ingredients': [
+                {
+                 'ingredient': ing3.slug,
+                 'amount': 12,
+                 'unit': default_unit.id},
+            ]
+        }
+
+        res = self.client.patch(recipe_update_url(recipe.slug),
+                                payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        url = res._headers['location'][1]
+        recipe.refresh_from_db()
+        res = self.client.get(url)
+        expected_value_ing3 = payload['ingredients'][0]['amount'] / 100 * \
+            ing3.calories
+        self.assertEqual(res.data['calories'], ing1.calories+ing2.calories
+                         + expected_value_ing3)
+
+    def test_retrieve_calories_based_on_ingredient_portions(self):
+        ing1 = sample_ingredient(
+            user=self.auth_user, name='Cukinia', calories=500)
+        default_unit = Unit.objects.get(name='gram')
+        recipe = sample_recipe(user=self.auth_user, name='Testowy')
+        recipe.ingredients.add(ing1, through_defaults={'amount': 50,
+                                                       'unit': default_unit})
+        res = self.client.get(recipe_detail_url(recipe.slug))
+
+        # 50g of ing1
+        expected_value = ing1.calories/2
+        self.assertEqual(res.data['calories'], expected_value)
+
+    def test_retrive_calories_based_on_ingredient_portions_calories_not_set(self):
+        """ test retrieving calories when ingredient does not have
+        calories set """
+
+        ing1 = sample_ingredient(
+            user=self.auth_user, name='Cukinia', calories=0)
+        default_unit = Unit.objects.get(name='gram')
+        recipe = sample_recipe(user=self.auth_user, name='Test')
+        recipe.ingredients.add(ing1, through_defaults={'amount': 50,
+                                                       'unit': default_unit})
+
+        res = self.client.get(recipe_detail_url(recipe.slug), format='json')
+        self.assertEqual(res.data['calories'], 0)
+
+    def test_retrieve_calories_based_on_portions_amount_greater_then_100(self):
+        ing1 = sample_ingredient(
+            user=self.auth_user, name='Cukinia', calories=500)
+        default_unit = Unit.objects.get(name='gram')
+        recipe = sample_recipe(user=self.auth_user, name='Test')
+        recipe.ingredients.add(ing1, through_defaults={'amount': 150,
+                                                       'unit': default_unit})
+        res = self.client.get(recipe_detail_url(recipe.slug))
+
+        expected_value = (150/100) * ing1.calories
+        self.assertEqual(res.data['calories'], expected_value)
+
+    def test_retieve_calories_set_by_number_of_spoons(self):
+        """ test retrieving calories from recipe where ingredient portion is
+        set by number of spoons """
+
+        unit = Unit.objects.create(name='spoon')
+        ing1 = sample_ingredient(
+            user=self.auth_user, name='cukier', calories=400)
+        recipe = sample_recipe(user=self.auth_user, name='Test')
+        # create ingredient - unit mapping
+        Ingredient_Unit.objects.create(unit=unit, ingredient=ing1,
+                                       grams_in_one_unit=5)
+        recipe.ingredients.add(ing1, through_defaults={'amount': 2,
+                                                       'unit': unit})
+
+        res = self.client.get(recipe_detail_url(recipe.slug))
+
+        expected_value = (2*5/100) * ing1.calories
+        # assume that one spoon of sugar weight 5g
+        self.assertEqual(res.data['calories'], expected_value)
+
+    def test_create_recipe_with_non_default_ingredinet_portions_failed(self):
+        """ test creating recipe with ingredient and unit which was not map
+        yet """
+
+        ingredient = sample_ingredient(user=self.auth_user, name='Test',
+                                       calories='300')
+        non_default_unit = Unit.objects.create(name='spoon',
+                                               short_name='sp')
+        tag = sample_tag(self.auth_user, 'tag')
+        payload = {
+            'name': "Nowe danie",
+            'tags': [tag.slug, ],
+            'portions': 4,
+            'ingredients': [
+                {'ingredient': ingredient.slug, 'amount': '2',
+                    'unit': non_default_unit.id},
+            ]
+        }
+        res = self.client.post(RECIPE_CREATE, payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @patch('recipe.selectors.send_request_to_nozbe')
+    def test_sending_chosen_ingredients_to_nozbe(self, mock):
+        mock.return_value = MagicMock(status_code=200)
+        recipe = sample_recipe(self.auth_user, 'test')
+
+        ing1 = sample_ingredient(user=self.auth_user, name='Testowy 1')
+        ing2 = sample_ingredient(user=self.auth_user, name='Testowy 2')
+        ing3 = sample_ingredient(user=self.auth_user, name='Testowy 3')
+
+        recipe.ingredients.add(ing1, ing2, ing3)
+
+        ingredients_list = [ing1.slug, ing2.slug]
+
+        url = reverse('recipe:recipe-send-to-nozbe', args=[recipe.slug])
+
+        res = self.client.post(url, ingredients_list, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+    @patch('recipe.selectors.send_request_to_nozbe')
+    def test_sending_different_user_ingredients_to_nozbe(self, mock_send_to_nozbe):
+        mock_send_to_nozbe.return_value = MagicMock(status_code=200)
+        recipe = sample_recipe(self.auth_user, 'test')
+        user2 = sample_user('2@gmail.comn', 'username')
+        ing1 = sample_ingredient(user=self.auth_user, name='Testowy 1')
+        ing2 = sample_ingredient(user=user2, name='Testowy 2')
+        ing3 = sample_ingredient(user=user2, name='Testowy 3')
+
+        recipe.ingredients.add(ing1, ing2, ing3)
+
+        ingredients_list = [ing1.slug, ing2.slug]
+
+        url = reverse('recipe:recipe-send-to-nozbe', args=[recipe.slug])
+
+        res = self.client.post(url, ingredients_list, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+    @patch('recipe.selectors.send_request_to_nozbe')
+    def test_sending_invalid_ingredients_to_nozbe_invalid_ingredient_failed(self, mock_send_to_nozbe):
+        recipe = sample_recipe(self.auth_user, 'test')
+
+        ing1 = sample_ingredient(user=self.auth_user, name='Testowy 1')
+        ing2 = sample_ingredient(user=self.auth_user, name='Testowy 2')
+        ing3 = sample_ingredient(user=self.auth_user, name='Testowy 3')
+
+        recipe.ingredients.add(ing1, ing2, ing3)
+
+        ingredients_list = [ing1.slug, ing2.slug, 'invalid-slug']
+
+        url = reverse('recipe:recipe-send-to-nozbe', args=[recipe.slug])
+
+        res = self.client.post(url, ingredients_list, format='json')
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
