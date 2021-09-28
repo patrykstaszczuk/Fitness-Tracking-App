@@ -1,14 +1,26 @@
 from typing import Iterable
-from django.contrib.auth import get_user, get_user_model
+from django.contrib.auth import get_user_model, authenticate
 import datetime
 import time
 import os
+from itertools import chain
 import requests
 from mysite import settings
 from users.models import StravaActivity, StravaApi, Group
 from users import services
 from django.db import models
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
+
+
+def user_authenticate(credentials: dict) -> get_user_model:
+    """ authenticate user with privided credentials """
+    email = credentials.pop('email')
+    password = credentials.pop('password')
+    user = authenticate(username=email, password=password)
+    if not user:
+        raise ValidationError(
+            'Unable to authenticate with provided credentials')
+    return user
 
 
 def user_get_by_id(id: int) -> get_user_model:
@@ -19,8 +31,20 @@ def user_get_by_id(id: int) -> get_user_model:
         raise ObjectDoesNotExist(f'User with id = {id} does not exists')
 
 
+def user_get_groups(user: get_user_model) -> Iterable[Group]:
+    """ retreive all user group, also pending """
+    pending_groups = user.pending_membership.all()
+    joins_groups = group_get_membership(user)
+    return list(chain(pending_groups, joins_groups))
+
+
+def user_get_group_pending_membership(user: get_user_model) -> Iterable[int]:
+    """ return pending membership for user """
+    return user.pending_membership.all()
+
+
 def group_get_by_user_id(user_id: int) -> Group:
-    """ return group creater by user with given id  """
+    """ return group created by user with given id  """
     try:
         return Group.objects.get(founder__id=user_id)
     except Group.DoesNotExist:
@@ -44,11 +68,6 @@ def group_retrieve_founders(groups: list[Group]) -> int:
 
 def group_check_if_given_user_belong_to_common_groupdsa():
     pass
-
-
-def get_pending_membership(user: get_user_model) -> Iterable[int]:
-    """ return pending membership for user """
-    return user.pending_membership.all()
 
 
 def is_user_in_group(user: get_user_model, groups: Iterable[Group]) -> bool:
@@ -212,5 +231,10 @@ def is_auth_to_strava(user: get_user_model) -> bool:
             return True
     except StravaApi.DoesNotExist:
         StravaApi.objects.create(user=user)
+    return False
+    return False
+    return False
+    return False
+    return False
     return False
     return False

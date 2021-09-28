@@ -66,11 +66,11 @@ class MyUser(AbstractBaseUser, PermissionsMixin):
         (FEMALE, 'F'),
     )
 
-    gender = models.CharField(max_length=6, choices=GENDER_CHOICE, null=False,
-                              blank=False, default='M')
-    age = models.IntegerField()
-    height = models.PositiveSmallIntegerField()
-    weight = models.PositiveSmallIntegerField()
+    gender = models.CharField(max_length=6, choices=GENDER_CHOICE, null=True,
+                              blank=True, default='M')
+    age = models.IntegerField(null=True)
+    height = models.PositiveSmallIntegerField(null=True)
+    weight = models.PositiveSmallIntegerField(null=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
 
@@ -140,11 +140,11 @@ class Group(models.Model):
     """ store group informations """
     name = models.CharField(max_length=100, blank=False)
     founder = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
-                                unique=True, null=False, blank=False,
-                                related_name='own_group')
+                                   unique=True, null=False, blank=False,
+                                   related_name='own_group')
     members = models.ManyToManyField('MyUser', related_name='membership')
-    pending_membership = models.ManyToManyField('MyUser', related_name=
-                                                'pending_membership')
+    pending_membership = models.ManyToManyField(
+        'MyUser', related_name='pending_membership')
     objects = GroupManager()
 
     def __str__(self):

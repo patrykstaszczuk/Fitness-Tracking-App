@@ -3,79 +3,131 @@ import datetime
 import time
 from mysite import settings
 from django.contrib.auth import get_user_model
+from django.db.utils import IntegrityError
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
-from users.models import StravaActivity, StravaApi
+
+from users.models import StravaActivity, StravaApi, MyUser, Group
+
+from dataclasses import dataclass
 
 
-def create_user(data: dict) -> get_user_model:
-    """ create user based on data """
-    return get_user_model().objects.create_user(**data)
+@dataclass
+class UserService:
+    data: dict
+    user: get_user_model = None
 
-
-def update_user(user: get_user_model, data: dict) -> get_user_model:
-    """ update user based on provided data """
-    for attr, value in data.items():
-        setattr(user, attr, value)
-    user.save()
-    return user
-
-
-def change_password(user: get_user_model, data: dict) -> None:
-    """ update user password """
-    if 'password' in data:
-        user.set_password(data['password'])
-        user.save()
-    return user
-
-
-def send_group_invitation(user: get_user_model, data: dict[int]) -> bool:
-    """ set pending membership for users IDs in data """
-    for user_id in data['pending_membership']:
+    def create(self):
+        """ create user """
+        password = self.data.pop('password')
+        self.user = MyUser(**self.data)
+        self.user.set_password(password)
         try:
-            invited_user = selectors.get_user_by_id(user_id['id'])
-        except ObjectDoesNotExist:
-            raise ValidationError('User with provided id does not exists!')
-        if invited_user == user:
-            raise ValidationError('You cannot invite yourself')
-        invited_user.pending_membership.add(user.own_group.id)
+            self.user.save()
+            self.create_m2m_instance()
+            return self.user
+        except IntegrityError:
+            raise ValidationError('User with given email already exists')
+
+    def update(self):
+        """ update user instance """
+        for attr in self.data:
+            setattr(self.user, attr, self.data[attr])
+        self.user.save()
+        return self.user
+
+    def change_password(self):
+        """ change user password """
+        old_password = self.data.pop('old_password')
+        new_password = self.data.pop('new_password')
+        confirm_password = self.data.pop('confirm_password')
+
+        if not self.user.check_password(old_password):
+            raise ValidationError('Old password is incorrect!')
+        if new_password != confirm_password:
+            raise ValidationError('Passwords do not match!')
+        self.user.set_password(new_password)
+        self.user.save()
+
+    def create_m2m_instance(self):
+        """ create m2m instance """
+        Group.objects.create(founder=self.user)
+        StravaApi.objects.create(user=self.user)
+
+    def validate(self):
+        """ validate input data """
+        password = self.data.get('password')
+        password2 = self.data.pop('password2')
+        if password != password2:
+            raise ValidationError('Passsowrds do not match')
+
+        name = self.data.get('name')
+        email = self.data.get('email')
+        if get_user_model().objects.filter(email=email).exists():
+            raise ValidationError(f'User with  email {email} already exists')
+        if get_user_model().objects.filter(name=name).exists():
+            raise ValidationError(f'User with name {name} already exists')
+
+    def validate_update_data(self):
+        """ validate data during update """
+        name = self.data.get('name')
+        email = self.data.get('email')
+        if get_user_model().objects.filter(email=email).exclude(id=self.user.id).exists():
+            raise ValidationError(f'User with  email {email} already exists')
+        if get_user_model().objects.filter(name=name).exclude(id=self.user.id).exists():
+            raise ValidationError(f'User with name {name} already exists')
 
 
-def manage_group_invitation(user: get_user_model, data: dict) -> bool:
-    """ manage group invitation based of data """
+@dataclass
+class GroupService:
+    user: get_user_model
+    data: dict
 
-    if data['action'] == 1:
-        accept_group_invitation(user, data['pending_membership'])
-    else:
-        deny_group_invitation(user, data['pending_membership'])
+    def send_group_invitation(self) -> None:
+        """ send invitation to given users """
+        for user_id in self.data['ids']:
+            try:
+                invited_user = selectors.user_get_by_id(user_id)
+            except ObjectDoesNotExist as e:
+                raise ValidationError(e)
+            if invited_user == self.user:
+                raise ValidationError('You cannot invite yourself')
+            invited_user.pending_membership.add(self.user.own_group.id)
 
+    def accept_group_invitation(self) -> None:
+        """ accept given group invitations """
+        for id in self.data['ids']:
+            self.user.membership.add(id)
+            self.user.pending_membership.remove(id)
 
-def accept_group_invitation(user: get_user_model, groups_ids: list[int]) -> bool:
-    """ add group_id to user membership and remove from pending membership """
+    def deny_group_invitation(self) -> None:
+        """ deny group invitations """
+        for id in self.data['ids']:
+            self.user.pending_membership.remove(id)
 
-    for group_id in groups_ids:
-        user.membership.add(group_id['id'])
-        user.pending_membership.remove(group_id['id'])
+    def leave_group(self) -> None:
+        """ leave group """
+        for id in self.data['ids']:
+            if self.user.own_group.id == id:
+                raise ValidationError('You cannot leave own group!')
+            self.user.membership.remove(id)
 
+    def validate_pending_membership(self) -> None:
+        """ validate that given group ids are in user pending membership """
+        pending_membership = selectors.user_get_group_pending_membership(
+            self.user).values_list('id', flat=True)
+        for id in self.data['ids']:
+            if id not in pending_membership:
+                raise ValidationError(
+                    f'You were not invited to group with id {id}')
 
-def deny_group_invitation(user: get_user_model, groups_ids: list[int]) -> bool:
-    """ remove group id from user pending membership """
-    for group_id in groups_ids:
-        user.pending_membership.remove(group_id['id'])
-
-
-def leave_group(user: get_user_model, group_id: int) -> None:
-    """ remove group from user membership """
-    group_id = group_id.get('id')
-    if not isinstance(group_id, int):
-        raise ValidationError('group_id must be a number!')
-    if user.own_group.id == group_id:
-        raise ValidationError('You cannot leave own group!')
-
-    group = selectors.get_groups_by_ids([group_id, ]).first()
-    if not group:
-        raise ValidationError('Such group does not exists')
-    if selectors.is_user_in_group(user, [group, ]):
-        user.membership.remove(group)
+    def validate_membership(self) -> None:
+        """ validate that given group ids are in user membership """
+        membership = selectors.group_get_membership(
+            self.user).values_list('id', flat=True)
+        for id in self.data['ids']:
+            if id not in membership:
+                raise ValidationError(
+                    f'You are not a member of group with id {id}')
 
 
 def authorize_to_strava(user: get_user_model, strava_code: str) -> bool:
@@ -138,4 +190,5 @@ def process_and_save_strava_activities(user: get_user_model, raw_strava_activiti
                     strava_id=strava_id, user=user, **defaults)
                 activity_objects.append(obj)
         return activity_objects
+    return None
     return None

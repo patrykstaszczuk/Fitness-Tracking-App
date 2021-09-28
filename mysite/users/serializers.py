@@ -17,122 +17,91 @@ class DynamicFieldsModelSerializer(serializers.Serializer):
             for field_name in existing - allowed:
                 self.fields.pop(field_name)
 
+
 class UserOutputSerializer(serializers.ModelSerializer):
     """ serializer for reading User model """
 
     class Meta:
         model = get_user_model()
         fields = ('id', 'email', 'name', 'gender', 'age',
-        'height', 'weight')
+                  'height', 'weight')
 
 
-class UserInputSerializer(DynamicFieldsModelSerializer):
+class UserInputSerializer(serializers.Serializer):
     """ serializer for User model and input data """
 
     choices = (
         ('Male', 'Male'),
         ('Female', 'Female')
         )
-    email = serializers.EmailField(required=False)
-    name = serializers.CharField(required=False)
-    age = serializers.IntegerField(required=False)
-    height = serializers.IntegerField(required=False)
-    weight = serializers.IntegerField(required=False)
+    email = serializers.EmailField(required=True, min_length=3)
+    name = serializers.CharField(required=True)
+    age = serializers.IntegerField(required=False, min_value=0, max_value=50)
+    height = serializers.IntegerField(
+        required=False, min_value=40, max_value=300)
+    weight = serializers.IntegerField(
+        required=False, min_value=5, max_value=600)
     gender = serializers.ChoiceField(choices, required=False)
-    password = serializers.CharField(required=False)
-    password2 = serializers.CharField(write_only=True, required=False)
-
-    def is_valid(self, raise_exception=False):
-        """ pop password2 """
-        is_valid = super().is_valid(raise_exception)
-        if 'password2' in self.validated_data:
-            self.validated_data.pop('password2')
-        return is_valid
-
-    def validate(self, values):
-        """ validate passwords matching """
-        password = values.get('password')
-        password2 = values.get('password2')
-        if password != password2:
-            raise serializers.ValidationError('Password do not match!')
-        return values
-
-    def validate_password(self, password):
-        """ validate password length """
-        if len(password) < 5:
-            raise serializers.ValidationError('Password is too short')
-        return password
-
-    def validate_name(self, name):
-        """ validate name length """
-        if len(name) < 3:
-            raise serializers.ValidationError('Username is to short')
-        return name
-
-    def validate_age(self, age):
-        """ validate age """
-        if not 0 < age <= 150:
-            raise serializers.ValidationError('Incorrect age')
-        return age
-
-    def validate_height(self, height):
-        """ validate height """
-
-        if not 40 < height <= 300:
-            raise serializers.ValidationError('Incorrect height')
-        return height
-
-    def validate_weight(self, weight):
-        """ validate weight """
-
-        if not 5 < weight <= 600:
-            raise serializers.ValidationError('Incorrect weight')
-        return weight
+    password = serializers.CharField(required=True, min_length=5)
+    password2 = serializers.CharField(required=True, min_length=5)
 
 
-class AuthTokenSerializer(serializers.Serializer):
+class UserUpdateInputSerializer(UserInputSerializer):
+    """ serializer for updating user instance with no required fields """
+    email = serializers.EmailField(required=True)
+    name = serializers.CharField(required=True)
+    password = None
+    password2 = None
+
+
+class UserTokenInputSerializer(serializers.Serializer):
     """ serialier for user authentication object """
 
-    email = serializers.CharField()
-    password = serializers.CharField(
-        style={'input_type': 'password'},
-        trim_whitespace=False
-    )
+    email = serializers.CharField(required=True)
+    password = serializers.CharField(required=True,
+                                     style={'input_type': 'password'},
+                                     trim_whitespace=False
+                                     )
 
-    def validate(self, attrs):
-        """ validate and authenticate the user """
-        email = attrs.get('email')
-        password = attrs.get('password')
 
-        user = authenticate(
-            request=self.context.get('request'),
-            username=email,
-            password=password
-        )
-        if not user:
-            msg = ('Unable to authenticate with provided credentials')
-            raise serializers.ValidationError(msg, code='authentication')
+class UserPasswordInputSerializer(serializers.Serializer):
+    """ serializer for password change """
 
-        attrs['user'] = user
-        return attrs
+    old_password = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True, min_length=5)
+    confirm_password = serializers.CharField(required=True)
 
-class GroupOutputSerializer(serializers.ModelSerializer):
+
+class UserGroupOutputSerializer(serializers.ModelSerializer):
     """ Serializer for handling groups """
 
     class Meta:
         model = Group
-        fields = ('id', 'name', 'founder',)
+        fields = ('id', 'name', 'founder', 'members')
         read_only_fields = ('id', 'name', 'founder',)
+
+    def to_representation(self, instance):
+        """ add status to groups """
+        ret = super().to_representation(instance)
+        try:
+            status = None
+            user = self.context['request'].user
+            if ret['founder'] == user.id:
+                status = 'owner'
+            elif user.id in ret['members']:
+                status = 'member'
+            else:
+                status = 'pending'
+            ret.update({'status': status})
+        except AttributeError:
+            pass
+        return ret
+
 
 class IdSerializer(serializers.Serializer):
     """ serialzier for user id """
-    id = serializers.IntegerField()
+    ids = serializers.ListField(child=serializers.IntegerField())
 
-class GroupInputSerializer(serializers.Serializer):
-    """ serializing inpout data. Need to use nested serialzier due to problem with accessing data when using ListField """
-
-    pending_membership = IdSerializer(required=True, many=True, write_only=False)
-    action = serializers.IntegerField(required=False)
 
 
 class StravaActivitySerializer(serializers.ModelSerializer):
