@@ -160,7 +160,9 @@ def ingredient_convert_unit_to_grams(ingredient: Ingredient, unit: Unit, amount:
 
 def ingredient_calculate_calories(ingredient: Ingredient, unit: Unit, amount: int) -> int:
     """ return calcualted calories based on unit and amount """
-    return (ingredient_convert_unit_to_grams(ingredient, unit, amount)/100) * ingredient.calories
+    if ingredient.calories is None:
+        return None
+    return round((ingredient_convert_unit_to_grams(ingredient, unit, amount)/100) * ingredient.calories, 2)
 
 
 def ingredient_send_to_nozbe(slug_list: list) -> bool:

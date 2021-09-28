@@ -1,5 +1,6 @@
 from rest_framework.serializers import RelatedField
 from django.urls import reverse
+from recipe.selectors import ingredient_calculate_calories
 
 
 class CustomTagField(RelatedField):
@@ -19,18 +20,20 @@ class CustomIngredientField(RelatedField):
 
     def to_representation(self, value):
         try:
-            unit = value.recipe_ingredient_set.all()[0].unit.name
+            unit = value.recipe_ingredient_set.all()[0].unit
             amount = value.recipe_ingredient_set.all()[0].amount
         except AttributeError:
             unit = None
             amount = None
 
+        calories = ingredient_calculate_calories(value, unit, amount)
+
         ingredient = {
             'id': value.id,
             'slug': value.slug,
             'name': value.name,
-            'calories': value.calories,
-            'unit': unit,
+            'calories': calories,
+            'unit': unit.name,
             'amount': amount,
         }
         return ingredient
