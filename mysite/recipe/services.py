@@ -150,7 +150,9 @@ class RecipeService(Dish, RecipeM2MHandler):
         for field in nutritional_fields:
             setattr(recipe, field, 0)
 
-        recipe_ingredients = recipe.ingredients.all()
+        recipe_ingredients = recipe.ingredients.all(
+        ).prefetch_related('recipe_ingredient_set')
+
         for ingredient in recipe_ingredients:
             obj = ingredient.recipe_ingredient_set.get(
                 recipe=recipe, ingredient=ingredient)
@@ -158,7 +160,6 @@ class RecipeService(Dish, RecipeM2MHandler):
             amount = obj.amount
             if not all([unit, amount]):
                 continue
-
             for field in nutritional_fields:
                 current_recipe_field_value = getattr(recipe, field)
                 ingredient_field_value = getattr(ingredient, field)

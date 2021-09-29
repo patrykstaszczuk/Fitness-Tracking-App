@@ -7,8 +7,6 @@ from itertools import chain
 import requests
 from mysite import settings
 from users.models import StravaActivity, StravaApi, Group
-from users import services
-from django.db import models
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 
 
@@ -51,11 +49,6 @@ def group_get_by_user_id(user_id: int) -> Group:
         raise ObjectDoesNotExist()
 
 
-def get_groups_by_ids(group_ids: list[int]) -> Iterable[Group]:
-    """ return group based on group id """
-    return Group.objects.filter(id__in=group_ids).prefetch_related('founder', 'members')
-
-
 def group_get_membership(user: get_user_model) -> Iterable[Group]:
     """ return user group memberships """
     return user.membership.all().prefetch_related('founder', 'members')
@@ -64,18 +57,6 @@ def group_get_membership(user: get_user_model) -> Iterable[Group]:
 def group_retrieve_founders(groups: list[Group]) -> int:
     """ retrieve gorups founders """
     return [user for user in groups.values_list('founder', flat=True)]
-
-
-def group_check_if_given_user_belong_to_common_groupdsa():
-    pass
-
-
-def is_user_in_group(user: get_user_model, groups: Iterable[Group]) -> bool:
-    """ check if user belong to group """
-    user_membership = group_get_membership(user=user)
-    if all(group in user_membership for group in groups):
-        return True
-    raise ValidationError('Group not found in your membership')
 
 
 def get_bmi(user: get_user_model) -> int:
@@ -231,10 +212,4 @@ def is_auth_to_strava(user: get_user_model) -> bool:
             return True
     except StravaApi.DoesNotExist:
         StravaApi.objects.create(user=user)
-    return False
-    return False
-    return False
-    return False
-    return False
-    return False
     return False

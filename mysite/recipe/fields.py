@@ -22,18 +22,22 @@ class CustomIngredientField(RelatedField):
         try:
             unit = value.recipe_ingredient_set.all()[0].unit
             amount = value.recipe_ingredient_set.all()[0].amount
+            calories = ingredient_calculate_calories(value, unit, amount)
         except AttributeError:
             unit = None
             amount = None
+            calories = None
 
-        calories = ingredient_calculate_calories(value, unit, amount)
+        unit_name = None
+        if unit:
+            unit_name = unit.name
 
         ingredient = {
             'id': value.id,
             'slug': value.slug,
             'name': value.name,
             'calories': calories,
-            'unit': unit.name,
+            'unit': unit_name,
             'amount': amount,
         }
         return ingredient

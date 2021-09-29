@@ -539,7 +539,7 @@ class RecipeApiTests(TestCase):
 
     def test_retrieving_calories_based_on_ingredients_with_no_portions_set(self):
         """ test geting 0 calories for ingredients where there is not
-        portion set """
+        amount and unit set """
 
         ing1 = sample_ingredient(
             user=self.auth_user, name='Test1', calories=100
@@ -554,7 +554,6 @@ class RecipeApiTests(TestCase):
         recipe.ingredients.add(ing2)
         recipe.refresh_from_db()
         res = self.client.get(recipe_detail_url(recipe.slug))
-
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data['calories'], ing1.calories/2)
 

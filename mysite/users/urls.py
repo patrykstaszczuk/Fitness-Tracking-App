@@ -1,9 +1,6 @@
-from django.urls import path, include
+from django.urls import path
 from users import views
-from rest_framework.routers import DefaultRouter
 
-# router = DefaultRouter()
-# router.register('', views.GroupViewSet, basename='group')
 app_name = 'users'
 
 urlpatterns = [
@@ -20,7 +17,6 @@ urlpatterns = [
          name='user-accept-group-invitation'),
     path('groups/deny-invitations', views.UserDenyInvitationApi.as_view(),
          name='user-deny-group-invitation'),
-     path('groups/leave-group', views.UserLeaveGroupApi.as_view(),
-          name='user-leave-group')
-    # path('groups/', include(router.urls)),
+    path('groups/leave-group', views.UserLeaveGroupApi.as_view(),
+         name='user-leave-group')
 ]

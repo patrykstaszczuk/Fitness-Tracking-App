@@ -103,7 +103,6 @@ class IdSerializer(serializers.Serializer):
     ids = serializers.ListField(child=serializers.IntegerField())
 
 
-
 class StravaActivitySerializer(serializers.ModelSerializer):
     """ serializer for Strava activity model """
 

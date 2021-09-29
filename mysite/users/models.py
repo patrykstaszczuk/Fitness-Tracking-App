@@ -2,16 +2,8 @@ from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, \
                                 PermissionsMixin
 from django.urls import reverse
-from django.contrib.auth import get_user_model
-from health.models import HealthDiary
 import datetime
-import requests
-import os
-import time
-import json
-from django.core.exceptions import ValidationError
 from mysite import settings
-from rest_framework import status
 
 
 class MyManager(BaseUserManager):

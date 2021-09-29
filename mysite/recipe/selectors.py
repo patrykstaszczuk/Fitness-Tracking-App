@@ -25,7 +25,6 @@ def recipe_list(user: get_user_model, filters: QueryDict = None) -> list[Recipe]
     """ retrieve list of recipes """
     user_groups = users_selectors.group_get_membership(user)
     list_of_users_ids = users_selectors.group_retrieve_founders(user_groups)
-
     default_queryset = Recipe.objects.filter(
         user__id__in=list_of_users_ids).prefetch_related('tags', 'ingredients')
     if filters:
@@ -55,7 +54,7 @@ def filter_queryset_by_groups(list_of_values: list, queryset: QuerySet, user_gro
     group_ids = user_groups.values_list('id', flat=True)
     if not all(list_of_values[id] in group_ids for id in range(len(list_of_values))):
         raise ValidationError('Invalid group id/ids')
-    return queryset.filter(user__in=list_of_values)
+    return queryset.filter(user__own_group__id__in=list_of_values)
 
 
 def filter_queryset_by_tags(user: get_user_model, tag_slugs: list[str], queryset: QuerySet):
@@ -148,6 +147,7 @@ def ingredient_get_multi_by_slugs(slugs: list[str]) -> list[Ingredient]:
 
 def ingredient_convert_unit_to_grams(ingredient: Ingredient, unit: Unit, amount: int) -> int:
     """ convert amount of given unit to amount of given unit in grams """
+
     if unit.name == 'gram':
         return amount
     try:
