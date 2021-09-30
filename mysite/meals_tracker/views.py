@@ -2,6 +2,21 @@ from rest_framework import status
 from rest_framework.response import Response
 from meals_tracker import serializers, selectors, services
 from mysite.views import RequiredFieldsResponseMessage, BaseAuthPermClass
+from rest_framework.views import APIView
+from django.urls import reverse
+from mysite.exceptions import ApiErrorsMixin
+
+
+class MealsTrackerBaseViewClass(BaseAuthPermClass, ApiErrorsMixin, APIView):
+    """ Base class providing common methods """
+
+    def get_serializer_context(self):
+        """ Extra context provided to the serializer class. """
+        return {
+            'request': self.request,
+            'format': self.format_kwarg,
+            'view': self
+        }
 
 
 class MealsTrackerDeleteApi(BaseAuthPermClass, RequiredFieldsResponseMessage):
@@ -14,7 +29,7 @@ class MealsTrackerDeleteApi(BaseAuthPermClass, RequiredFieldsResponseMessage):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class MealsTrackerListApi(BaseAuthPermClass, RequiredFieldsResponseMessage):
+class MealsTrackerListApi(MealsTrackerBaseViewClass):
     """ API for listing meals """
 
     def get(self, request, *args, **kwargs):
@@ -22,57 +37,61 @@ class MealsTrackerListApi(BaseAuthPermClass, RequiredFieldsResponseMessage):
         return melas for given date, else for today """
         date = request.query_params.get('date')
         meals = selectors.meal_list(user=request.user, date=date)
-        serializer = serializers.MealOutputSerializer(meals, many=True)
+        context = self.get_serializer_context()
+        serializer = serializers.MealOutputSerializer(
+            meals, many=True, context=context)
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
 
-class MealsTrackerCreateApi(BaseAuthPermClass, RequiredFieldsResponseMessage):
+class MealsTrackerCreateApi(MealsTrackerBaseViewClass):
     """ API for creating meals """
 
     def post(self, request, *args, **kwargs):
         """ handle post request """
 
-        serializer = serializers.MealInputSerializer(data=request.data)
+        serializer = serializers.MealCreateInputSerializer(data=request.data)
 
         if serializer.is_valid():
-            meal = services.meal_post_handler(
+            meal_service = services.MealService(
                 user=request.user, data=serializer.data)
-            serializer = serializers.MealOutputSerializer(meal)
-            # headers = {}
-            # headers['Location'] = reverse(
-            #     'meals_tracker:meal-list', request=request)
-            return Response(data=serializer.data, status=status.HTTP_201_CREATED)
+            meal = meal_service.create()
+            headers = {}
+            headers.update({'location': reverse('meals_tracker:meal-list')})
+            return Response(status=status.HTTP_201_CREATED, headers=headers)
         return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class MealsTrackerUpdateApi(BaseAuthPermClass, RequiredFieldsResponseMessage):
+class MealsTrackerUpdateApi(MealsTrackerBaseViewClass):
     """ API for updating meals """
 
     def put(self, request, *args, **kwargs):
         """ handle put request """
         meal_id = kwargs.get('pk')
-        serializer = serializers.MealInputSerializer(data=request.data)
-
+        partial = kwargs.get('partial')
+        meal = selectors.meal_get(user=request.user, id=meal_id)
+        serializer = serializers.MealUpdateInputSerializer(data=request.data)
         if serializer.is_valid():
-            meal = selectors.meal_get(user=request.user, id=meal_id)
-            updated_meal = services.meal_put_handler(
-                instance=meal, data=serializer.data)
-            serializer = serializers.MealOutputSerializer(updated_meal)
-            return Response(data=serializer.data, status=status.HTTP_200_OK)
+            kwargs = {'instance': meal, 'partial': partial}
+            meal_service = services.MealService(
+                user=request.user, data=serializer.data, kwargs=kwargs)
+            meal = meal_service.update()
+            headers = {}
+            headers.update({'location': reverse('meals_tracker:meal-list')})
+            return Response(status=status.HTTP_200_OK, headers=headers)
         return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def patch(self, request, *args, **kwargs):
-        """ return put request """
-        meal_id = kwargs.get('pk')
-        serializer = serializers.MealInputSerializer(data=request.data)
-
-        if serializer.is_valid():
-            meal = selectors.meal_get(user=request.user, id=meal_id)
-            updated_meal = services.meal_patch_handler(
-                instance=meal, data=serializer.data)
-            serializer = serializers.MealOutputSerializer(updated_meal)
-            return Response(data=serializer.data, status=status.HTTP_200_OK)
-        return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    # def patch(self, request, *args, **kwargs):
+    #     """ return put request """
+    #     meal_id = kwargs.get('pk')
+    #     serializer = serializers.MealInputSerializer(data=request.data)
+    #
+    #     if serializer.is_valid():
+    #         meal = selectors.meal_get(user=request.user, id=meal_id)
+    #         updated_meal = services.meal_patch_handler(
+    #             instance=meal, data=serializer.data)
+    #         serializer = serializers.MealOutputSerializer(updated_meal)
+    #         return Response(data=serializer.data, status=status.HTTP_200_OK)
+    #     return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class MealsAvailableDatesApi(BaseAuthPermClass, RequiredFieldsResponseMessage):

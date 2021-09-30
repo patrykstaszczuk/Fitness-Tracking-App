@@ -8,7 +8,7 @@ from django.urls import reverse
 from recipe.models import Recipe, Ingredient, Unit
 from meals_tracker import models, services, selectors
 from recipe import services as recipe_services
-
+from django.utils.text import slugify
 import datetime
 
 DAILY_MEALS_TRACKER = reverse('meals_tracker:meal-list')
@@ -25,15 +25,17 @@ def get_meal_update_view(meal_id):
     return reverse('meals_tracker:meal-update', kwargs={'pk': meal_id})
 
 
-def sample_recipe(user, name='test', calories=0, portions=4, slug='test', **kwargs):
+def sample_recipe(user, name='test', portions=4, **kwargs):
     """ create sample recipe """
-    return recipe_services.create_recipe(user=user, data={'name': name,
-                                                          'calories': calories, 'portions': portions, 'slug': slug})
+    slug = slugify(name)
+    return Recipe.objects.create(user=user, name=name, slug=slug, portions=portions, **kwargs)
 
 
 def sample_ingredient(**kwargs):
-    user = kwargs.get('user')
-    return recipe_services.ingredient_create(user=user, data=kwargs)
+    user = kwargs.pop('user')
+    name = kwargs.pop('name')
+    slug = slugify(name)
+    return Ingredient.objects.create(user=user, name=name, slug=slug, **kwargs)
 
 
 def sample_category(name='Breakfast'):
@@ -54,7 +56,7 @@ def sample_user():
     )
 
 
-class PrivateMealsTrackerApiTests(TestCase):
+class MealsTrackerApiTests(TestCase):
     """ test features available for authenticated users """
 
     def setUp(self):
@@ -87,11 +89,10 @@ class PrivateMealsTrackerApiTests(TestCase):
         meal.recipes.add(recipe, through_defaults={'portion': 1})
         meal.ingredients.add(ingredient, through_defaults={
                              "unit": self.unit, "amount": 50})
-        meals = models.Meal.objects.filter(user=self.user, date=self.today)
         res = self.client.get(DAILY_MEALS_TRACKER, format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertIn('recipes', res.json()['data'][0])
-        self.assertEqual(res.json()['data'][0]['calories'],
+        self.assertIn('recipes', res.data[0])
+        self.assertEqual(res.data[0]['calories'],
                          recipe.calories/5 + ingredient.calories/2)
 
     def test_retrieve_meals_only_for_given_user(self):
@@ -109,7 +110,7 @@ class PrivateMealsTrackerApiTests(TestCase):
         meal = models.Meal.objects.create(user=user2, category=self.category)
         meal.recipes.add(recipe2, through_defaults={'portion': 1})
         res = self.client.get(DAILY_MEALS_TRACKER)
-        self.assertEqual(len(res.json()['data'][0]['recipes']), 1)
+        self.assertEqual(len(res.data[0]['recipes']), 1)
 
     def test_retrieve_meals_summary_only_for_today(self):
         """ test retreving meals only for a given day """
@@ -124,7 +125,7 @@ class PrivateMealsTrackerApiTests(TestCase):
         meal.recipes.add(recipe, through_defaults={'portion': 1})
         res = self.client.get(DAILY_MEALS_TRACKER, format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(res.json()['data']), 1)
+        self.assertEqual(len(res.data), 1)
 
     def test_listing_all_date_where_meals_was_saved(self):
         """ test listing dates where there was a meal inserted """
@@ -138,7 +139,7 @@ class PrivateMealsTrackerApiTests(TestCase):
         url = reverse("meals_tracker:meal-available-dates")
         res = self.client.get(url, format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        dates = [d['date'] for d in res.json()['data']]
+        dates = [d['date'] for d in res.data]
         self.assertIn(meal1.date, dates)
         self.assertIn(meal2.date, dates)
 
@@ -158,8 +159,8 @@ class PrivateMealsTrackerApiTests(TestCase):
         }
         res = self.client.get(DAILY_MEALS_TRACKER, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(res.json()['data']), 1)
-        self.assertEqual(meal.id, res.json()['data'][0]['id'])
+        self.assertEqual(len(res.data), 1)
+        self.assertEqual(meal.id, res.data[0]['id'])
 
     def test_retrieve_meals_with_bad_date_param_failed(self):
         """ test retreiving meals with invalida date param """
@@ -196,11 +197,9 @@ class PrivateMealsTrackerApiTests(TestCase):
                                           category=self.category)
         meal.recipes.add(recipe, through_defaults={'portion': 1})
         res = self.client.get(DAILY_MEALS_TRACKER)
-        self.assertEqual(recipe.name, res.json()[
-                         'data'][0]['recipes'][0]['name'])
+        self.assertEqual(recipe.name, res.data[0]['recipes'][0]['name'])
 
     def test_create_meal_from_one_recipe(self):
-        """ test create meal from recipe """
 
         recipe = sample_recipe(user=self.user, portions=4)
         ingredient = sample_ingredient(user=self.user, name='jajko',
@@ -220,13 +219,12 @@ class PrivateMealsTrackerApiTests(TestCase):
         }
         res = self.client.post(
             DAILY_MEALS_TRACKER_CREATE, payload, format='json')
-        #print(res._headers)
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-        #self.assertIn('location', res._headers)
-        self.assertEqual(res.json()['data']['calories'], 50)
+        url = res._headers['location'][1]
+        res = self.client.get(url)
+        self.assertEqual(res.data[0]['calories'], 50)
 
     def test_create_meal_from_two_recipes(self):
-        """ test create meal from recipe """
 
         recipe = sample_recipe(user=self.user, portions=4)
         recipe2 = sample_recipe(user=self.user, name='dwa', portions=4)
@@ -235,6 +233,9 @@ class PrivateMealsTrackerApiTests(TestCase):
         recipe.ingredients.add(ingredient,
                                through_defaults={'unit': self.unit,
                                                  'amount': 200})
+        recipe2.ingredients.add(ingredient,
+                                through_defaults={'unit': self.unit,
+                                                  'amount': 400})
 
         payload = {
             'category': self.category.id,
@@ -251,14 +252,12 @@ class PrivateMealsTrackerApiTests(TestCase):
         }
         res = self.client.post(
             DAILY_MEALS_TRACKER_CREATE, payload, format='json')
-        #print(res._headers)
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-        #self.assertIn('location', res._headers)
-        self.assertEqual(res.json()['data']['calories'], 50)
+        url = res._headers['location'][1]
+        res = self.client.get(url)
+        self.assertEqual(res.data[0]['calories'], 150)
 
     def test_create_meal_from_non_own_recipe_nor_group_recipe_failed(self):
-        """ test creating meal from recipe created by other user which is
-        not is group with request user """
 
         user2 = sample_user()
         recipe = sample_recipe(user=user2, portions=4)
@@ -283,7 +282,6 @@ class PrivateMealsTrackerApiTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_create_meal_from_recipe_created_by_other_user_in_group(self):
-        """ test creating meal based on other user recipe """
 
         user2 = sample_user()
         recipe = sample_recipe(user=user2, portions=4)
@@ -307,11 +305,11 @@ class PrivateMealsTrackerApiTests(TestCase):
         res = self.client.post(
             DAILY_MEALS_TRACKER_CREATE, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-        #self.assertIn('location', res._headers)
-        self.assertEqual(res.json()['data']['calories'], 50)
+        url = res._headers['location'][1]
+        res = self.client.get(url)
+        self.assertEqual(res.data[0]['calories'], 50)
 
     def test_create_meal_from_ingredient(self):
-        """ test creating meal only based on ingredient """
 
         ingredient = sample_ingredient(name='jajko', user=self.user,
                                        calories='100')
@@ -332,8 +330,9 @@ class PrivateMealsTrackerApiTests(TestCase):
 
         meal = models.Meal.objects.filter(user=self.user)
         self.assertEqual(len(meal), 1)
-
-        self.assertEqual(res.json()['data']['calories'], 200)
+        url = res._headers['location'][1]
+        res = self.client.get(url)
+        self.assertEqual(res.data[0]['calories'], 200)
 
     def test_create_meal_from_recipe_and_ingredient(self):
         """ test createing meal with recipe and extra ingredient """
@@ -355,7 +354,9 @@ class PrivateMealsTrackerApiTests(TestCase):
         res = self.client.post(
             DAILY_MEALS_TRACKER_CREATE, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(res.json()['data']['calories'],
+        url = res._headers['location'][1]
+        res = self.client.get(url)
+        self.assertEqual(res.data[0]['calories'],
                          recipe.calories/4 + ingredient.calories)
 
     def test_calculate_calories_based_on_portion_of_recipe(self):
@@ -370,7 +371,7 @@ class PrivateMealsTrackerApiTests(TestCase):
         meal.recipes.add(recipe, through_defaults={'portion': 1})
 
         res = self.client.get(DAILY_MEALS_TRACKER)
-        self.assertEqual(res.json()['data'][0]['calories'], 250)
+        self.assertEqual(res.data[0]['calories'], 250)
 
     def test_create_meal_without_category_failed(self):
         """ test creating meal without category failed """
@@ -433,12 +434,13 @@ class PrivateMealsTrackerApiTests(TestCase):
 
     def test_create_meal_with_invalid_ingredient(self):
         """ test creating meal with invalid ingredient id """
-
+        ingredient = sample_ingredient(user=self.user, name='test')
         payload = {
             "category": self.category.id,
-            "ingredients": [{"ingredient": 9000, "amount": 200,
+            "ingredients": [{"ingredient": ingredient.id, "amount": 200,
                              "unit": self.unit.id}]
         }
+        ingredient.delete()
         res = self.client.post(
             DAILY_MEALS_TRACKER_CREATE, payload, format="json")
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
@@ -506,14 +508,13 @@ class PrivateMealsTrackerApiTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_full_update_meal_success(self):
-        """ test updating meal success """
 
         user2 = sample_user()
         self.user.membership.add(user2.own_group)
-        recipe1 = sample_recipe(user=self.user, name='test')
-        recipe3 = sample_recipe(user=user2, name='test2')
+        recipe1 = sample_recipe(user=self.user, name='old recipe')
+        recipe2 = sample_recipe(user=user2, name='new recipe')
         ing = sample_ingredient(user=self.user, name='test', calories=100)
-        recipe3.ingredients.add(ing, through_defaults={'unit': self.unit,
+        recipe2.ingredients.add(ing, through_defaults={'unit': self.unit,
                                                        'amount': 100})
         new_category = sample_category(name='Dinner')
 
@@ -523,160 +524,164 @@ class PrivateMealsTrackerApiTests(TestCase):
 
         payload = {
             'category': new_category.id,
-            'recipes': [{'recipe': recipe3.id, 'portion': 2}, ],
+            'recipes': [{'recipe': recipe2.id, 'portion': 2}, ],
         }
         res = self.client.put(get_meal_update_view(meal.id), payload,
                               format='json')
-        meal.refresh_from_db()
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(new_category, meal.category)
-        self.assertEqual(res.json()['data']['calories'], 50)
-        self.assertNotIn(recipe1, meal.recipes.all())
-
-    def test_full_update_meal_success_with_new_ingredient(self):
-        """ test updating meal with new ingredients and recipe """
-
-        recipe1 = sample_recipe(user=self.user, name='test')
-        recipe2 = sample_recipe(user=self.user, name='test2')
-        ingredient = sample_ingredient(user=self.user, name='Skladnik',
-                                       calories=500)
-        meal = models.Meal.objects.create(user=self.user,
-                                          category=self.category)
-        meal.recipes.add(recipe1, through_defaults={'portion': 1})
-        new_category = sample_category(name='Dinner')
-        payload = {
-            'category': new_category.id,
-            'recipes': [{'recipe': recipe2.id, 'portion': 2}],
-            'ingredients': [{"ingredient": ingredient.id, "unit": self.unit.id,
-                             "amount": 200}]
-        }
-        res = self.client.put(get_meal_update_view(meal.id), payload,
-                              format='json')
-        meal.refresh_from_db()
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(new_category, meal.category)
-        self.assertEqual(meal.calories, 1000)
-        self.assertIn(recipe2, meal.recipes.all())
-        self.assertIn(ingredient, meal.ingredients.all())
-        self.assertNotIn(recipe1, meal.recipes.all())
-
-    def test_partial_update_meal_success(self):
-        """ test updating only part of the meal """
-
-        recipe = sample_recipe(self.user, calories=400, portions=4)
-        ingredient = sample_ingredient(user=self.user, name='Cukinia',
-                                       calories=100)
-        meal = models.Meal.objects.create(
-            user=self.user,
-            category=self.category
-            )
-        meal.recipes.add(recipe, through_defaults={'portion': 1})
-
-        payload = {
-            'ingredients': [{'ingredient': ingredient.id,
-                             "unit": self.unit.id, "amount": 200}]
-        }
-        res = self.client.patch(get_meal_update_view(meal.id), payload,
-                                format='json')
-        meal.refresh_from_db()
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(meal.recipes.all()), 1)
-        self.assertEqual(len(meal.ingredients.all()), 1)
-        self.assertEqual(res.json()['data']['calories'], 300)
-
-    def test_other_user_meal_update_failed(self):
-        """ test users separation """
-
-        user2 = sample_user()
-        meal1 = models.Meal.objects.create(user=user2, category=self.category)
-
-        payload = {
-            'recipes': [{
-                'recipe': sample_recipe(user=self.user).id,
-                'portion': 2
-            }]
-        }
-
-        res = self.client.patch(get_meal_update_view(meal1.id), payload,
-                                format='json')
-        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_update_meal_with_invalid_recipe(self):
-        """ test udpating recipe with other user recipe id """
-
-        user2 = sample_user()
-        recipe = sample_recipe(user=user2)
-
-        meal = models.Meal.objects.create(
-            user=self.user,
-            category=self.category)
-
-        payload = {
-            'recipes': [{
-                'recipe': recipe.id,
-                'portion': 2
-            }]
-        }
-        res = self.client.patch(get_meal_update_view(meal.id), payload,
-                                format='json')
-        meal.refresh_from_db()
-        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_update_with_invalid_ingredient(self):
-        """ test updating with invalid ingredient failed """
-
-        recipe = sample_recipe(user=self.user)
-        ingredient = sample_ingredient(user=self.user, calories=1000,
-                                       name='test')
-
-        meal = models.Meal.objects.create(
-            user=self.user,
-            category=self.category)
-        meal.recipes.add(recipe, through_defaults={'portion': 2})
-        meal.ingredients.add(ingredient, through_defaults={
-                             "unit": self.unit, "amount": 100})
-
-        payload = {
-            'ingredients': [{
-                'ingredient': 11111,
-                'unit': 2,
-                'amount': 22
-            }]
-        }
-        res = self.client.patch(get_meal_update_view(meal.id), payload,
-                                format='json')
-        meal.refresh_from_db()
-        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_delete_meal_success(self):
-        """ test deleting meal success """
-
-        meal = models.Meal.objects.create(
-            user=self.user,
-            category=self.category)
-
-        res = self.client.delete(get_meal_delete_view(meal.id))
-
-        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
-
-    def test_delete_other_user_meal_failed(self):
-        """ test deleting other user meal failed """
-
-        user2 = sample_user()
-        meal = models.Meal.objects.create(
-            user=user2,
-            category=self.category
-        )
-
-        res = self.client.delete(get_meal_delete_view(meal.id))
-        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_retreiving_available_categories(self):
-        """ test retrieving all meal categories """
-
-        sample_category(name='Dinner')
-        sample_category(name='Supper')
-        url = reverse('meals_tracker:categories')
+        url = res._headers['location'][1]
         res = self.client.get(url)
+        print(res.data)
+        meal.refresh_from_db()
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(res.json()['data']), 3)
+        self.assertEqual(new_category, meal.category)
+        self.assertEqual(res.data[0]['calories'], 50)
+        self.assertNotIn(recipe1, meal.recipes.all())
+    #
+    # def test_full_update_meal_success_with_new_ingredient(self):
+    #     """ test updating meal with new ingredients and recipe """
+    #
+    #     recipe1 = sample_recipe(user=self.user, name='test')
+    #     recipe2 = sample_recipe(user=self.user, name='test2')
+    #     ingredient = sample_ingredient(user=self.user, name='Skladnik',
+    #                                    calories=500)
+    #     meal = models.Meal.objects.create(user=self.user,
+    #                                       category=self.category)
+    #     meal.recipes.add(recipe1, through_defaults={'portion': 1})
+    #     new_category = sample_category(name='Dinner')
+    #     payload = {
+    #         'category': new_category.id,
+    #         'recipes': [{'recipe': recipe2.id, 'portion': 2}],
+    #         'ingredients': [{"ingredient": ingredient.id, "unit": self.unit.id,
+    #                          "amount": 200}]
+    #     }
+    #     res = self.client.put(get_meal_update_view(meal.id), payload,
+    #                           format='json')
+    #     meal.refresh_from_db()
+    #     self.assertEqual(res.status_code, status.HTTP_200_OK)
+    #     self.assertEqual(new_category, meal.category)
+    #     self.assertEqual(meal.calories, 1000)
+    #     self.assertIn(recipe2, meal.recipes.all())
+    #     self.assertIn(ingredient, meal.ingredients.all())
+    #     self.assertNotIn(recipe1, meal.recipes.all())
+    #
+    # def test_partial_update_meal_success(self):
+    #     """ test updating only part of the meal """
+    #
+    #     recipe = sample_recipe(self.user, calories=400, portions=4)
+    #     ingredient = sample_ingredient(user=self.user, name='Cukinia',
+    #                                    calories=100)
+    #     meal = models.Meal.objects.create(
+    #         user=self.user,
+    #         category=self.category
+    #         )
+    #     meal.recipes.add(recipe, through_defaults={'portion': 1})
+    #
+    #     payload = {
+    #         'ingredients': [{'ingredient': ingredient.id,
+    #                          "unit": self.unit.id, "amount": 200}]
+    #     }
+    #     res = self.client.patch(get_meal_update_view(meal.id), payload,
+    #                             format='json')
+    #     meal.refresh_from_db()
+    #     self.assertEqual(res.status_code, status.HTTP_200_OK)
+    #     self.assertEqual(len(meal.recipes.all()), 1)
+    #     self.assertEqual(len(meal.ingredients.all()), 1)
+    #     self.assertEqual(res.json()['data']['calories'], 300)
+    #
+    # def test_other_user_meal_update_failed(self):
+    #     """ test users separation """
+    #
+    #     user2 = sample_user()
+    #     meal1 = models.Meal.objects.create(user=user2, category=self.category)
+    #
+    #     payload = {
+    #         'recipes': [{
+    #             'recipe': sample_recipe(user=self.user).id,
+    #             'portion': 2
+    #         }]
+    #     }
+    #
+    #     res = self.client.patch(get_meal_update_view(meal1.id), payload,
+    #                             format='json')
+    #     self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+    #
+    # def test_update_meal_with_invalid_recipe(self):
+    #     """ test udpating recipe with other user recipe id """
+    #
+    #     user2 = sample_user()
+    #     recipe = sample_recipe(user=user2)
+    #
+    #     meal = models.Meal.objects.create(
+    #         user=self.user,
+    #         category=self.category)
+    #
+    #     payload = {
+    #         'recipes': [{
+    #             'recipe': recipe.id,
+    #             'portion': 2
+    #         }]
+    #     }
+    #     res = self.client.patch(get_meal_update_view(meal.id), payload,
+    #                             format='json')
+    #     meal.refresh_from_db()
+    #     self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+    #
+    # def test_update_with_invalid_ingredient(self):
+    #     """ test updating with invalid ingredient failed """
+    #
+    #     recipe = sample_recipe(user=self.user)
+    #     ingredient = sample_ingredient(user=self.user, calories=1000,
+    #                                    name='test')
+    #
+    #     meal = models.Meal.objects.create(
+    #         user=self.user,
+    #         category=self.category)
+    #     meal.recipes.add(recipe, through_defaults={'portion': 2})
+    #     meal.ingredients.add(ingredient, through_defaults={
+    #                          "unit": self.unit, "amount": 100})
+    #
+    #     payload = {
+    #         'ingredients': [{
+    #             'ingredient': 11111,
+    #             'unit': 2,
+    #             'amount': 22
+    #         }]
+    #     }
+    #     res = self.client.patch(get_meal_update_view(meal.id), payload,
+    #                             format='json')
+    #     meal.refresh_from_db()
+    #     self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+    #
+    # def test_delete_meal_success(self):
+    #     """ test deleting meal success """
+    #
+    #     meal = models.Meal.objects.create(
+    #         user=self.user,
+    #         category=self.category)
+    #
+    #     res = self.client.delete(get_meal_delete_view(meal.id))
+    #
+    #     self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
+    #
+    # def test_delete_other_user_meal_failed(self):
+    #     """ test deleting other user meal failed """
+    #
+    #     user2 = sample_user()
+    #     meal = models.Meal.objects.create(
+    #         user=user2,
+    #         category=self.category
+    #     )
+    #
+    #     res = self.client.delete(get_meal_delete_view(meal.id))
+    #     self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+    #
+    # def test_retreiving_available_categories(self):
+    #     """ test retrieving all meal categories """
+    #
+    #     sample_category(name='Dinner')
+    #     sample_category(name='Supper')
+    #     url = reverse('meals_tracker:categories')
+    #     res = self.client.get(url)
+    #     self.assertEqual(res.status_code, status.HTTP_200_OK)
+    #     self.assertEqual(len(res.json()['data']), 3)

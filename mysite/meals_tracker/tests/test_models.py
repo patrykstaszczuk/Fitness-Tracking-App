@@ -4,16 +4,18 @@ from meals_tracker import models
 from recipe.models import Recipe, Ingredient, Unit
 from recipe import services as recipe_services
 import datetime
+from django.utils.text import slugify
 
 
 def sample_recipe(user, name='test', calories=0, **kwargs):
     """ create sample recipe """
-    return recipe_services.create_recipe(user=user, data={'name': name, 'calories': calories})
+    slug = slugify(name)
+    return Recipe.objects.create(user=user, name=name, slug=slug, **kwargs)
 
 
 def sample_ingredient(**kwargs):
     user = kwargs.get('user')
-    return recipe_services.ingredient_create(user=user, data=kwargs)
+    return Ingredient.objects.create(user=user, **kwargs)
 
 
 def sample_category(name='breakfast'):

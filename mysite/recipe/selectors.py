@@ -112,8 +112,8 @@ def tag_get_multi_by_slugs(user: get_user_model, slugs: list[str]) -> list[Tag]:
     return tag_instances
 
 
-def ingredient_list(user: get_user_model) -> Iterable[Ingredient]:
-    """ return ingredients created by user """
+def ingredient_list() -> Iterable[Ingredient]:
+    """ return all ingredients """
     return Ingredient.objects.all().prefetch_related('tags')
 
 

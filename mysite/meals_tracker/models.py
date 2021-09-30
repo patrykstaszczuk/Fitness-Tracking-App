@@ -31,22 +31,6 @@ class Meal(models.Model):
         """ recalculate calories when m2m change or specific Recipe is being
             saved """
         pass
-        # self.calories = 0
-        # for recipe in self.recipes.all():
-        #     obj = RecipePortion.objects.get(recipe=recipe, meal=self)
-        #     if recipe.calories is not None:
-        #         self.calories += recipe.get_recalculated_calories(obj.portion)
-        # for ingredient in self.ingredients.all():
-        #     obj = IngredientAmount.objects.get(ingredient=ingredient, meal=self)
-        #     self.calories += ingredient.calculate_calories(unit=obj.unit,
-        #                                                    amount=obj.amount)
-
-    # def save(self, *args, **kwargs):
-    #     """ call set_calories() method """
-    #     super().save(*args, **kwargs)
-    #     self.set_calories()
-    #     kwargs['force_insert'] = False
-    #     super().save(*args, **kwargs, update_fields=['calories', ])
 
 
 class RecipePortion(models.Model):
@@ -64,7 +48,7 @@ class RecipePortion(models.Model):
         ]
 
     def __str__(self):
-        return str(self.portion)
+        return 'Meal:' + str(self.meal) + ' Recipe:' + str(self.recipe) + ' portions:' + str(self.portion)
 
 
 class IngredientAmount(models.Model):
