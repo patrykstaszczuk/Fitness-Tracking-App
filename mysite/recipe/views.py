@@ -238,7 +238,7 @@ class IngredientListApi(IngredientBaseViewClass):
 
     def get(self, request, *args, **kwargs):
         """ handling get request """
-        user_ingredients = selectors.ingredient_list(user=request.user)
+        user_ingredients = selectors.ingredient_list()
         serializer = serializers.IngredientListOutputSerializer(
             user_ingredients, many=True, context=self.get_serializer_context())
         return Response(data=serializer.data, status=status.HTTP_200_OK)

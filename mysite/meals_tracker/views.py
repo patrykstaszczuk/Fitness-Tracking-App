@@ -66,10 +66,17 @@ class MealsTrackerUpdateApi(MealsTrackerBaseViewClass):
 
     def put(self, request, *args, **kwargs):
         """ handle put request """
+        request = self.request
         meal_id = kwargs.get('pk')
         partial = kwargs.get('partial')
         meal = selectors.meal_get(user=request.user, id=meal_id)
-        serializer = serializers.MealUpdateInputSerializer(data=request.data)
+
+        if partial:
+            serializer = serializers.MealUpdateInputSerializer(
+                data=request.data)
+        else:
+            serializer = serializers.MealCreateInputSerializer(
+                data=request.data)
         if serializer.is_valid():
             kwargs = {'instance': meal, 'partial': partial}
             meal_service = services.MealService(
@@ -80,21 +87,13 @@ class MealsTrackerUpdateApi(MealsTrackerBaseViewClass):
             return Response(status=status.HTTP_200_OK, headers=headers)
         return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    # def patch(self, request, *args, **kwargs):
-    #     """ return put request """
-    #     meal_id = kwargs.get('pk')
-    #     serializer = serializers.MealInputSerializer(data=request.data)
-    #
-    #     if serializer.is_valid():
-    #         meal = selectors.meal_get(user=request.user, id=meal_id)
-    #         updated_meal = services.meal_patch_handler(
-    #             instance=meal, data=serializer.data)
-    #         serializer = serializers.MealOutputSerializer(updated_meal)
-    #         return Response(data=serializer.data, status=status.HTTP_200_OK)
-    #     return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    def patch(self, request, *args, **kwargs):
+        """ handle patch reqest. Set partial as true and return put request """
+        kwargs.update({'partial': True})
+        return self.put(request, *args, **kwargs)
 
 
-class MealsAvailableDatesApi(BaseAuthPermClass, RequiredFieldsResponseMessage):
+class MealsAvailableDatesApi(MealsTrackerBaseViewClass):
     """ API for retrievin all available dates when meals was saved """
 
     def get(self, request, *args, **kwargs):
@@ -104,7 +103,7 @@ class MealsAvailableDatesApi(BaseAuthPermClass, RequiredFieldsResponseMessage):
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
 
-class MealCategoryApi(BaseAuthPermClass, RequiredFieldsResponseMessage):
+class MealCategoryApi(MealsTrackerBaseViewClass):
     """ view for retrieving available meal categories """
 
     def get(self, request, *args, **kwargs):
