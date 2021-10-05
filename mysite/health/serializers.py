@@ -9,20 +9,22 @@ from users import selectors as users_selectors
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 
-class DynamicFieldsModelSerializer(serializers.ModelSerializer):
 
-    def __init__(self, *args, **kwargs):
-        fields = kwargs.pop('fields', None)
-        super(DynamicFieldsModelSerializer, self).__init__(*args, **kwargs)
+# class DynamicFieldsModelSerializer(serializers.ModelSerializer):
+#
+#     def __init__(self, *args, **kwargs):
+#         fields = kwargs.pop('fields', None)
+#         super(DynamicFieldsModelSerializer, self).__init__(*args, **kwargs)
+#
+#         if fields is not None:
+#             allowed = set(fields)
+#             existing = set(self.fields)
+#
+#             for field_name in existing - allowed:
+#                 self.fields.pop(field_name)
 
-        if fields is not None:
-            allowed = set(fields)
-            existing = set(self.fields)
 
-            for field_name in existing - allowed:
-                self.fields.pop(field_name)
-
-class HealthDiaryOutputSerializer(DynamicFieldsModelSerializer):
+class HealthDiaryOutputSerializer(serializers.ModelSerializer):
     """ serializer for retreiving HealthDiary objects"""
 
     activities = serializers.SerializerMethodField()
@@ -32,7 +34,6 @@ class HealthDiaryOutputSerializer(DynamicFieldsModelSerializer):
         model = HealthDiary
         exclude = ('last_update', )
 
-
     def get_activities(self, obj):
         """ get activities for given day """
 
@@ -41,7 +42,8 @@ class HealthDiaryOutputSerializer(DynamicFieldsModelSerializer):
                 obj.date = datetime.date.fromisoformat(obj.date)
             except ValidationError:
                 return None
-        activities = users_selectors.get_activities(user=obj.user, date=obj.date)
+        activities = users_selectors.get_activities(
+            user=obj.user, date=obj.date)
         for activity in activities:
             obj.burned_calories += activity.calories
         return StravaActivitySerializer(activities, many=True).data
@@ -50,26 +52,30 @@ class HealthDiaryOutputSerializer(DynamicFieldsModelSerializer):
         """ get calories delta for calories intake and calories burned """
         return obj.calories - obj.burned_calories
 
+
 class HealthDiaryInputSerializer(serializers.Serializer):
     """ preparing data for saving in db """
 
-    weight = serializers.FloatField(min_value=20, max_value=300, required=False)
-    sleep_length = serializers.TimeField(required=False)
-    rest_hearth_rate = serializers.IntegerField(min_value=0, max_value=230, required=False)
-    daily_thoughts = serializers.CharField(max_length=2000, required=False, allow_blank=True)
+    weight = serializers.FloatField(
+        min_value=20, max_value=300, required=False, allow_null=True)
+    sleep_length = serializers.TimeField(required=False, allow_null=True)
+    rest_hearth_rate = serializers.IntegerField(
+        min_value=0, max_value=230, required=False, allow_null=True)
+    daily_thoughts = serializers.CharField(
+        max_length=2000, required=False, allow_blank=True, allow_null=True)
 
     def is_valid(self, raise_exception=False):
         """ pop weight from initial_data if None """
-        try:
-            if self.initial_data['weight'] == None:
-                self.initial_data.pop('weight')
-        except KeyError:
-            pass
+        # try:
+        #     if self.initial_data['weight'] == None:
+        #         self.initial_data.pop('weight')
+        # except KeyError:
+        #     pass
         res = super().is_valid(raise_exception)
         if not self.validated_data:
-            raise ValidationError({'non_field_error':'Provide correct field for health diary'})
+            raise ValidationError(
+                {'non_field_error': 'Non valid data, check inputs'})
         return res
-
 
 
 # class HealthDiarySerializer(serializers.ModelSerializer):

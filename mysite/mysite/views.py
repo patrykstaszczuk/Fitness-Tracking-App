@@ -18,10 +18,10 @@ from users import services as users_services
 @api_view(['GET'])
 def api_root(request, format=None):
     return Response({
-        'account': reverse('users:profile', request=request, format=format),
+        'account': reverse('users:user-profile', request=request, format=format),
         'fitness': reverse('health:dashboard', request=request, format=format),
         'meals-tracker': reverse('meals_tracker:meal-list', request=request, format=format),
-        'food': reverse('recipe:api-root', request=request, format=format),
+        #'food': reverse('recipe:api-root', request=request, format=format),
     })
 
 

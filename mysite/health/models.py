@@ -14,15 +14,17 @@ class HealthDiary(models.Model):
     slug = models.SlugField(blank=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL,
                              on_delete=models.PROTECT)
-    weight = models.FloatField(null=True, blank=True, default=0,
+    weight = models.FloatField(null=True, blank=True, default=None,
                                verbose_name='weigth')
     sleep_length = models.TimeField(null=True, blank=True)
-    rest_heart_rate = models.PositiveSmallIntegerField(null=True, blank=True, default=0, verbose_name='heart rate')
+    rest_heart_rate = models.PositiveSmallIntegerField(
+        null=True, blank=True, default=0, verbose_name='heart rate')
     calories = models.PositiveIntegerField(blank=True, default=0,
                                            verbose_name='calories')
     burned_calories = models.PositiveSmallIntegerField(blank=True, default=0)
     last_update = models.PositiveIntegerField(default=time.time)
-    daily_thoughts = models.TextField(max_length=2000, blank=True)
+    daily_thoughts = models.TextField(
+        max_length=2000, blank=True, null=True)
 
     def __str__(self):
         return self.user.name + ' ' + str(self.date)
@@ -40,4 +42,5 @@ class HealthDiary(models.Model):
         """ make sure sleep length is in proper format """
 
         if isinstance(self.sleep_length, str):
-            self.sleep_length = datetime.strptime(self.sleep_length, '%H:%M:%S')
+            self.sleep_length = datetime.strptime(
+                self.sleep_length, '%H:%M:%S')

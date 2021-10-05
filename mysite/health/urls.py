@@ -2,17 +2,21 @@ from django.urls import path, include
 from health import views
 
 from rest_framework.routers import DefaultRouter
-# from rest_framework import routers
 
-router = DefaultRouter()
-router.register('', views.HealthRaport, basename='health')
 app_name = 'health'
 
 urlpatterns = [
-    path('bmi/', views.BmiViewSet.as_view({'get': 'retrieve'}), name='bmi'),
-    path('daily/', views.HealthDiary.as_view(),
-         name='health-diary'),
-    path('raports/', include(router.urls)),
+    path('bmi/', views.BMIRetrieveApi().as_view(), name='bmi-get'),
+    path('daily/', views.RetrieveHealthDiary.as_view(), name='health-diary'),
+    path('daily/update', views.UpdateHealthDiary.as_view(),
+         name='health-diary-update'),
+    path('raports/', views.HealthRaportList.as_view(), name='health-raport-list'),
+    path('raports/<slug>', views.HealthRaportDetail.as_view(),
+         name='health-raport-detail'),
+    path('raports/<slug>/update', views.HealthRaportUpdate.as_view(),
+         name='health-raport-update'),
+    path('raports/statistic-history/<slug>', views.HealthStatisticDetail.as_view(),
+         name='health-statistic-history'),
     path('weekly-summary/', views.HealthWeeklySummary.as_view(),
          name='weekly-summary'),
     path('', views.Dashboard.as_view(), name='dashboard')
