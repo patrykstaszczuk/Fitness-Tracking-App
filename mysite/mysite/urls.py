@@ -24,11 +24,11 @@ app_name = 'mysite'
 
 urlpatterns = [
     path('', views.api_root, name='api-root'),
-    path('admin/', admin.site.urls),
-    path('account/', include('users.urls')),
-    path('fitness/', include('health.urls')),
-    path('meals-tracker/', include('meals_tracker.urls')),
+    path('admin', admin.site.urls),
+    path('account', include('users.urls')),
+    path('fitness', include('health.urls')),
+    path('meals-tracker', include('meals_tracker.urls')),
     path('food/', include('recipe.urls')),
-    path('strava-auth/', views.StravaCodeApiView.as_view(), name='strava-auth'),
+    path('strava-auth', views.StravaCodeApiView.as_view(), name='strava-auth'),
     path('__debug__/', include(debug_toolbar.urls)),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

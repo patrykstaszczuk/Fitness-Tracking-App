@@ -1,4 +1,6 @@
 .env
+*.pyc
+__pycache__
 .history/
 docs
 .env.db

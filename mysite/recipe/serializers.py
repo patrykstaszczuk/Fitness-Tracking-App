@@ -42,9 +42,10 @@ class RecipeListOutputSerializer(serializers.ModelSerializer):
          multi objects retrieving in detail view """
         ret = super().to_representation(instance)
         if ret['user'] != self.user.id:
-            ret['url'] = reverse("recipe:recipe-detail", kwargs={
+            ret['url'] = reverse("recipe:group-recipe-detail", kwargs={
+                                 'pk': ret['user'],
                                  'slug': ret['slug']},
-                                 request=self.context['request']) + f"?user={ret['user']}"
+                                 request=self.context['request'])
         return ret
 
     def __init__(self, *args, **kwargs):
