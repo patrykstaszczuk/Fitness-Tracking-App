@@ -10,6 +10,48 @@ from dataclasses import dataclass
 from abc import ABC, abstractmethod
 
 
+@dataclass
+class RecipeServiceDto:
+    user: get_user_model
+    name: str
+    portions: int
+    prepare_time: int
+    description: str
+
+    def __post_init__(self):
+        self.slug = slugify(self.name)
+        number_of_repeared_names = Recipe.objects.filter(
+            user=self.user, name=self.name).count()
+        if number_of_repeared_names > 0:
+            self.slug += str(number_of_repeared_names + 1)
+
+
+class CreateRecipe:
+    def create(self, dto: RecipeServiceDto) -> None:
+        return Recipe.objects.create(
+            user=dto.user,
+            name=dto.name,
+            slug=dto.slug,
+            portions=dto.portions,
+            prepare_time=dto.prepare_time,
+            description=dto.description
+        )
+
+
+class UpdateRecipe:
+    def update(self, recipe: Recipe, dto: RecipeServiceDto) -> Recipe:
+        for attr in vars(dto):
+            setattr(recipe, attr, getattr(dto, attr))
+        recipe.save()
+        return recipe
+
+
+
+
+
+
+
+
 class Dish(ABC):
     """ base class for dishes """
     @abstractmethod
@@ -357,5 +399,10 @@ class IngredientService(Dish, IngredientM2MHandler):
 #     for item in data:
 #         setattr(recipe, item, data[item])
 #     recipe.save()
+#
+#
+#
+#
+#
 #
 #

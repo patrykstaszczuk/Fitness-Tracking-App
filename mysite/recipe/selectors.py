@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.http.request import QueryDict
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.db.models.query import QuerySet
-from recipe.models import Recipe, Ingredient, Unit, Ingredient_Unit, Tag
+from recipe.models import Recipe, Ingredient, Unit, Ingredient_Unit, Tag, Recipe_Ingredient
 from users.models import Group
 from users import selectors as users_selectors
 from typing import Iterable, Union, List
@@ -21,12 +21,24 @@ def recipe_get(user: get_user_model, slug: str) -> Recipe:
             f'Recipe with provided slug {slug} does not exists!')
 
 
+def recipe_get_tags(user: get_user_model, recipe_slug: str) -> Iterable[Tag]:
+    """ return all tags for given recipe """
+    return Tag.objects.filter(user=user, recipe__slug=recipe_slug)
+
+
+def recipe_get_ingredients(user: get_user_model, recipe_slug: str) -> Iterable[Ingredient]:
+    """ return all ingredients with unit and amount for given recipe """
+    return Recipe_Ingredient.objects.filter(recipe__slug=recipe_slug).prefetch_related('ingredient', 'unit')
+
+
 def recipe_list(user: get_user_model, filters: QueryDict = None) -> list[Recipe]:
     """ retrieve list of recipes """
     user_groups = users_selectors.group_get_membership(user)
     list_of_users_ids = users_selectors.group_retrieve_founders(user_groups)
+    # default_queryset = Recipe.objects.filter(
+    #     user__id__in=list_of_users_ids).prefetch_related('tags', 'ingredients')
     default_queryset = Recipe.objects.filter(
-        user__id__in=list_of_users_ids).prefetch_related('tags', 'ingredients')
+        user__id__in=list_of_users_ids)
     if filters:
         return filter_queryset(user, filters, default_queryset, user_groups)
     return default_queryset
@@ -88,6 +100,11 @@ def recipe_calculate_calories_based_on_portion(portion: int, recipe: Recipe) -> 
 def tag_list(user: get_user_model) -> Iterable[Tag]:
     """ return tags created by user """
     return Tag.objects.filter(user=user)
+
+
+def tag_list_by_user_and_recipe(user: get_user_model, recipe_slug: str) -> list[Tag]:
+    """ return tags assigned to given recipe """
+    return Tag.objects.filter(user=user, recipe__slug=recipe_slug)
 
 
 def tag_get(user: get_user_model, slug: str) -> Tag:

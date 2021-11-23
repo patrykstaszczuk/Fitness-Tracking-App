@@ -3,20 +3,28 @@ from rest_framework.routers import DefaultRouter
 
 from recipe import views
 
-router = DefaultRouter()
+# router = DefaultRouter()
+# router.register('', views.RecipeApi, basename='recipe')
 
 app_name = 'recipe'
 
 
 urlpatterns = [
-    # path('', include(router.urls)),
-    path('recipes/', views.RecipeListApi.as_view(), name='recipe-list'),
-    path('recipes/create', views.RecipeCreateApi.as_view(), name='recipe-create'),
-    path('recipes/<slug>/update',
-         views.RecipeUpdateApi.as_view(), name='recipe-update'),
-    path('recipes/<slug>', views.RecipeDetilApi.as_view(), name='recipe-detail'),
-    path('recipes/<slug>/send-to-nozbe',
-         views.RecipeSendIngredientsToNozbe.as_view(), name='recipe-send-to-nozbe'),
+    #path('recipes/', include(router.urls)),
+
+    path('recipes/', views.RecipesApi.as_view(), name='recipe-list'),
+    path('recipes/', views.RecipesApi.as_view(), name='recipe-create'),
+    path('recipes/<slug>', views.RecipeDetailApi.as_view(), name='recipe-detail'),
+    path('recipes/<slug>', views.RecipeDetailApi.as_view(), name='recipe-update'),
+    path('recipes/<slug>/tags', views.RecipeTagsApi.as_view(), name='recipe-tags'),
+    path('recipes/<slug>/ingredients',
+         views.RecipeIngredientsApi.as_view(), name='recipe-ingredients'),
+
+    # path('recipes/<slug>/update',
+    #      views.RecipeUpdateApi.as_view(), name='recipe-update'),
+    # path('recipes/<slug>', views.RecipeDetilApi.as_view(), name='recipe-detail'),
+    # path('recipes/<slug>/send-to-nozbe',
+    #      views.RecipeSendIngredientsToNozbe.as_view(), name='recipe-send-to-nozbe'),
     path('recipes/group/<pk>/<slug>', views.GroupRecipeDetailApi.as_view(),
          name='group-recipe-detail'),
     path('recipes/<slug>/delete',

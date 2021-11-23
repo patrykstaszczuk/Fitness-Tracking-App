@@ -19,34 +19,60 @@ def inline_serializer(*, fields, data=None, **kwargs):
     return serializer_class(**kwargs)
 
 
+class RecipeInputSerializer(serializers.Serializer):
+
+    name = serializers.CharField()
+    portions = serializers.IntegerField()
+    prepare_time = serializers.IntegerField()
+    description = serializers.CharField()
+
+
 class RecipeListOutputSerializer(serializers.ModelSerializer):
     """ serializing list of recipe objects """
 
-    url = serializers.HyperlinkedIdentityField(view_name='recipe:recipe-detail',
-                                               lookup_field='slug')
-    tags = serializers.StringRelatedField(many=True)
+    # url = serializers.HyperlinkedIdentityField(view_name='recipe:recipe-detail',
+    #                                            lookup_field='slug')
+    # # tags = serializers.StringRelatedField(many=True)
+    # tags = serializers.SerializerMethodField()
+    _links = serializers.SerializerMethodField(method_name='get_links')
 
     class Meta:
         model = Recipe
         fields = (
-            'url',
+            # 'url',
             'user',
             'name',
             'slug',
             'calories',
-            'tags'
+            '_links'
+            # 'tags'
         )
 
-    def to_representation(self, instance):
-        """ update url field for recipes created by other user to avoid
-         multi objects retrieving in detail view """
-        ret = super().to_representation(instance)
-        if ret['user'] != self.user.id:
-            ret['url'] = reverse("recipe:group-recipe-detail", kwargs={
-                                 'pk': ret['user'],
-                                 'slug': ret['slug']},
-                                 request=self.context['request'])
-        return ret
+    def get_links(self, instance) -> dict:
+        """ prepare links to proepr endpoints """
+        links = []
+        links.append({
+            'rel': 'self',
+            'href': reverse('recipe:recipe-detail', kwargs={'slug': instance.slug}, request=self.context['request']),
+            'actions': ['GET', 'PUT', 'DELETE']
+        })
+        links.append({
+            'rel': 'tags',
+            'href': reverse('recipe:recipe-tags',  kwargs={'slug': instance.slug}, request=self.context['request']),
+            'actions': ['GET']
+        })
+        return links
+
+    # def to_representation(self, instance):
+    #     """ update url field for recipes created by other user to avoid
+    #      multi objects retrieving in detail view """
+    #     ret = super().to_representation(instance)
+    #     if ret['user'] != self.user.id:
+    #         ret['url'] = reverse("recipe:group-recipe-detail", kwargs={
+    #                              'pk': ret['user'],
+    #                              'slug': ret['slug']},
+    #                              request=self.context['request'])
+    #     return ret
 
     def __init__(self, *args, **kwargs):
         """ set user """
@@ -60,26 +86,47 @@ class RecipeListOutputSerializer(serializers.ModelSerializer):
 class RecipeDetailOutputSerializer(serializers.ModelSerializer):
     """ serializing recipe object """
 
-    tags = CustomTagField(many=True, read_only=True)
-    ingredients = CustomIngredientField(source='get_ingredients',
-                                        many=True, read_only=True, )
+    _links = serializers.SerializerMethodField(method_name='get_links')
 
     class Meta:
         model = Recipe
-        fields = '__all__'
+        exclude = ('tags', 'ingredients')
 
-    def to_representation(self, instance):
-        """ apend urls for tags and ingredients """
-        ret = super().to_representation(instance)
-        for tag in ret['tags']:
-            tag.update({'url': reverse('recipe:tag-detail',
-                                       request=self.context['request'],
-                                       kwargs={'slug': tag['slug']})})
-        for ingredient in ret['ingredients']:
-            ingredient.update({'url': reverse('recipe:ingredient-detail',
-                                              request=self.context['request'],
-                                              kwargs={'slug': ingredient['slug']})})
-        return ret
+    def get_links(self, instance) -> dict:
+        """ prepare links to proepr endpoints """
+        links = []
+        self_rel = {
+            'rel': 'self',
+            'href': reverse('recipe:recipe-detail', kwargs={'slug': instance.slug}, request=self.context['request']),
+            'actions': ['GET', 'PUT', 'DELETE']}
+
+        links.append(self_rel)
+
+        tags = {
+            'rel': 'tags',
+            'href': reverse('recipe:recipe-tags',  kwargs={'slug': instance.slug}, request=self.context['request']),
+            'actions': ['GET']
+        }
+        links.append(tags)
+
+        ingredients = {
+            'rel': 'ingredients',
+            'href': reverse('recipe:recipe-ingredients',  kwargs={'slug': instance.slug}, request=self.context['request']),
+            'actions': ['GET']
+        }
+        links.append(ingredients)
+        return links
+
+
+class RecipeIngredientOutputSerializer(serializers.ModelSerializer):
+    """ serializer for Recipe Ingredient intermediate model """
+
+    ingredient = serializers.StringRelatedField()
+    unit = serializers.StringRelatedField()
+
+    class Meta:
+        model = Recipe_Ingredient
+        fields = ('ingredient', 'unit', 'amount')
 
 
 class RecipeCreateInputSerializer(serializers.Serializer):
@@ -212,164 +259,3 @@ class UnitOutputSerializer(serializers.ModelSerializer):
     class Meta:
         model = Unit
         fields = '__all__'
-
-# class DynamicFieldsModelSerializer(serializers.ModelSerializer):
-#
-#     def __init__(self, *args, **kwargs):
-#         fields = kwargs.pop('fields', None)
-#         super(DynamicFieldsModelSerializer, self).__init__(*args, **kwargs)
-#
-#         if fields is not None:
-#             allowed = set(fields)
-#             existing = set(self.fields)
-#
-#             for field_name in existing - allowed:
-#                 self.fields.pop(field_name)
-#
-#
-#
-# class RecipeOutputSerializer(DynamicFieldsModelSerializer):
-#     """ serialzier for outcomming Recipe objects """
-#
-#     url = serializers.HyperlinkedIdentityField(view_name='recipe:recipe-detail',
-#                                                lookup_field='slug')
-#
-#     class Meta:
-#         model = Recipe
-#         fields = '__all__'
-#
-#     def to_representation(self, instance):
-#         """ update url field for recipes created by other user to avoid multi objects retrieving in detail view """
-#         ret = super().to_representation(instance)
-#         if ret['user'] != self.user.id:
-#             ret['url'] = reverse("recipe:recipe-detail", kwargs={
-#                                     'slug': ret['slug']}, request=self.context['request']) + f"?user={ret['user']}"
-#         return ret
-
-
-# class RecipeOutputSerializer2(serializers.ModelSerializer):
-#     """ serializing Recipe objects for retrieving """
-#
-#     url = serializers.HyperlinkedIdentityField(view_name='recipe:recipe-detail',
-#                                                lookup_field='slug')
-#     #tags = serializers.StringRelatedField(many=True)
-#     #ingredients = IngredientOutputSerializer(many=True)
-#
-#     class Meta:
-#         model = Recipe
-#         exclude = ('photo1', 'photo2', 'photo3', 'description')
-#
-#     def to_representation(self, instance):
-#         """ update url field for recipes created by other user to avoid multi objects retrieving in detail view """
-#         ret = super().to_representation(instance)
-#         if ret['user'] != self.user.id:
-#             ret['url'] = reverse("recipe:recipe-detail", kwargs={
-#                                     'slug': ret['slug']}, request=self.context['request']) + f"?user={ret['user']}"
-#         return ret
-#
-#     def __init__(self, *args, **kwargs):
-#         """ get user from context request when serialzier is init via view or get user
-#         from context when serializer is init in tests """
-#         super().__init__(*args, **kwargs)
-#         try:
-#             self.user = self.context['user']
-#         except KeyError:
-#             self.user = self.context['request'].user
-
-
-# class IngredientSerializer(serializers.ModelSerializer):
-#     """ Serializer for ingredient objects """
-#
-#     tags = TagSlugRelatedField(
-#         many=True,
-#         slug_field='name',
-#         required=False,
-#         write_only=True,
-#     )
-#     url = serializers.HyperlinkedIdentityField(view_name='recipe:ingredient-detail',
-#                                                lookup_field='slug')
-#     tag_information = TagSerializer(many=True, source="tags", read_only=True)
-#
-#     units = IngredientUnitSerializer(
-#         many=True, write_only=True, required=False)
-#     available_units = serializers.SerializerMethodField()
-#
-#     class Meta:
-#         model = Ingredient
-#         exclude = ('id', )
-#         read_only_fields = ('user', 'slug')
-#
-    # def to_representation(self, instance):
-    #
-    #     ret = super().to_representation(instance)
-    #     try:
-    #         user = self.context['user'].id
-    #     except KeyError:
-    #         user = None
-    #     if user:
-    #         if ret['user'] != self.context['user'].id:
-    #             ret['url'] = reverse('recipe:ingredient-detail',
-    #                                  kwargs={'slug': ret['slug']},
-    #                                  request=self.context['request']) + f"?user={ret['user']}"
-    #     return ret
-#
-#     def get_available_units(self, obj):
-#         """ get defined unit for ingredient instance """
-#         units = Ingredient_Unit.objects.filter(ingredient=obj)
-#         return IngredientUnitSerializer(units, many=True, context={'request':
-#                                                                    self.context['request']}).data
-#
-#     def validate_name(self, value):
-#         """ check if ingredient with provided name is not already in db """
-#         user = self.context['request'].user
-#
-#         queryset = Ingredient.objects.filter(user=user).filter(name=value)
-#         check_if_name_is_in_db(self.instance, queryset)
-#
-#         return value
-#
-#     def update(self, instance, validated_data):
-#         """ update instance with new unit mapping """
-#         units = validated_data.pop('units', None)
-#         ingredient = super().update(instance, validated_data)
-#
-#         if getattr(self.root, 'partial', False) is False:
-#             instance.units.clear()
-#         if units:
-#             for unit in units:
-#                 Ingredient_Unit.objects.update_or_create(
-#                     ingredient=ingredient,
-#                     unit=unit['unit'],
-#                     defaults={'grams_in_one_unit': unit['grams_in_one_unit']}
-#                 )
-#         return instance
-
-
-# class ReadyMealIngredientSerializer(IngredientSerializer):
-#     """ serialzier for ready meals """
-#
-#     class Meta:
-#         model = ReadyMeals
-#         exclude = ('id', )
-#         read_only_fields = ('user', 'slug')
-#
-#     def create(self, validated_data):
-#         """ add default tag for ready meals """
-#
-#         user = self.context['request'].user
-#         ready_meal_tag, created = Tag.objects.get_or_create(name='Ready Meal',
-#                                                             user=user)
-#         validated_data.update({"tags": [ready_meal_tag.id, ]})
-#
-#         return super().create(validated_data)
-
-#
-# class RecipeImageInputSerializer(serializers.Serializer):
-#     """ Serializer for uploading images to recipes """
-#
-#     photo1 = serializers.ImageField(
-#         required=False, use_url=False, allow_null=True)
-#     photo2 = serializers.ImageField(
-#         required=False, use_url=False, allow_null=True)
-#     photo3 = serializers.ImageField(
-#         required=False, use_url=False, allow_null=True)

@@ -1,6 +1,7 @@
 from rest_framework.reverse import reverse
 from rest_framework import status
 from rest_framework.views import APIView
+from rest_framework.viewsets import ViewSet
 from rest_framework.response import Response
 from rest_framework.request import Request
 from rest_framework.authentication import TokenAuthentication
@@ -12,6 +13,7 @@ from mysite.views import BaseAuthPermClass
 from mysite.exceptions import ApiErrorsMixin
 
 from recipe import selectors, services, serializers
+from recipe.services import RecipeService, RecipeServiceDto
 from recipe.models import Recipe
 
 from users import selectors as users_selectors
@@ -29,6 +31,126 @@ class BaseViewClass(BaseAuthPermClass, ApiErrorsMixin, APIView):
             'format': self.format_kwarg,
             'view': self
         }
+
+
+class BaseRecipeClass(BaseViewClass):
+    def _prepare_recipe_dto_from_validated_data(self, request) -> RecipeServiceDto:
+        """ prepare dto for recipe update """
+        serializer = serializers.RecipeInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.data
+        return RecipeServiceDto(
+            user=self.request.user,
+            name=data['name'],
+            portions=data['portions'],
+            prepare_time=data['prepare_time'],
+            description=data['description']
+        )
+
+    def _set_location_in_header(self, request, slug):
+        return {'Location': reverse(
+                'recipe:recipe-detail', request=request,
+                kwargs={'slug': slug})}
+
+
+class RecipesApi(BaseRecipeClass):
+
+    def get(self, request, *args, **kwargs):
+        """ retrieve list of recipes for authenticated user """
+        recipes = selectors.recipe_list(
+            user=request.user, filters=request.query_params)
+        serializer = serializers.RecipeListOutputSerializer(
+            recipes, many=True, context=self.get_serializer_context())
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request, *args, **kwargs):
+        """ handling creation process and return response """
+        dto = self._prepare_recipe_dto_from_validated_data(request)
+        service = services.CreateRecipe()
+        recipe = service.create(dto)
+        headers = self._set_location_in_header(request, recipe.slug)
+        return Response(status=status.HTTP_201_CREATED, headers=headers)
+
+
+class RecipeDetailApi(BaseRecipeClass):
+    """ API for retreving recipe detail, updating recipe or deleting recipe """
+
+    def get(self, request, *args, **kwargs) -> Response:
+        """ retrive specific recipe based on slug """
+        slug = kwargs.get('slug')
+        recipe = selectors.recipe_get(user=request.user, slug=slug)
+        serializer = serializers.RecipeDetailOutputSerializer(
+            recipe, context=self.get_serializer_context())
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+    def put(self, request, *args, **kwargs) -> Response:
+        """ handle put request """
+        slug = kwargs.get('slug')
+
+        recipe = selectors.recipe_get(user=request.user, slug=slug)
+
+        dto = self._prepare_recipe_dto_from_validated_data(request)
+        service = services.UpdateRecipe()
+        recipe = service.update(recipe, dto)
+        headers = self._set_location_in_header(request, recipe.slug)
+
+        return Response(headers=headers, status=status.HTTP_200_OK)
+
+
+# class RecipeUpdateApi(RecipeBaseViewClass):
+#     """ API for updating recipes """
+#
+#     def put(self, request, *args, **kwargs):
+#         """ update given recipe """
+#         request = self.request
+#         slug = kwargs.get('slug')
+#         partial = kwargs.get('partial')
+#         recipe = selectors.recipe_get(user=request.user, slug=slug)
+#
+#         if not partial:
+#             serializer = serializers.RecipeCreateInputSerializer(
+#                 data=request.data)
+#         else:
+#             serializer = serializers.RecipePatchInputSerializer(
+#                 data=request.data)
+#
+#         if serializer.is_valid():
+#             recipe_service = services.RecipeService(
+#                 user=request.user, data=serializer.data, kwargs={'instance': recipe, 'partial': partial})
+#             recipe = recipe_service.update()
+#             headers = self.set_location_in_header(recipe.slug, request)
+#             return Response(status=status.HTTP_200_OK, headers=headers)
+#         return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+#
+#     def patch(self, request, *args, **kwargs):
+#         """ handle update like put but set partial as true """
+#         kwargs.update({'partial': True})
+#         return self.put(self, request, *args, **kwargs)
+
+
+class RecipeTagsApi(BaseViewClass):
+    """ API for retreving tags for given recipe """
+
+    def get(self, request, *args, **kwargs):
+        recipe_slug = kwargs.get('slug')
+        data = selectors.recipe_get_tags(request.user, recipe_slug)
+        serializer = serializers.TagOutputSerializer(data, many=True)
+        if serializer.data:
+            return Response(data=serializer.data, status=status.HTTP_200_OK)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class RecipeIngredientsApi(BaseViewClass):
+    """ API for retrieveing ingredients with unit and amount for given recipe"""
+
+    def get(self, request, *args, **kwargs):
+        recipe_slug = kwargs.get('slug')
+        data = selectors.recipe_get_ingredients(request.user, recipe_slug)
+        serializer = serializers.RecipeIngredientOutputSerializer(
+            data, many=True)
+        if serializer.data:
+            return Response(data=serializer.data, status=status.HTTP_200_OK)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class RecipeBaseViewClass(BaseViewClass):
@@ -95,37 +217,6 @@ class RecipeCreateApi(RecipeBaseViewClass):
             return Response(status=status.HTTP_201_CREATED, headers=headers)
         return Response(data=serializer.errors,
                         status=status.HTTP_400_BAD_REQUEST)
-
-
-class RecipeUpdateApi(RecipeBaseViewClass):
-    """ API for updating recipes """
-
-    def put(self, request, *args, **kwargs):
-        """ update given recipe """
-        request = self.request
-        slug = kwargs.get('slug')
-        partial = kwargs.get('partial')
-        recipe = selectors.recipe_get(user=request.user, slug=slug)
-
-        if not partial:
-            serializer = serializers.RecipeCreateInputSerializer(
-                data=request.data)
-        else:
-            serializer = serializers.RecipePatchInputSerializer(
-                data=request.data)
-
-        if serializer.is_valid():
-            recipe_service = services.RecipeService(
-                user=request.user, data=serializer.data, kwargs={'instance': recipe, 'partial': partial})
-            recipe = recipe_service.update()
-            headers = self.set_location_in_header(recipe.slug, request)
-            return Response(status=status.HTTP_200_OK, headers=headers)
-        return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def patch(self, request, *args, **kwargs):
-        """ handle update like put but set partial as true """
-        kwargs.update({'partial': True})
-        return self.put(self, request, *args, **kwargs)
 
 
 class RecipeDeleteApi(RecipeBaseViewClass):
