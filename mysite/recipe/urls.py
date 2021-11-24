@@ -3,15 +3,10 @@ from rest_framework.routers import DefaultRouter
 
 from recipe import views
 
-# router = DefaultRouter()
-# router.register('', views.RecipeApi, basename='recipe')
-
 app_name = 'recipe'
 
 
 urlpatterns = [
-    #path('recipes/', include(router.urls)),
-
     path('recipes/', views.RecipesApi.as_view(), name='recipe-list'),
     path('recipes/', views.RecipesApi.as_view(), name='recipe-create'),
     path('recipes/<slug>', views.RecipeDetailApi.as_view(), name='recipe-detail'),
