@@ -21,14 +21,22 @@ def recipe_get(user: get_user_model, slug: str) -> Recipe:
             f'Recipe with provided slug {slug} does not exists!')
 
 
-def recipe_get_tags(user: get_user_model, recipe_slug: str) -> Iterable[Tag]:
+def recipe_get_tags(user: get_user_model, recipe: Recipe) -> Iterable[Tag]:
     """ return all tags for given recipe """
-    return Tag.objects.filter(user=user, recipe__slug=recipe_slug)
+    return Tag.objects.filter(user=user, recipe=recipe)
 
 
-def recipe_get_ingredients(user: get_user_model, recipe_slug: str) -> Iterable[Ingredient]:
+def recipe_get_ingredients(recipe: Recipe) -> Iterable[Ingredient]:
     """ return all ingredients with unit and amount for given recipe """
-    return Recipe_Ingredient.objects.filter(recipe__slug=recipe_slug).prefetch_related('ingredient', 'unit')
+    return Recipe_Ingredient.objects.filter(recipe=recipe).prefetch_related('ingredient', 'unit')
+
+
+def recipe_get_ingredient_details(recipe: Recipe, ingredient_id: str) -> Recipe_Ingredient:
+    """ return specific recipe ingredient intermediate table object """
+    try:
+        return recipe.ingredients_quantity.get(ingredient__id=ingredient_id)
+    except ValueError as e:
+        raise ValidationError(e)
 
 
 def recipe_list(user: get_user_model, filters: QueryDict = None) -> list[Recipe]:
@@ -38,7 +46,7 @@ def recipe_list(user: get_user_model, filters: QueryDict = None) -> list[Recipe]
     # default_queryset = Recipe.objects.filter(
     #     user__id__in=list_of_users_ids).prefetch_related('tags', 'ingredients')
     default_queryset = Recipe.objects.filter(
-        user__id__in=list_of_users_ids)
+        user__id__in=list_of_users_ids).prefetch_related('user')
     if filters:
         return filter_queryset(user, filters, default_queryset, user_groups)
     return default_queryset
@@ -142,6 +150,16 @@ def ingredient_get(slug: str) -> Ingredient:
     except Ingredient.DoesNotExist:
         raise ObjectDoesNotExist(
             f"Ingredient with slug {slug} does not exists!")
+
+
+def ingredient_get_tags(ingredient: Ingredient) -> Iterable[Tag]:
+    """ retrieve all tags for given ingredient """
+    return ingredient.tags.all()
+
+
+def ingredient_get_units(ingredient: Ingredient) -> Iterable[Unit]:
+    """ retreve all units for given ingredient """
+    return ingredient.units.all()
 
 
 def ingredient_get_only_for_user(user: get_user_model, slug: str) -> Ingredient:

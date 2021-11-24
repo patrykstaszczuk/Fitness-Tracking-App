@@ -155,7 +155,7 @@ class Tag(models.Model):
                              null=False)
     name = models.CharField(max_length=25)
 
-    slug = models.SlugField(blank=False, unique=False)
+    slug = models.SlugField(blank=False, unique=False, null=False)
 
     def __str__(self):
         return self.name

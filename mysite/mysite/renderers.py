@@ -21,10 +21,8 @@ class CustomRenderer(BrowsableAPIRenderer, JSONRenderer):
           "status": "success",
           "code": status_code,
           "data": data,
-          "message": None,
           #"writable": writable,
           #"required": required,
-          "_links": links
         }
 
         if not str(status_code).startswith('2'):
