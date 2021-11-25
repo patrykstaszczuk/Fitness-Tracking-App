@@ -97,10 +97,10 @@ class Recipe(Dish):
                     except AttributeError:
                         pass
 
-    def get_ingredients(self):
-        """ return all ingredients with recipe_ingredents prefetched,
-         needed for RecipeDetailOutputSerializer """
-        return self.ingredients.all().prefetch_related('recipe_ingredient_set')
+    # def get_ingredients(self):
+    #     """ return all ingredients with recipe_ingredents prefetched,
+    #      needed for RecipeDetailOutputSerializer """
+    #     return self.ingredients.all().prefetch_related('recipe_ingredient_set')
 
     def get_absolute_url(self) -> str:
         return reverse('recipe:recipe_detail', kwargs={'slug': self.slug})

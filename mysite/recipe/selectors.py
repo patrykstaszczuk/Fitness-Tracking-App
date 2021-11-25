@@ -110,6 +110,11 @@ def tag_list(user: get_user_model) -> Iterable[Tag]:
     return Tag.objects.filter(user=user)
 
 
+def tag_ids_list(user: get_user_model) -> list[int]:
+    """ return tags ids for given user """
+    return tag_list(user).values_list('id', flat=True)
+
+
 def tag_list_by_user_and_recipe(user: get_user_model, recipe_slug: str) -> list[Tag]:
     """ return tags assigned to given recipe """
     return Tag.objects.filter(user=user, recipe__slug=recipe_slug)

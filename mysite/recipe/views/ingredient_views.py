@@ -6,8 +6,8 @@ from rest_framework import status
 from recipe import serializers, selectors
 from recipe.models import Ingredient
 from recipe.services import (
-    AddingTagsInputDto,
-    RemoveTagsInputDto,
+    AddingTagsToIngredientInputDto,
+    RemoveTagsFromIngredientInputDto,
     CreateIngredientServiceDto,
     CreateIngredient,
     UpdateIngredient,
@@ -155,17 +155,17 @@ class IngredientTagsApi(BaseIngredientClass):
         headers = self._set_location_in_header(request, ingredient.slug)
         return Response(headers=headers, status=status.HTTP_200_OK)
 
-    def _prepare_dto(self, request: Request) -> AddingTagsInputDto:
+    def _prepare_dto(self, request: Request) -> AddingTagsToIngredientInputDto:
         serializer = serializers.TagsIdsSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.data
         if request.method == 'POST':
-            return AddingTagsInputDto(
+            return AddingTagsToIngredientInputDto(
                 user=request.user,
                 tag_ids=data.get('tag_ids')
             )
         else:
-            return RemoveTagsInputDto(
+            return RemoveTagsFromIngredientInputDto(
                 tag_ids=data.get('tag_ids')
             )
 

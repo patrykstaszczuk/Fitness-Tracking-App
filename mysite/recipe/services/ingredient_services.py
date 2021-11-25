@@ -86,7 +86,7 @@ class DeleteIngredient:
 
 
 @dataclass
-class AddingTagsInputDto:
+class AddingTagsToIngredientInputDto:
     user: get_user_model
     tag_ids: list[int]
 
@@ -98,17 +98,17 @@ class AddingTagsInputDto:
 
 
 @dataclass
-class RemoveTagsInputDto:
+class RemoveTagsFromIngredientInputDto:
     tag_ids: list[int]
 
 
 class AddTagsToIngredient:
-    def add(self, ingredient: Ingredient, dto: AddingTagsInputDto) -> None:
+    def add(self, ingredient: Ingredient, dto: AddingTagsToIngredientInputDto) -> None:
         ingredient.tags.add(*dto.tag_ids)
 
 
 class RemoveTagsFromIngredient:
-    def remove(self, ingredient, dto: RemoveTagsInputDto) -> None:
+    def remove(self, ingredient, dto: RemoveTagsFromIngredientInputDto) -> None:
         ingredient.tags.clear(*dto.tag_ids)
 
 

@@ -6,10 +6,10 @@ from rest_framework.reverse import reverse
 
 class RecipeInputSerializer(serializers.Serializer):
 
-    name = serializers.CharField()
-    portions = serializers.IntegerField()
-    prepare_time = serializers.IntegerField()
-    description = serializers.CharField()
+    name = serializers.CharField(required=False)
+    portions = serializers.IntegerField(required=False)
+    prepare_time = serializers.IntegerField(required=False)
+    description = serializers.CharField(required=False)
 
 
 class RecipeListOutputSerializer(serializers.ModelSerializer):
