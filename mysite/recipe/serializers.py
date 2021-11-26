@@ -126,12 +126,17 @@ class TagsIdsSerializer(serializers.Serializer):
     tag_ids = serializers.ListField(child=serializers.IntegerField())
 
 
-class RecipeIngredientsInputSerializer(serializers.Serializer):
-    """ serializer for adding ingredients with amount and unit to recipe """
-
+class RecipeIngredientsHelperSerializer(serializers.Serializer):
+    """ helper serializer for recipe ingredient """
     ingredient = serializers.IntegerField()
     amount = serializers.IntegerField()
     unit = serializers.IntegerField()
+
+
+class RecipeIngredientsInputSerializer(serializers.Serializer):
+    """ serializer for adding ingredients with amount and unit to recipe """
+
+    ingredients = RecipeIngredientsHelperSerializer(many=True)
 
 
 class RecipeIngredientUpdateSerializer(serializers.Serializer):

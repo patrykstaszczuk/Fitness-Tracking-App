@@ -28,7 +28,7 @@ def recipe_get_tags(user: get_user_model, recipe: Recipe) -> Iterable[Tag]:
 
 def recipe_get_ingredients(recipe: Recipe) -> Iterable[Ingredient]:
     """ return all ingredients with unit and amount for given recipe """
-    return Recipe_Ingredient.objects.filter(recipe=recipe).prefetch_related('ingredient', 'unit')
+    return Recipe_Ingredient.objects.filter(recipe=recipe).prefetch_related('ingredient', 'unit', 'recipe')
 
 
 def recipe_get_ingredient_details(recipe: Recipe, ingredient_id: str) -> Recipe_Ingredient:
@@ -110,11 +110,6 @@ def tag_list(user: get_user_model) -> Iterable[Tag]:
     return Tag.objects.filter(user=user)
 
 
-def tag_ids_list(user: get_user_model) -> list[int]:
-    """ return tags ids for given user """
-    return tag_list(user).values_list('id', flat=True)
-
-
 def tag_list_by_user_and_recipe(user: get_user_model, recipe_slug: str) -> list[Tag]:
     """ return tags assigned to given recipe """
     return Tag.objects.filter(user=user, recipe__slug=recipe_slug)
@@ -144,12 +139,11 @@ def tag_get_multi_by_slugs(user: get_user_model, slugs: list[str]) -> list[Tag]:
 
 def ingredient_list() -> Iterable[Ingredient]:
     """ return all ingredients """
-    return Ingredient.objects.all().prefetch_related('tags')
+    return Ingredient.objects.all()
 
 
 def ingredient_get(slug: str) -> Ingredient:
-    """ return ingredient object. Ingrediens are common whats why
-     we dont filter queryset by user """
+    """ return ingredient """
     try:
         return Ingredient.objects.get(slug=slug)
     except Ingredient.DoesNotExist:
@@ -165,6 +159,12 @@ def ingredient_get_tags(ingredient: Ingredient) -> Iterable[Tag]:
 def ingredient_get_units(ingredient: Ingredient) -> Iterable[Unit]:
     """ retreve all units for given ingredient """
     return ingredient.units.all()
+
+
+def ingredient_is_mapped_with_unit(unit_id: int, ingredient_id: int) -> bool:
+    """ check if ingredient is mapped with unit """
+    return Ingredient_Unit.objects.filter(
+        ingredient__id=ingredient_id, unit__id=unit_id).exists()
 
 
 def ingredient_get_only_for_user(user: get_user_model, slug: str) -> Ingredient:
@@ -269,13 +269,3 @@ def unit_get_multi_by_ids(ids: list[int]) -> list[Unit]:
         except Unit.DoesNotExist:
             raise ObjectDoesNotExist(f'Unit with id {id} does not exists!')
     return mapped_instances
-
-
-# def unit_is_mapped_to_ingredient(unit: Unit, ingredient: Ingredient) -> bool:
-#     """ check if ingredient has been mapped to Unit """
-#     try:
-#         Ingredient_Unit.objects.get(ingredient=ingredient, unit=unit)
-#         return True
-#     except Ingredient_Unit.DoesNotExist:
-#         raise ValidationError(f'{ingredient} is has no defined {unit} as unit')
-#     return False

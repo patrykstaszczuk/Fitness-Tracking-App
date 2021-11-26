@@ -68,7 +68,7 @@ class AddingTagsToRecipeInputDto:
     tag_ids: list[int]
 
     def __post_init__(self):
-        user_tags = selectors.tag_ids_list(self.user)
+        user_tags = selectors.tag_list(self.user).values_list('id', flat=True)
         for tag_id in self.tag_ids:
             if tag_id not in user_tags:
                 raise ValidationError(f'Tag with id: {tag_id} not exists')
@@ -99,12 +99,20 @@ class AddIngredientsToRecipeDto:
     ingredients: list[dict[str, ingredient_id | unit_id | amount]]
 
     def __post_init__(self):
-        pass
+        if self.ingredients is None:
+            raise ValidationError('Provide list of ingredients for recipe')
+        for item in self.ingredients:
+            if not selectors.ingredient_is_mapped_with_unit(
+                unit_id=item['unit'],
+                ingredient_id=item['ingredient']
+            ):
+                raise ValidationError(
+                    f'{item["ingredient"]} is not mapped with unit {item["unit"]}')
 
 
 @dataclass
 class RemoveIngredientsFromRecipeDto:
-    pass
+    ingredient_ids: list[int]
 
 
 class AddIngredientsToRecipe:
@@ -116,8 +124,8 @@ class AddIngredientsToRecipe:
 
 
 class RemoveIngredientsFromRecipe:
-    def remove(self, dto: RemoveIngredientsFromRecipeDto) -> None:
-        pass
+    def remove(self, recipe: Recipe, dto: RemoveIngredientsFromRecipeDto) -> None:
+        recipe.ingredients.remove(*dto.ingredient_ids)
 
 
 @dataclass

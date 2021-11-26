@@ -154,7 +154,8 @@ class RecipeTagsApi(BaseRecipeClass):
         return Response(headers=headers, status=status.HTTP_200_OK)
 
     def _prepare_dto(self, request: Request) -> AddingTagsToRecipeInputDto:
-        serializer = serializers.TagsIdsSerializer(data=request.data)
+        serializer = serializers.TagsIdsSerializer(
+            data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.data
         if request.method == 'POST':
@@ -183,9 +184,9 @@ class RecipeIngredientsApi(BaseRecipeClass):
     def post(self, request, *args, **kwargs):
         """ batch addition of ingredients with amount and unit to recipe """
         recipe = self._get_object()
-        dto = self._prepare_dto(recipe, request)
+        dto = self._prepare_dto(request)
         service = AddIngredientsToRecipe()
-        service.add(dto)
+        service.add(recipe, dto)
         headers = self._set_location_in_header(request, recipe.slug)
         return Response(headers=headers, status=status.HTTP_200_OK)
 
@@ -198,15 +199,14 @@ class RecipeIngredientsApi(BaseRecipeClass):
         headers = self._set_location_in_header(request, recipe.slug)
         return Response(headers=headers, status=status.HTTP_200_OK)
 
-    def _prepare_dto(self, recipe: Recipe, request: Request) -> AddIngredientsToRecipeDto:
+    def _prepare_dto(self, request: Request) -> AddIngredientsToRecipeDto:
         serializer = serializers.RecipeIngredientsInputSerializer(
-            data=request.data, many=True)
+            data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.data
         return AddIngredientsToRecipeDto(
             user=request.user,
-            recipe=recipe,
-            ingredients=data
+            ingredients=data['ingredients']
         )
 
 

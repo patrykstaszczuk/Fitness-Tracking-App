@@ -170,7 +170,7 @@ class Recipe_Ingredient(models.Model):
     ingredient = models.ForeignKey('Ingredient', on_delete=models.CASCADE,
                                    null=False)
     amount = models.FloatField(null=True)
-    unit = models.ForeignKey('Unit', null=True, on_delete=models.PROTECT)
+    unit = models.ForeignKey('Unit', null=False, on_delete=models.PROTECT)
 
     def __str__(self):
         return self.recipe.name + '_' + self.ingredient.name

@@ -3,12 +3,14 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from unittest.mock import patch
 from django.utils.text import slugify
-
+from recipe.models import Unit, Recipe
 from rest_framework.test import force_authenticate
 from rest_framework.test import APIClient
 from rest_framework import status
 
 RECIPE_CREATE = reverse('recipe:recipe-create')
+INGREDIENT_CREATE = reverse('recipe:ingredient-create')
+TAG_CREATE = reverse('recipe:tag-create')
 
 
 def recipe_detail_url(slug: str) -> str:
@@ -51,6 +53,23 @@ class RecipeApiTests(TestCase):
         recipe_slug = self.client.get(url).data['slug']
         return recipe_slug
 
+    def _create_ingredient(self, name: str = 'test ing') -> dict:
+        payload = {
+            'name': name,
+            'calories': 500,
+            }
+        res = self.client.post(INGREDIENT_CREATE, payload)
+        url = res._headers['location'][1]
+        return self.client.get(url).data
+
+    def _create_tag(self, name: str = 'test tag') -> dict:
+        payload = {
+            'name': name
+        }
+        res = self.client.post(TAG_CREATE, payload)
+        url = res._headers['location'][1]
+        return self.client.get(url).data
+
     def test_create_recipe_success(self) -> None:
         payload = {
             'name': 'recipe',
@@ -80,13 +99,13 @@ class RecipeApiTests(TestCase):
 
     def test_adding_tags_to_recipe(self) -> None:
         recipe_slug = self._create_recipe()
+        tag1 = self._create_tag(name='tag')
+        tag2 = self._create_tag(name='tag2')
         payload = {
-            'tag_ids': [1, 2, 3]
+            'tag_ids': [tag1['id'], tag2['id']]
         }
-        with patch('recipe.selectors.tag_ids_list') as mock:
-            mock.return_value = [1, 2, 3]
-            res = self.client.post(recipe_tags_url(recipe_slug), payload)
-            self.assertEqual(res.status_code, status.HTTP_200_OK)
+        res = self.client.post(recipe_tags_url(recipe_slug), payload)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
 
     def test_adding_non_existing_tags_to_recipe_failed(self) -> None:
         recipe_slug = self._create_recipe()
@@ -96,18 +115,42 @@ class RecipeApiTests(TestCase):
         res = self.client.post(recipe_tags_url(recipe_slug), payload)
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
-    # def test_adding_ingredient_to_recipe_success(self) -> None:
-    #     recipe_slug = self._create_recipe()
-    #     payload = {[
-    #         {
-    #             'ingredient': 1,
-    #             'amount': 100,
-    #             'unit': 1,
-    #         },
-    #         {
-    #             'ingredient': 2,
-    #             'amount': 2,
-    #             'unit': 3,
-    #         }]}
-    #     res = self.client.post(recipe_ingredients_url(recipe_slug), payload)
-    #     self.assertEqual(res.status_code, status.HTTP_200_OK)
+    @patch('recipe.selectors.ingredient_is_mapped_with_unit')
+    def test_adding_ingredient_to_recipe_success(self, mock) -> None:
+        mock.return_value = True
+        recipe_slug = self._create_recipe()
+        ingredient1 = self._create_ingredient(name='test1')
+        ingredient2 = self._create_ingredient(name='test2')
+        unit = Unit.objects.create(name='gram')
+        payload = {
+            'ingredients': [
+                {
+                    'ingredient': ingredient1['id'],
+                    'amount': 100,
+                    'unit': unit.id
+                },
+                {
+                    'ingredient': ingredient2['id'],
+                    'amount': 2,
+                    'unit': unit.id
+                }]
+            }
+        res = self.client.post(recipe_ingredients_url(
+            recipe_slug), payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(Recipe.objects.get(
+            slug=recipe_slug).ingredients.all().count(), 2)
+
+    def test_adding_non_existing_ingredient_to_recipe_failed(self) -> None:
+        recipe_slug = self._create_recipe()
+        payload = {
+            'ingredients': [
+                {
+                    'ingredient': 1,
+                    'amount': 100,
+                    'unit': 1,
+                }]
+            }
+        res = self.client.post(recipe_ingredients_url(
+            recipe_slug), payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
