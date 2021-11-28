@@ -18,8 +18,10 @@ from recipe.services import (
     AddIngredientsToRecipeDto,
     AddIngredientsToRecipe,
     RemoveIngredientsFromRecipe,
+    RemoveIngredientsFromRecipeDto,
     UpdateRecipeIngredientDto,
     UpdateRecipeIngredient,
+
 )
 
 
@@ -53,7 +55,6 @@ class BaseRecipeClass(BaseViewClass):
 class RecipesApi(BaseRecipeClass):
 
     def get(self, request, *args, **kwargs):
-        """ retrieve list of recipes for authenticated user """
         recipes = selectors.recipe_list(
             user=request.user, filters=request.query_params)
         context = self.get_serializer_context()
@@ -62,7 +63,6 @@ class RecipesApi(BaseRecipeClass):
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
-        """ handling creation process and return response """
         dto = self._prepare_dto(request)
         service = CreateRecipe()
         recipe = service.create(dto)
@@ -70,7 +70,6 @@ class RecipesApi(BaseRecipeClass):
         return Response(status=status.HTTP_201_CREATED, headers=headers)
 
     def _prepare_dto(self, request) -> CreateRecipeDto:
-        """ prepare dto for recipe update """
         serializer = serializers.RecipeInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.data
@@ -87,14 +86,12 @@ class RecipeDetailApi(BaseRecipeClass):
     """ API for retreving recipe detail, updating recipe or deleting recipe """
 
     def get(self, request, *args, **kwargs) -> Response:
-        """ retrive specific recipe based on slug """
         recipe = self._get_object()
         serializer = serializers.RecipeDetailOutputSerializer(
             recipe)
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
     def put(self, request, *args, **kwargs) -> Response:
-        """ handle put request """
         recipe = self._get_object()
         dto = self._prepare_dto(recipe, request)
         service = UpdateRecipe()
@@ -110,7 +107,6 @@ class RecipeDetailApi(BaseRecipeClass):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def _prepare_dto(self, instance: Recipe, request: Request) -> CreateRecipeDto:
-        """ prepare dto for recipe update """
         serializer = serializers.RecipeInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.data
@@ -127,7 +123,6 @@ class RecipeTagsApi(BaseRecipeClass):
     """ API for managing tags for given recipe """
 
     def get(self, request, *args, **kwargs):
-        """ retreive all tags for given recipe """
         recipe = self._get_object()
         data = selectors.recipe_get_tags(request.user, recipe)
         serializer = serializers.TagOutputSerializer(data, many=True)
@@ -193,34 +188,45 @@ class RecipeIngredientsApi(BaseRecipeClass):
     def delete(self, request, *args, **kwargs):
         """ batch removal of ingredients from recipe """
         recipe = self._get_object()
-        dto = self._prepare_dto(recipe, request)
+        dto = self._prepare_dto(request)
         service = RemoveIngredientsFromRecipe()
-        service.remove(dto)
+        service.remove(recipe, dto)
         headers = self._set_location_in_header(request, recipe.slug)
         return Response(headers=headers, status=status.HTTP_200_OK)
 
     def _prepare_dto(self, request: Request) -> AddIngredientsToRecipeDto:
-        serializer = serializers.RecipeIngredientsInputSerializer(
-            data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.data
-        return AddIngredientsToRecipeDto(
-            user=request.user,
-            ingredients=data['ingredients']
-        )
+        if request.method == 'POST':
+            serializer = serializers.RecipeIngredientsInputSerializer(
+                data=request.data)
+            serializer.is_valid(raise_exception=True)
+            data = serializer.data
+            return AddIngredientsToRecipeDto(
+                user=request.user,
+                ingredients=data['ingredients']
+            )
+        else:
+            serializer = serializers.RecipeIngredientsRemoveSerializer(
+                data=request.data
+            )
+            serializer.is_valid(raise_exception=True)
+            data = serializer.data
+            return RemoveIngredientsFromRecipeDto(
+                ingredient_ids=data['ingredient_ids']
+            )
 
 
 class RecipeIngredientDetailApi(BaseRecipeClass):
     """ API for updating recipe ingredients """
 
     def put(self, request, *args, **kwargs):
-        ingredient_id = kwargs.get('pk')
         recipe = self._get_object()
+        ingredient_id = kwargs.get('pk')
         recipe_ingredient = selectors.recipe_get_ingredient_details(
             recipe, ingredient_id)
+
         dto = self._prepare_dto(recipe_ingredient, request)
         service = UpdateRecipeIngredient()
-        service.update(dto)
+        service.update(recipe_ingredient, dto)
         headers = self._set_location_in_header(request, recipe.slug)
         return Response(headers=headers, status=status.HTTP_200_OK)
 
@@ -230,53 +236,51 @@ class RecipeIngredientDetailApi(BaseRecipeClass):
         serializer.is_valid(raise_exception=True)
         data = serializer.data
         return UpdateRecipeIngredientDto(
-            recipe_ingredient=recipe_ingredient,
+            ingredient_id=recipe_ingredient.ingredient_id,
             unit_id=data['unit'],
             amount=data['amount']
         )
 
 
-class GroupRecipeDetailApi(BaseRecipeClass):
+class GroupRecipeBaseClass(BaseRecipeClass):
+
+    def _get_object(self):
+        """ check if user is allowed to retreive recipe and return it """
+        slug = self.kwargs.get('slug')
+        recipe_creator_id = self.kwargs.get('pk')
+        selectors.recipe_check_if_user_can_retrieve(
+            requested_user=self.request.user, recipe_creator_id=recipe_creator_id)
+        recipe_creator = users_selectors.user_get_by_id(recipe_creator_id)
+        return selectors.recipe_get(user=recipe_creator, slug=slug)
+
+
+class GroupRecipeDetailApi(GroupRecipeBaseClass):
     """ API for retrieving recipes created by other users in joined groups """
 
     def get(self, request, *args, **kwargs):
-        """ retrieve specific recipe based on slug """
-        slug = kwargs.get('slug')
-        recipe_creator_id = kwargs.get('pk')
-        selectors.recipe_check_if_user_can_retrieve(
-            requested_user=request.user, recipe_creator_id=recipe_creator_id)
-        recipe_creator = users_selectors.user_get_by_id(recipe_creator_id)
-        recipe = selectors.recipe_get(user=recipe_creator, slug=slug)
+        recipe = self._get_object()
         serializer = serializers.GroupRecipeDetailOutpuSerializer(recipe)
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
 
-class GroupRecipeTagsApi(BaseRecipeClass):
+class GroupRecipeTagsApi(GroupRecipeBaseClass):
     """ API for retrieving group recipes tags """
 
     def get(self, request, *args, **kwargs):
-        """ retrieve group recipe tags based on recipe slug """
-        slug = kwargs.get('slug')
+        recipe = self._get_object()
         recipe_creator_id = kwargs.get('pk')
-        selectors.recipe_check_if_user_can_retrieve(
-            requested_user=request.user, recipe_creator_id=recipe_creator_id)
         recipe_creator = users_selectors.user_get_by_id(recipe_creator_id)
-        tags = selectors.tag_list_by_user_and_recipe(recipe_creator, slug)
+        tags = selectors.tag_list_by_user_and_recipe(
+            recipe_creator, recipe.slug)
         serializer = serializers.TagOutputSerializer(tags, many=True)
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
 
-class GroupRecipeIngredientsApi(BaseRecipeClass):
+class GroupRecipeIngredientsApi(GroupRecipeBaseClass):
     """ API for retrieving group recipes ingredients """
 
     def get(self, request, *args, **kwargs):
-        """ retrieve group recipe ingredients based on recipe slug """
-        slug = kwargs.get('slug')
-        recipe_creator_id = kwargs.get('pk')
-        selectors.recipe_check_if_user_can_retrieve(
-            requested_user=request.user, recipe_creator_id=recipe_creator_id)
-        recipe_creator = users_selectors.user_get_by_id(recipe_creator_id)
-        recipe = selectors.recipe_get(recipe_creator, slug)
+        recipe = self._get_object()
         ingredients = selectors.recipe_get_ingredients(recipe)
         serializer = serializers.RecipeIngredientOutputSerializer(
             ingredients, many=True)

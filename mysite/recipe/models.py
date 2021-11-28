@@ -1,17 +1,9 @@
 from django.db import models
-from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.core.validators import MinValueValidator as MinValue
-from django.utils.text import slugify
-from unidecode import unidecode
-from django.core.exceptions import ValidationError
 import uuid
 import os
-import shutil
 from django.conf import settings
-
-import requests
-from rest_framework import status
 
 
 def generate_image_file_path(recipe_instance, filename: str):
@@ -72,7 +64,7 @@ class Recipe(Dish):
                                          through='recipe_ingredient',
                                          related_name='ingredients_quantity')
 
-    description = models.TextField(max_length=3000, default='',
+    description = models.TextField(max_length=3000, null=True,
                                    verbose_name='Przygotowanie', blank=True)
 
     orginal_photos = []
@@ -124,14 +116,14 @@ class Ingredient(Dish):
     slug = models.SlugField(blank=False, unique=True)
     type = models.CharField(max_length=10, choices=TYPE_CHOICE, null=True)
     units = models.ManyToManyField('Unit', through='ingredient_unit',)
-    fiber = models.FloatField(null=True, validators=[MinValue(0)])
-    sodium = models.FloatField(null=True, validators=[MinValue(0)])
-    potassium = models.FloatField(null=True, validators=[MinValue(0)])
-    calcium = models.FloatField(null=True, validators=[MinValue(0)])
-    iron = models.FloatField(null=True, validators=[MinValue(0)])
-    magnesium = models.FloatField(null=True, validators=[MinValue(0)])
-    selenium = models.FloatField(null=True, validators=[MinValue(0)])
-    zinc = models.FloatField(null=True, validators=[MinValue(0)])
+    fiber = models.FloatField(null=True)
+    sodium = models.FloatField(null=True)
+    potassium = models.FloatField(null=True)
+    calcium = models.FloatField(null=True)
+    iron = models.FloatField(null=True)
+    magnesium = models.FloatField(null=True)
+    selenium = models.FloatField(null=True)
+    zinc = models.FloatField(null=True)
 
     class Meta:
         constraints = [

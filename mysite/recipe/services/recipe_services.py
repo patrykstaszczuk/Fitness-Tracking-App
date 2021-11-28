@@ -21,7 +21,7 @@ class CreateRecipeDto:
             raise ValidationError('Name is required for recipe')
         if self.portions is None or self.portions < 1:
             raise ValidationError(
-                'Recipe must be set and must have at least one portion')
+                'Recipe must have at least one portion')
         if self.prepare_time is None or self.prepare_time < 0:
             raise ValidationError(
                 'Prepare time must be set and cannot be negative')
@@ -130,17 +130,21 @@ class RemoveIngredientsFromRecipe:
 
 @dataclass
 class UpdateRecipeIngredientDto:
-    recipe_ingredient: Recipe_Ingredient
+    ingredient_id: int
     unit_id: int
     amount: int
 
     def __post_init__(self):
-        pass
+        if not selectors.ingredient_is_mapped_with_unit(
+            unit_id=self.unit_id,
+            ingredient_id=self.ingredient_id
+        ):
+            raise ValidationError(
+                f'{self.ingredient_id} is not mapped with unit {self.unit_id}')
 
 
 class UpdateRecipeIngredient:
-    def update(self, dto: UpdateRecipeIngredientDto) -> None:
-        recipe_ingredient = dto.recipe_ingredient
+    def update(self, recipe_ingredient: Recipe_Ingredient, dto: UpdateRecipeIngredientDto) -> None:
         recipe_ingredient.unit_id = dto.unit_id
         recipe_ingredient.amount = dto.amount
         recipe_ingredient.save()

@@ -145,6 +145,12 @@ class RecipeIngredientUpdateSerializer(serializers.Serializer):
     unit = serializers.IntegerField()
 
 
+class RecipeIngredientsRemoveSerializer(serializers.Serializer):
+    """ serializer for removing ingredients from recipe """
+
+    ingredient_ids = serializers.ListField(child=serializers.IntegerField())
+
+
 class RecipeIngredientOutputSerializer(serializers.ModelSerializer):
     """ serializer for Recipe Ingredient intermediate model """
 
@@ -279,6 +285,12 @@ class IngredientInputSerializer(serializers.Serializer):
     magnesium = serializers.FloatField(min_value=0, required=False)
     selenium = serializers.FloatField(min_value=0, required=False)
     zinc = serializers.FloatField(min_value=0, required=False)
+
+
+class IngredientUnitSerializer(serializers.Serializer):
+    """ serializer for mapping unit to ingredients """
+    unit = serializers.IntegerField()
+    grams = serializers.IntegerField()
 
 
 class UnitOutputSerializer(serializers.ModelSerializer):

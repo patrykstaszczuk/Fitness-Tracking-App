@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from unittest.mock import patch
 from django.utils.text import slugify
-from recipe.models import Unit, Recipe
+from recipe.models import Unit, Recipe, Recipe_Ingredient
 from rest_framework.test import force_authenticate
 from rest_framework.test import APIClient
 from rest_framework import status
@@ -11,6 +11,10 @@ from rest_framework import status
 RECIPE_CREATE = reverse('recipe:recipe-create')
 INGREDIENT_CREATE = reverse('recipe:ingredient-create')
 TAG_CREATE = reverse('recipe:tag-create')
+
+
+def group_recipe_url(slug: str, id: int) -> str:
+    return reverse('recipe:group-recipe-detail', kwargs={'slug': slug, 'pk': id})
 
 
 def recipe_detail_url(slug: str) -> str:
@@ -23,6 +27,10 @@ def recipe_tags_url(slug: str) -> str:
 
 def recipe_ingredients_url(slug: str) -> str:
     return reverse('recipe:recipe-ingredients', kwargs={'slug': slug})
+
+
+def recipe_ingredients_detail_url(slug: str, id: int) -> str:
+    return reverse('recipe:recipe-ingredients-update', kwargs={'slug': slug, 'pk': id})
 
 
 class RecipeApiTests(TestCase):
@@ -69,6 +77,30 @@ class RecipeApiTests(TestCase):
         res = self.client.post(TAG_CREATE, payload)
         url = res._headers['location'][1]
         return self.client.get(url).data
+
+    @patch('recipe.selectors.ingredient_is_mapped_with_unit')
+    def _create_recipe_with_ingredient(self, mock) -> tuple:
+        mock.return_value = True
+        recipe_slug = self._create_recipe()
+        ingredient1 = self._create_ingredient(name='test1')
+        unit = Unit.objects.create(name='gram')
+        payload = {
+            'ingredients': [
+                {
+                    'ingredient': ingredient1['id'],
+                    'amount': 100,
+                    'unit': unit.id
+                }]
+            }
+        res = self.client.post(recipe_ingredients_url(
+            recipe_slug), payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        return recipe_slug, ingredient1['id'], unit.id
+
+    def test_unauthenticated_user_return_401(self) -> None:
+        unauth_client = APIClient()
+        res = unauth_client.post(RECIPE_CREATE, {})
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_create_recipe_success(self) -> None:
         payload = {
@@ -153,4 +185,82 @@ class RecipeApiTests(TestCase):
             }
         res = self.client.post(recipe_ingredients_url(
             recipe_slug), payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_removing_ingredient_from_recipe_success(self) -> None:
+        recipe_slug, ingredient_id, unit_id = self._create_recipe_with_ingredient()
+        self.assertEqual(Recipe.objects.get(
+            slug=recipe_slug).ingredients.all().count(), 1)
+        payload = {
+            'ingredient_ids': [ingredient_id, ]
+        }
+        self.client.delete(recipe_ingredients_url(recipe_slug), payload)
+        self.assertEqual(Recipe.objects.get(
+            slug=recipe_slug).ingredients.all().count(), 0)
+
+    @patch('recipe.selectors.ingredient_is_mapped_with_unit')
+    def test_updating_recipe_ingredient_success(self, mock) -> None:
+        mock.return_value = True
+        recipe_slug, ingredient_id, unit_id = self._create_recipe_with_ingredient()
+        payload = {
+            'unit': unit_id,
+            'amount': 333,
+        }
+        res = self.client.put(recipe_ingredients_detail_url(
+            recipe_slug, ingredient_id), payload)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(Recipe_Ingredient.objects.get(
+            recipe__slug=recipe_slug, ingredient__id=ingredient_id).amount, payload['amount'])
+
+    def test_retreving_group_recipe_success(self) -> None:
+        user2 = get_user_model().objects.create_user(
+            email='auth2@gmail.com',
+            name='auth2',
+            password='authpass',
+            gender='M',
+            age=25,
+            height=188,
+            weight=73,
+
+        )
+        self.client2 = APIClient()
+        self.client2.force_authenticate(user2)
+        user2.own_group.members.add(self.auth_user)
+        payload = {
+            'name': 'user2 recipe',
+            'portions': 3,
+            'prepare_time': 45,
+            'description': 'sth'
+            }
+        res = self.client2.post(RECIPE_CREATE, payload)
+        url = res._headers['location'][1]
+        recipe_slug = self.client2.get(url).data['slug']
+
+        res = self.client.get(group_recipe_url(recipe_slug, user2.id))
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+    def test_retrieving_group_recipe_not_group_member_failed(self) -> None:
+        user2 = get_user_model().objects.create_user(
+            email='auth2@gmail.com',
+            name='auth2',
+            password='authpass',
+            gender='M',
+            age=25,
+            height=188,
+            weight=73,
+
+        )
+        self.client2 = APIClient()
+        self.client2.force_authenticate(user2)
+        payload = {
+            'name': 'user2 recipe',
+            'portions': 3,
+            'prepare_time': 45,
+            'description': 'sth'
+            }
+        res = self.client2.post(RECIPE_CREATE, payload)
+        url = res._headers['location'][1]
+        recipe_slug = self.client2.get(url).data['slug']
+
+        res = self.client.get(group_recipe_url(recipe_slug, user2.id))
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)

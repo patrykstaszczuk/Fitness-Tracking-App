@@ -125,7 +125,7 @@ def tag_get(user: get_user_model, slug: str) -> Tag:
 
 def tag_ready_meal_get_or_create(user: get_user_model) -> Tag:
     """ return 'ready meal' tag or create and return """
-    return Tag.objects.get_or_create(user=user, slug='ready-meal', defaults={'name': 'Ready Meal'})
+    return Tag.objects.get_or_create(user=user, slug='ready-meal', defaults={'name': 'Ready Meal'})[0]
 
 
 def tag_get_multi_by_slugs(user: get_user_model, slugs: list[str]) -> list[Tag]:
@@ -244,18 +244,18 @@ def send_request_to_nozbe(ingredient: Ingredient, secret: str, client_id: int,
     return res
 
 
-def unit_get(id: int, default: bool) -> Unit:
-    """ return unit """
-    if default:
-        return Unit.objects.get_or_create(name='gram')
+def unit_get(id: int) -> Unit:
     try:
         return Unit.objects.get(id=id)
     except Unit.DoesNotExist:
         raise ObjectDoesNotExist(f'No unit with id {id}')
 
 
+def unit_get_default() -> Unit:
+    return Unit.objects.get_or_create(name='gram')[0]
+
+
 def unit_list() -> Iterable[Unit]:
-    """ return all available units """
     return Unit.objects.all()
 
 

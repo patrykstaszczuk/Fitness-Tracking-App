@@ -6,12 +6,12 @@ from rest_framework import status
 from recipe import serializers, selectors
 from recipe.models import Ingredient
 from recipe.services import (
-    AddingTagsToIngredientInputDto,
-    RemoveTagsFromIngredientInputDto,
-    CreateIngredientServiceDto,
+    AddingTagsToIngredientDto,
+    RemoveTagsFromIngredientDto,
+    CreateIngredientDto,
     CreateIngredient,
     UpdateIngredient,
-    UpdateIngredientServiceDto,
+    UpdateIngredientDto,
     DeleteIngredient,
     AddTagsToIngredient,
     RemoveTagsFromIngredient,
@@ -52,11 +52,11 @@ class IngredientsApi(BaseIngredientClass):
         headers = self._set_location_in_header(request, ingredient.slug)
         return Response(status=status.HTTP_201_CREATED, headers=headers)
 
-    def _prepare_dto(self, request: Request) -> CreateIngredientServiceDto:
+    def _prepare_dto(self, request: Request) -> CreateIngredientDto:
         serializer = serializers.IngredientInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.data
-        return CreateIngredientServiceDto(
+        return CreateIngredientDto(
             user=request.user,
             ready_meal=data.get('ready_meal'),
             name=data.get('name'),
@@ -102,11 +102,11 @@ class IngredientDetailApi(BaseIngredientClass):
         service.delete(ingredient)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    def _prepare_dto(self, request: Request) -> UpdateIngredientServiceDto:
+    def _prepare_dto(self, request: Request) -> UpdateIngredientDto:
         serializer = serializers.IngredientInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.data
-        return UpdateIngredientServiceDto(
+        return UpdateIngredientDto(
             user=request.user,
             ready_meal=data.get('ready_meal'),
             name=data.get('name'),
@@ -155,17 +155,17 @@ class IngredientTagsApi(BaseIngredientClass):
         headers = self._set_location_in_header(request, ingredient.slug)
         return Response(headers=headers, status=status.HTTP_200_OK)
 
-    def _prepare_dto(self, request: Request) -> AddingTagsToIngredientInputDto:
+    def _prepare_dto(self, request: Request) -> AddingTagsToIngredientDto:
         serializer = serializers.TagsIdsSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.data
         if request.method == 'POST':
-            return AddingTagsToIngredientInputDto(
+            return AddingTagsToIngredientDto(
                 user=request.user,
                 tag_ids=data.get('tag_ids')
             )
         else:
-            return RemoveTagsFromIngredientInputDto(
+            return RemoveTagsFromIngredientDto(
                 tag_ids=data.get('tag_ids')
             )
 
@@ -186,15 +186,15 @@ class IngredientUnitsApi(BaseIngredientClass):
         ingredient = self._get_object()
         dto = self._prepare_dto(request)
         service = MapUnitToIngredient()
-        service.create(ingredient, dto)
+        service.map(ingredient, dto)
         headers = self._set_location_in_header(request, ingredient.slug)
         return Response(headers=headers, status=status.HTTP_200_OK)
 
-    def _prepare_dto(reqeust: Request) -> MappingUnitDto:
+    def _prepare_dto(self, reqeust: Request) -> MappingUnitDto:
         serializer = serializers.IngredientUnitSerializer(data=reqeust.data)
-        serializer.is_valid(raise_exceptio=True)
+        serializer.is_valid(raise_exception=True)
         data = serializer.data
         return MappingUnitDto(
-            unit=data.get('unit'),
+            unit_id=data.get('unit'),
             grams_in_one_unit=data.get('grams')
         )

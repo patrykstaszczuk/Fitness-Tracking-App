@@ -7,6 +7,8 @@ from recipe.models import Recipe, Tag, Unit, Ingredient, Recipe_Ingredient
 from recipe.services import (
     CreateRecipeDto,
     CreateRecipe,
+    CreateIngredientDto,
+    CreateIngredient,
     UpdateRecipe,
     AddTagsToRecipe,
     AddingTagsToRecipeInputDto,
@@ -16,6 +18,9 @@ from recipe.services import (
     AddIngredientsToRecipe,
     RemoveIngredientsFromRecipe,
     RemoveIngredientsFromRecipeDto,
+    UpdateRecipeIngredientDto,
+    UpdateRecipeIngredient,
+    DeleteRecipe
 )
 
 
@@ -32,29 +37,34 @@ class RecipeServicesTests(TestCase):
             weight=73,
         )
 
-    def _create_recipe(self, user: get_user_model) -> None:
-        name = 'testrecipe'
-        return Recipe.objects.create(
+    @staticmethod
+    def _create_recipe(user: get_user_model, name: str = 'test recipe') -> None:
+        dto = CreateRecipeDto(
             user=user,
             name=name,
-            slug=slugify(name),
             portions=4,
-            prepare_time=5,
-            description='text'
+            prepare_time=45,
         )
+        return CreateRecipe().create(dto)
 
-    def _create_ingredient(self, user: get_user_model) -> None:
-        name = 'testingredient'
-        return Ingredient.objects.create(
+    @staticmethod
+    def _create_ingredient(user: get_user_model, name: str = 'test ingredient') -> None:
+        dto = CreateIngredientDto(
             user=user,
             name=name,
-            slug=slugify(name),
+            calories=100
         )
+        return CreateIngredient().create(dto)
 
-    def _create_unit(self, name: str = 'gram') -> None:
+    @staticmethod
+    def _create_unit(name: str = 'gram') -> None:
         return Unit.objects.create(
             name=name
         )
+
+    @staticmethod
+    def _map_ingredient_with_unit(ingredient: Ingredient, unit: Unit) -> None:
+        ingredient.units.add(unit, through_defaults={'grams_in_one_unit': 100})
 
     def test_create_recipe_service(self) -> None:
         dto = CreateRecipeDto(
@@ -213,8 +223,8 @@ class RecipeServicesTests(TestCase):
             )
 
     def test_removing_ingredient_from_recipe(self) -> None:
-        recipe = self._create_recipe(self.user)
-        ingredient1 = self._create_ingredient(self.user)
+        recipe = self._create_recipe(user=self.user)
+        ingredient1 = self._create_ingredient(user=self.user)
         unit = self._create_unit(name='gram')
         recipe.ingredients.add(ingredient1.id, through_defaults={
                                'unit_id': unit.id, 'amount': 100})
@@ -226,4 +236,45 @@ class RecipeServicesTests(TestCase):
         self.assertEqual(recipe.ingredients.all().count(), 0)
 
     def test_updating_recipe_ingredients(self) -> None:
-        assert False
+        recipe = self._create_recipe(user=self.user)
+        ingredient1 = self._create_ingredient(user=self.user)
+        unit = self._create_unit(name='gram')
+        self._map_ingredient_with_unit(ingredient1, unit)
+        recipe.ingredients.add(ingredient1.id, through_defaults={
+                               'unit_id': unit.id, 'amount': 100})
+        recipe_ingredient_instance = Recipe_Ingredient.objects.get(
+            recipe=recipe, ingredient=ingredient1)
+        new_unit = self._create_unit(name='new')
+        self._map_ingredient_with_unit(ingredient1, new_unit)
+        dto = UpdateRecipeIngredientDto(
+            ingredient_id=recipe_ingredient_instance.ingredient_id,
+            unit_id=new_unit.id,
+            amount=500,
+        )
+        service = UpdateRecipeIngredient()
+        service.update(recipe_ingredient_instance, dto)
+        self.assertEqual(recipe_ingredient_instance.unit_id, dto.unit_id)
+        self.assertEqual(recipe_ingredient_instance.amount, dto.amount)
+
+    def test_updating_recipe_ingredient_with_new_unit_without_mapping_failed(self) -> None:
+        recipe = self._create_recipe(self.user)
+        ingredient1 = self._create_ingredient(self.user)
+        unit = self._create_unit(name='gram')
+        self._map_ingredient_with_unit(ingredient1, unit)
+        recipe.ingredients.add(ingredient1.id, through_defaults={
+                               'unit_id': unit.id, 'amount': 100})
+        recipe_ingredient_instance = Recipe_Ingredient.objects.get(
+            recipe=recipe, ingredient=ingredient1)
+        with self.assertRaises(ValidationError):
+            UpdateRecipeIngredientDto(
+                ingredient_id=recipe_ingredient_instance.ingredient_id,
+                unit_id=1,
+                amount=500,
+            )
+
+    def test_deleting_recipe_success(self) -> None:
+        recipe = self._create_recipe(self.user)
+        service = DeleteRecipe()
+        service.delete(recipe)
+        with self.assertRaises(Recipe.DoesNotExist):
+            recipe.refresh_from_db()

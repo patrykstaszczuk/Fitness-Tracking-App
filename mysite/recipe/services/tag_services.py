@@ -7,7 +7,7 @@ from django.core.exceptions import ValidationError
 
 
 @dataclass
-class TagInputServiceDto:
+class CreateTagDto:
     user: get_user_model
     name: str
 
@@ -16,7 +16,7 @@ class TagInputServiceDto:
 
 
 class CreateTag:
-    def create(self, dto: TagInputServiceDto) -> Tag:
+    def create(self, dto: CreateTagDto) -> Tag:
         user = dto.user
         name = dto.name
 
@@ -27,8 +27,13 @@ class CreateTag:
             raise ValidationError(f'Tag with name: {name} already exists')
 
 
+@dataclass
+class UpdateTagDto:
+    name: str
+
+
 class UpdateTag:
-    def update(self, tag: Tag, dto: TagInputServiceDto) -> Tag:
+    def update(self, tag: Tag, dto: UpdateTagDto) -> Tag:
         name = dto.name
         slug = slugify(name)
         tag.name = name

@@ -7,7 +7,7 @@ from recipe import serializers, selectors
 from recipe.models import Tag
 from recipe.services import (
     CreateTag,
-    TagInputServiceDto,
+    CreateTagDto,
     DeleteTag,
     UpdateTag,
 )
@@ -19,11 +19,11 @@ class BaseTagClass(BaseViewClass):
                 'recipe:tag-detail', request=request,
                 kwargs={'slug': slug})}
 
-    def _prepare_dto(self, request: Request) -> TagInputServiceDto:
+    def _prepare_dto(self, request: Request) -> CreateTagDto:
         serializer = serializers.TagInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.data
-        return TagInputServiceDto(
+        return CreateTagDto(
             user=request.user,
             name=data['name']
         )
