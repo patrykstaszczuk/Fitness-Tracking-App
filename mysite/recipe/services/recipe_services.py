@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.utils.text import slugify
 from django.db import IntegrityError
 from dataclasses import dataclass, fields, MISSING
-from recipe.models import Recipe, Recipe_Ingredient
+from recipe.models import Recipe, Recipe_Ingredient, Ingredient_Unit
 from recipe import selectors
 from django.core.exceptions import ValidationError
 from abc import ABC, abstractmethod
@@ -91,12 +91,12 @@ class RemoveTagsFromRecipe:
 
 @dataclass
 class AddIngredientsToRecipeDto:
-    ingredient_id = int
-    unit_id = int
+    ingredient = int
+    unit = int
     amount = int
 
     user: get_user_model
-    ingredients: list[dict[str, ingredient_id | unit_id | amount]]
+    ingredients: list[dict[str, ingredient | unit | amount]]
 
     def __post_init__(self):
         if self.ingredients is None:
@@ -122,10 +122,21 @@ class AddIngredientsToRecipe:
                                    through_defaults={"unit_id": item['unit'],
                                                      "amount": item['amount']})
 
+        service_dto = RecalculateRecipeCaloriesDto(
+            ingredients_ids=[item['ingredient'] for item in dto.ingredients]
+        )
+        service = RecalculateRecipeCalories()
+        service.add(service_dto, recipe)
+        recipe.save()
+
 
 class RemoveIngredientsFromRecipe:
     def remove(self, recipe: Recipe, dto: RemoveIngredientsFromRecipeDto) -> None:
+        service_dto = RecalculateRecipeCaloriesDto(dto.ingredient_ids)
+        service = RecalculateRecipeCalories()
+        service.remove(service_dto, recipe)
         recipe.ingredients.remove(*dto.ingredient_ids)
+        recipe.save()
 
 
 @dataclass
@@ -147,9 +158,70 @@ class UpdateRecipeIngredient:
     def update(self, recipe_ingredient: Recipe_Ingredient, dto: UpdateRecipeIngredientDto) -> None:
         recipe_ingredient.unit_id = dto.unit_id
         recipe_ingredient.amount = dto.amount
+
+        dto = RecalculateRecipeCaloriesDto(
+            ingredients_ids=[recipe_ingredient.ingredient.id, ]
+        )
+        service = RecalculateRecipeCalories()
+        service.remove(dto, recipe_ingredient.recipe)
+
         recipe_ingredient.save()
+
+        service.add(dto, recipe_ingredient.recipe)
+        recipe_ingredient.recipe.save()
 
 
 class DeleteRecipe:
     def delete(self, recipe: Recipe) -> None:
         recipe.delete()
+
+
+@dataclass
+class RecalculateRecipeCaloriesDto:
+    ingredients_ids: list[int]
+
+
+class RecalculateRecipeCalories:
+
+    def add(self, dto: RecalculateRecipeCaloriesDto, recipe: Recipe) -> None:
+        """ add new ingredient calories to recipe """
+        calories = self._sum_of_calories(dto, recipe)
+        recipe.calories += calories
+
+    def remove(self, dto: RecalculateRecipeCaloriesDto, recipe: Recipe) -> None:
+        """ substract removed ingredients calories from recipe """
+        calories = self._sum_of_calories(dto, recipe)
+        recipe.calories -= calories
+
+    def batch_removal(self, dto: RecalculateRecipeCaloriesDto, recipes: list[Recipe]) -> None:
+        """ substract calories from recipes during Ingredient object update """
+        for recipe in recipes:
+            self.remove(dto, recipe)
+            recipe.save()
+
+    def batch_addition(self, dto: RecalculateRecipeCaloriesDto, recipes: list[Recipe]) -> None:
+        """ add calories from recipes during Ingredient object update """
+        for recipe in recipes:
+            self.add(dto, recipe)
+            recipe.save()
+
+    def _sum_of_calories(self, dto: RecalculateRecipeCaloriesDto, recipe: Recipe) -> int:
+        ingredient_quantity_items = Recipe_Ingredient.objects.filter(
+            recipe=recipe, ingredient_id__in=dto.ingredients_ids).prefetch_related('ingredient', 'ingredient__ingredient_unit_set')
+        calories = 0
+        for item in ingredient_quantity_items:
+            calories += selectors.ingredient_calculate_calories(
+                ingredient=item.ingredient,
+                unit=item.unit,
+                amount=item.amount,
+                )
+            # try:
+            #     mapped_unit_grammage = item.ingredient.ingredient_unit_set.get(
+            #         unit_id=item.unit_id).grams_in_one_unit
+            # except Ingredient_Unit.DoesNotExist:
+            #     raise ValidationError(
+            #         f'{item.ingredient} is not mapped with unit id {item.unit_id}')
+            #
+            # calories += item.ingredient.calories * \
+            #     (item.amount//mapped_unit_grammage)
+        return calories

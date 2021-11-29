@@ -20,16 +20,20 @@ from recipe.services import (
     RemoveIngredientsFromRecipeDto,
     UpdateRecipeIngredientDto,
     UpdateRecipeIngredient,
-    DeleteRecipe
+    DeleteRecipe,
+    UpdateIngredientDto,
+    UpdateIngredient,
+    DeleteIngredient,
 )
+from recipe import selectors
 
 
 class RecipeServicesTests(TestCase):
 
     def setUp(self) -> None:
         self.user = get_user_model().objects.create_user(
-            email='test@gmail.com',
-            name='testname',
+            email='test100@gmail.com',
+            name='testname100',
             password='authpass',
             gender='M',
             age=25,
@@ -48,11 +52,15 @@ class RecipeServicesTests(TestCase):
         return CreateRecipe().create(dto)
 
     @staticmethod
-    def _create_ingredient(user: get_user_model, name: str = 'test ingredient') -> None:
+    def _create_ingredient(
+            user: get_user_model,
+            name: str = 'test ingredient',
+            calories: int = 100
+            ) -> None:
         dto = CreateIngredientDto(
             user=user,
             name=name,
-            calories=100
+            calories=calories
         )
         return CreateIngredient().create(dto)
 
@@ -61,6 +69,40 @@ class RecipeServicesTests(TestCase):
         return Unit.objects.create(
             name=name
         )
+
+    def _create_recipe_with_ingredients(self) -> tuple[Recipe, Ingredient, Ingredient]:
+        dto = CreateRecipeDto(
+            user=self.user,
+            name='test',
+            portions=4,
+            prepare_time=45,
+            description="sth"
+        )
+        recipe = CreateRecipe().create(dto)
+
+        dto = CreateIngredientDto(
+            user=self.user,
+            name='test ingredient',
+            calories=500,
+            proteins=20,
+            fats=20,
+            carbohydrates=60,
+        )
+        ingredient = CreateIngredient().create(dto)
+        dto.name = 'test ingredient 2'
+        dto.calories = 1000
+        ingredient2 = CreateIngredient().create(dto)
+
+        unit = selectors.unit_get_default()
+        dto = AddIngredientsToRecipeDto(
+            user=self.user,
+            ingredients=[
+                {"ingredient": ingredient.id, "unit": unit.id, "amount": 100},
+                {"ingredient": ingredient2.id, "unit": unit.id, "amount": 100},
+                ]
+            )
+        AddIngredientsToRecipe().add(recipe, dto)
+        return recipe, ingredient, ingredient2
 
     @staticmethod
     def _map_ingredient_with_unit(ingredient: Ingredient, unit: Unit) -> None:
@@ -159,7 +201,8 @@ class RecipeServicesTests(TestCase):
         self.assertEqual(recipe.tags.all().count(), 1)
 
     @patch('recipe.selectors.ingredient_is_mapped_with_unit')
-    def test_adding_ingredient_to_recipe_success(self, mock) -> None:
+    @patch('recipe.services.RecalculateRecipeCalories.add')
+    def test_adding_ingredient_to_recipe_success(self, mock, mock2) -> None:
         mock.return_value = True
         recipe = self._create_recipe(self.user)
         ingredient = self._create_ingredient(self.user)
@@ -222,10 +265,11 @@ class RecipeServicesTests(TestCase):
                 ]
             )
 
-    def test_removing_ingredient_from_recipe(self) -> None:
+    @patch('recipe.services.RecalculateRecipeCalories.remove')
+    def test_removing_ingredient_from_recipe(self, mock) -> None:
         recipe = self._create_recipe(user=self.user)
         ingredient1 = self._create_ingredient(user=self.user)
-        unit = self._create_unit(name='gram')
+        unit = self._create_unit(name='name')
         recipe.ingredients.add(ingredient1.id, through_defaults={
                                'unit_id': unit.id, 'amount': 100})
         dto = RemoveIngredientsFromRecipeDto(
@@ -278,3 +322,109 @@ class RecipeServicesTests(TestCase):
         service.delete(recipe)
         with self.assertRaises(Recipe.DoesNotExist):
             recipe.refresh_from_db()
+        with self.assertRaises(Recipe.DoesNotExist):
+            recipe.refresh_from_db()
+
+    def test_recipes_calories_should_be_auto_calculated_based_on_ingredients(self) -> None:
+        """ recipe calories are calculated based on added ingredients with
+        given amount. Each ingredient can be mapped with different units.
+        Default unit is gram wich is mapped in way -> 'there is a 100grams in
+        one unit gram'. You can map more units like e.q spoon and set grams in
+        one unit as 10. So will be -> one spoon of ingredient has 10 grams.
+        Now ingredient calories can be calcualted based on amount (in grams) """
+        recipe, ing1, ing2 = self._create_recipe_with_ingredients()
+        ing1_expected_calories = ing1.calories * (recipe.ingredients_quantity.get(ingredient=ing1).amount
+                                                  / ing1.ingredient_unit_set.get(
+                ingredient_id=ing1.id).grams_in_one_unit)
+        ing2_expected_calories = ing2.calories * (recipe.ingredients_quantity.get(ingredient=ing2).amount
+                                                  / ing2.ingredient_unit_set.get(
+                ingredient_id=ing2.id).grams_in_one_unit)
+        self.assertEqual(
+            recipe.calories, ing1_expected_calories + ing2_expected_calories)
+
+    def test_calculating_recipe_calories_with_non_default_ingredient_unit(self) -> None:
+        recipe, ing1, ing2 = self._create_recipe_with_ingredients()
+        spoon = self._create_unit(name='spoon')
+        new_ing = self._create_ingredient(
+            user=self.user, name='new', calories=1000)
+        gram_in_one_spoon = 12
+        new_ing.units.add(spoon, through_defaults={
+                          'grams_in_one_unit': gram_in_one_spoon})
+        amount = 3
+        excepected_calories = recipe.calories + \
+            (gram_in_one_spoon*amount/100) * new_ing.calories
+        dto = AddIngredientsToRecipeDto(
+            user=self.user,
+            ingredients=[{'ingredient': new_ing.id,
+                          'unit': spoon.id, 'amount': amount}]
+        )
+        service = AddIngredientsToRecipe()
+        service.add(recipe, dto)
+        self.assertEqual(recipe.calories, excepected_calories)
+
+    def test_recalculating_calories_after_new_ingredient_addition(self) -> None:
+        recipe = self._create_recipe_with_ingredients()[0]
+        ing = self._create_ingredient(
+            user=self.user,
+            name='some name',
+            calories=100,
+        )
+        # we are using default unit gram where is 100g in one unit
+        # thats why expected calories of ingredient is just a ingredient calories
+        expected_calories = recipe.calories + ing.calories
+        unit = selectors.unit_get_default()
+        dto = AddIngredientsToRecipeDto(
+            user=self.user,
+            ingredients=[{'ingredient': ing.id,
+                          'unit': unit.id, 'amount': 100}]
+        )
+        service = AddIngredientsToRecipe().add(recipe, dto)
+        self.assertEqual(recipe.calories, expected_calories)
+
+    def test_recalculating_calories_after_ingredient_deletion_from_recipe(self) -> None:
+        recipe, ing1, ing2 = self._create_recipe_with_ingredients()
+        expected_calories = recipe.calories - ing1.calories
+        dto = RemoveIngredientsFromRecipeDto(
+            ingredient_ids=[ing1.id, ]
+        )
+        RemoveIngredientsFromRecipe().remove(recipe, dto)
+
+        self.assertEqual(recipe.calories, expected_calories)
+        self.assertEqual(recipe.calories, expected_calories)
+
+    def test_recalculating_calories_after_updating_ingredient_quantity(self) -> None:
+        recipe, ing1, ing2 = self._create_recipe_with_ingredients()
+        excepected_calories = recipe.calories - \
+            ing1.calories + (2*ing1.calories)
+        recipe_ingredient_object = Recipe_Ingredient.objects.get(
+            recipe=recipe, ingredient=ing1)
+        dto = UpdateRecipeIngredientDto(
+            ingredient_id=recipe_ingredient_object.ingredient.id,
+            unit_id=recipe_ingredient_object.unit.id,
+            amount=200
+        )
+        service = UpdateRecipeIngredient()
+        service.update(recipe_ingredient_object, dto)
+        recipe.refresh_from_db()
+        self.assertEqual(recipe.calories, excepected_calories)
+
+    def test_recalculating_calories_after_ingredient_update(self) -> None:
+        recipe, ing1, ing2 = self._create_recipe_with_ingredients()
+        expected_calories = recipe.calories - ing1.calories
+        dto = UpdateIngredientDto(
+            user=self.user,
+            calories=1000
+        )
+        service = UpdateIngredient()
+        service.update(ing1, dto)
+        expected_calories += dto.calories
+        recipe.refresh_from_db()
+        self.assertEqual(recipe.calories, expected_calories)
+
+    def test_recalculating_calories_after_ingredient_deletion(self) -> None:
+        recipe, ing1, ing2 = self._create_recipe_with_ingredients()
+        excepected_calories = recipe.calories - ing1.calories
+        service = DeleteIngredient()
+        service.delete(ing1)
+        recipe.refresh_from_db()
+        self.assertEqual(recipe.calories, excepected_calories)

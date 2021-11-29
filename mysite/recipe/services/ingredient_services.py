@@ -2,11 +2,12 @@ from django.contrib.auth import get_user_model
 from django.utils.text import slugify
 from unidecode import unidecode
 from django.db import IntegrityError
-from recipe.models import Ingredient
+from recipe.models import Ingredient, Recipe
 from django.core.exceptions import ValidationError
 from dataclasses import dataclass, fields
 from recipe import selectors
 from recipe.services.tag_services import CreateTagDto, CreateTag
+from recipe.services.recipe_services import RecalculateRecipeCalories, RecalculateRecipeCaloriesDto
 
 
 @dataclass
@@ -92,25 +93,44 @@ class CreateIngredient:
 
 class UpdateIngredient:
     def update(self, ingredient: Ingredient, dto: UpdateIngredientDto) -> Ingredient:
+
         if dto.name is None:
             dto.name = ingredient.name
             slug = ingredient.slug
         else:
             slug = slugify(unidecode(dto.name)) + \
                 '-user-' + str(dto.user.id)
+
         for attr in vars(dto):
             setattr(ingredient, attr, getattr(dto, attr))
+
         try:
             ingredient.slug = slug
+            service = RecalculateRecipeCalories()
+            service_dto = RecalculateRecipeCaloriesDto(
+                ingredients_ids=[ingredient.id, ]
+            )
+            affected_recipes = Recipe.objects.filter(
+                ingredients__in=[ingredient.id, ])
+            service.batch_removal(service_dto, affected_recipes)
             ingredient.save()
+            service.batch_addition(service_dto, affected_recipes)
         except IntegrityError:
             raise ValidationError(
                 f'Ingredient with name "{dto.name}" already exists!')
+
         return ingredient
 
 
 class DeleteIngredient:
     def delete(self, ingredient: Ingredient) -> None:
+        service_dto = RecalculateRecipeCaloriesDto(
+            ingredients_ids=[ingredient.id, ]
+        )
+        service = RecalculateRecipeCalories()
+        affected_recipes = Recipe.objects.filter(
+            ingredients__in=[ingredient.id, ])
+        service.batch_removal(service_dto, affected_recipes)
         ingredient.delete()
 
 

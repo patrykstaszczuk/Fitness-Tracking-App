@@ -7,6 +7,7 @@ from recipe.models import Unit, Recipe, Recipe_Ingredient
 from rest_framework.test import force_authenticate
 from rest_framework.test import APIClient
 from rest_framework import status
+from recipe import selectors
 
 RECIPE_CREATE = reverse('recipe:recipe-create')
 INGREDIENT_CREATE = reverse('recipe:ingredient-create')
@@ -31,6 +32,10 @@ def recipe_ingredients_url(slug: str) -> str:
 
 def recipe_ingredients_detail_url(slug: str, id: int) -> str:
     return reverse('recipe:recipe-ingredients-update', kwargs={'slug': slug, 'pk': id})
+
+
+def ingredient_unit_mapping_url(slug: str) -> None:
+    return reverse('recipe:ingredient-units', kwargs={'slug': slug})
 
 
 class RecipeApiTests(TestCase):
@@ -78,12 +83,18 @@ class RecipeApiTests(TestCase):
         url = res._headers['location'][1]
         return self.client.get(url).data
 
-    @patch('recipe.selectors.ingredient_is_mapped_with_unit')
-    def _create_recipe_with_ingredient(self, mock) -> tuple:
-        mock.return_value = True
+    def _create_recipe_with_ingredient(self) -> tuple:
         recipe_slug = self._create_recipe()
         ingredient1 = self._create_ingredient(name='test1')
-        unit = Unit.objects.create(name='gram')
+        unit = selectors.unit_get_default()
+
+        payload = {
+            'unit_id': unit.id,
+            'grams_in_one_unit': 100,
+        }
+        self.client.post(ingredient_unit_mapping_url(
+            ingredient1['slug']), payload)
+
         payload = {
             'ingredients': [
                 {
@@ -147,13 +158,11 @@ class RecipeApiTests(TestCase):
         res = self.client.post(recipe_tags_url(recipe_slug), payload)
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch('recipe.selectors.ingredient_is_mapped_with_unit')
-    def test_adding_ingredient_to_recipe_success(self, mock) -> None:
-        mock.return_value = True
+    def test_adding_ingredient_to_recipe_success(self) -> None:
         recipe_slug = self._create_recipe()
         ingredient1 = self._create_ingredient(name='test1')
         ingredient2 = self._create_ingredient(name='test2')
-        unit = Unit.objects.create(name='gram')
+        unit = selectors.unit_get_default()
         payload = {
             'ingredients': [
                 {
@@ -198,9 +207,7 @@ class RecipeApiTests(TestCase):
         self.assertEqual(Recipe.objects.get(
             slug=recipe_slug).ingredients.all().count(), 0)
 
-    @patch('recipe.selectors.ingredient_is_mapped_with_unit')
-    def test_updating_recipe_ingredient_success(self, mock) -> None:
-        mock.return_value = True
+    def test_updating_recipe_ingredient_success(self) -> None:
         recipe_slug, ingredient_id, unit_id = self._create_recipe_with_ingredient()
         payload = {
             'unit': unit_id,
