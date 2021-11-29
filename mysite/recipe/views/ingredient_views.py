@@ -25,6 +25,8 @@ class BaseIngredientClass(BaseViewClass):
     def _get_object(self) -> Ingredient:
         """ return ingredient object """
         slug = self.kwargs.get('slug')
+        if self.request.method in ['PUT', 'DELETE']:
+            return selectors.ingredient_get_only_for_user(self.request.user, slug)
         return selectors.ingredient_get(slug)
 
     def _set_location_in_header(self, request: Request, slug: str) -> dict:

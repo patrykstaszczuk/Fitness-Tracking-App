@@ -48,11 +48,11 @@ def recipe_list(user: get_user_model, filters: QueryDict = None) -> list[Recipe]
     default_queryset = Recipe.objects.filter(
         user__id__in=list_of_users_ids).prefetch_related('user')
     if filters:
-        return filter_queryset(user, filters, default_queryset, user_groups)
+        return _filter_queryset(user, filters, default_queryset, user_groups)
     return default_queryset
 
 
-def filter_queryset(user: get_user_model, filters: QueryDict, default_queryset: QuerySet, user_groups: list[Group]) -> list[Recipe]:
+def _filter_queryset(user: get_user_model, filters: QueryDict, default_queryset: QuerySet, user_groups: list[Group]) -> list[Recipe]:
     """ apply filters on queryset and return it """
     queryset = default_queryset
     allowed_filters = ['tags', 'groups']
@@ -60,15 +60,15 @@ def filter_queryset(user: get_user_model, filters: QueryDict, default_queryset: 
         if field in filters:
             list_of_values = filters[field].split(',')
             if field == 'groups':
-                queryset = filter_queryset_by_groups(
+                queryset = _filter_queryset_by_groups(
                     list_of_values, queryset, user_groups)
             if field == 'tags':
-                queryset = filter_queryset_by_tags(
+                queryset = _filter_queryset_by_tags(
                     user, list_of_values, queryset)
     return queryset
 
 
-def filter_queryset_by_groups(list_of_values: list, queryset: QuerySet, user_groups: list[Group]) -> QuerySet:
+def _filter_queryset_by_groups(list_of_values: list, queryset: QuerySet, user_groups: list[Group]) -> QuerySet:
     """ filter queryset by groups """
     list_of_values = list(map(int, list_of_values))
     group_ids = user_groups.values_list('id', flat=True)
@@ -77,7 +77,7 @@ def filter_queryset_by_groups(list_of_values: list, queryset: QuerySet, user_gro
     return queryset.filter(user__own_group__id__in=list_of_values)
 
 
-def filter_queryset_by_tags(user: get_user_model, tag_slugs: list[str], queryset: QuerySet):
+def _filter_queryset_by_tags(user: get_user_model, tag_slugs: list[str], queryset: QuerySet):
     """ filter queryset by tags """
     tags_instances = tag_get_multi_by_slugs(user, tag_slugs)
     return queryset.filter(tags__in=list(tags_instances))
