@@ -37,7 +37,7 @@ class RecipePortion(models.Model):
     """ Intermediate table for Meal - Recipe """
 
     meal = models.ForeignKey(Meal, on_delete=models.CASCADE,
-                             related_name='recipes_extra_info', null=False)
+                             related_name='recipe_portion', null=False)
     portion = models.PositiveSmallIntegerField(default=1)
     recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE, null=False)
 
@@ -69,5 +69,4 @@ class MealCategory(models.Model):
     name = models.CharField(max_length=20, null=False, unique=True)
 
     def __str__(self):
-        """ string representation """
         return self.name

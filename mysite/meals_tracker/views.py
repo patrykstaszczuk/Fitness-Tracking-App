@@ -19,6 +19,14 @@ class MealsTrackerBaseViewClass(BaseAuthPermClass, ApiErrorsMixin, APIView):
         }
 
 
+class MealsTrackerApi(MealsTrackerBaseViewClass):
+    """ API for retreving meals for given date and creating meals """
+
+    def post(self, request, *args, **kwargs):
+        headers = {}
+        return Response(status=status.HTTP_201_CREATED, headers=headers)
+
+
 class MealsTrackerDeleteApi(BaseAuthPermClass, RequiredFieldsResponseMessage):
     """ API for deleting meal """
 

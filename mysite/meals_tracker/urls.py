@@ -6,6 +6,11 @@ from meals_tracker import views
 app_name = 'meals_tracker'
 
 urlpatterns = [
+    path('meals/', views.MealsTrackerApi.as_view(),
+         name='meal-available-dates-list'),
+
+
+
     path('meals/available-dates/', views.MealsAvailableDatesApi.as_view(),
          name='meal-available-dates'),
     path('meals/create', views.MealsTrackerCreateApi.as_view(), name='meal-create'),

@@ -215,13 +215,4 @@ class RecalculateRecipeCalories:
                 unit=item.unit,
                 amount=item.amount,
                 )
-            # try:
-            #     mapped_unit_grammage = item.ingredient.ingredient_unit_set.get(
-            #         unit_id=item.unit_id).grams_in_one_unit
-            # except Ingredient_Unit.DoesNotExist:
-            #     raise ValidationError(
-            #         f'{item.ingredient} is not mapped with unit id {item.unit_id}')
-            #
-            # calories += item.ingredient.calories * \
-            #     (item.amount//mapped_unit_grammage)
         return calories
