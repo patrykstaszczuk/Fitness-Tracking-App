@@ -18,16 +18,10 @@ urlpatterns = [
          views.MealsIngredientsApi.as_view(), name='meal-ingredients'),
     path('meals/<pk>/ingredients/<ingredient_pk>',
          views.MealsIngredientsDetailApi.as_view(), name='meal-ingredients-detail'),
+    path('meals-history/', views.MealsAvailableDatesApi.as_view(),
+         name='meal-available-dates'),
+     path('categories/', views.MealCategoryApi.as_view(),
+          name='categories')
 
     ]
 #
-# path('meals/available-dates/', views.MealsAvailableDatesApi.as_view(),
-#      name='meal-available-dates'),
-# path('meals/<pk>/update',
-#      views.MealsTrackerUpdateApi.as_view(), name='meal-update'),
-# path('meals/', views.MealsTrackerListApi.as_view(), name='meal-list'),
-# path('meals/<pk>/delete',
-#      views.MealsTrackerDeleteApi.as_view(), name='meal-delete'),
-# path('categories/', views.MealCategoryApi.as_view(),
-#      name='categories')
-#      name='categories')

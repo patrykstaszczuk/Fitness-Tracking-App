@@ -66,7 +66,7 @@ def meal_validate_date(date: datetime):
 
 def meal_get_available_dates(user):
     """ return all dates where at least one meal was created """
-    return Meal.objects.filter(user=user).values('date')
+    return Meal.objects.filter(user=user).values('date').distinct()
 
 
 def meal_category_list():

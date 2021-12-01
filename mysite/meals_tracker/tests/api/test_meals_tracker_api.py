@@ -20,6 +20,8 @@ from recipe.services import (
 from recipe.models import Recipe, Ingredient, Unit
 
 MEALS_API = reverse('meals_tracker:meal-create')
+MEALS_HISTORY_URL = reverse('meals_tracker:meal-available-dates')
+CATEGORIES_URL = reverse('meals_tracker:categories')
 
 
 def meal_detail_url(id: int) -> reverse:
@@ -148,6 +150,25 @@ class RecipeApiTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(len(res.data), 1)
         self.assertEqual(res.data[0]['id'], meal['id'])
+
+    def test_listing_all_date_with_meals_added_success(self) -> None:
+        date1 = datetime.date.today() - datetime.timedelta(1)
+        date2 = datetime.date.today() - datetime.timedelta(2)
+        date3 = datetime.date.today() - datetime.timedelta(3)
+        self._create_meal(self.user, date=date1)
+        self._create_meal(self.user, date=date1)
+        self._create_meal(self.user, date=date2)
+        self._create_meal(self.user, date=date3)
+
+        res = self.client.get(MEALS_HISTORY_URL)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 3)
+
+    def test_listing_available_categories(self) -> None:
+        self._create_category()
+        res = self.client.get(CATEGORIES_URL)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 1)
 
     def test_retreving_meal_details(self) -> None:
         meal = self._create_meal(self.user)

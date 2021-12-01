@@ -166,33 +166,15 @@ class MealIngredientUpdateSerializer(serializers.Serializer):
 
     unit = serializers.IntegerField()
     amount = serializers.IntegerField()
-####
-
-
-class MealUpdateInputSerializer(MealCreateSerializer):
-    """ serializing input data during update with no required fields """
-    category = serializers.IntegerField(required=False)
-
-
-class MealDateOutputSerializer(serializers.Serializer):
-    """ serializer for Meal dates only """
-
-    date = serializers.DateField()
 
 
 class DatesSerializer(serializers.Serializer):
     """ simple serializer for dates """
 
-    date = serializers.DateField()
-    url = serializers.SerializerMethodField()
+    date = serializers.SerializerMethodField()
 
-    def get_url(self, obj):
+    def get_date(self, obj):
         """ return url fro specific date """
-        url = reverse('meals_tracker:meal-list', request=self.request) \
+        url = reverse('meals_tracker:meal-list', request=self.context['request']) \
             + "?date=" + str(obj['date'])
         return url
-
-    def __init__(self, *args, **kwargs):
-        """ pop request from kwargs """
-        self.request = kwargs.pop('request')
-        super().__init__(*args, **kwargs)
