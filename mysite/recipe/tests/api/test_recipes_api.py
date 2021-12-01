@@ -1,10 +1,7 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.urls import reverse
-from unittest.mock import patch
-from django.utils.text import slugify
-from recipe.models import Unit, Recipe, Recipe_Ingredient
-from rest_framework.test import force_authenticate
+from recipe.models import Recipe, Recipe_Ingredient
 from rest_framework.test import APIClient
 from rest_framework import status
 from recipe import selectors

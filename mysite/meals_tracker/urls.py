@@ -20,8 +20,8 @@ urlpatterns = [
          views.MealsIngredientsDetailApi.as_view(), name='meal-ingredients-detail'),
     path('meals-history/', views.MealsAvailableDatesApi.as_view(),
          name='meal-available-dates'),
-     path('categories/', views.MealCategoryApi.as_view(),
-          name='categories')
+    path('categories/', views.MealCategoryApi.as_view(),
+         name='categories')
 
     ]
 #

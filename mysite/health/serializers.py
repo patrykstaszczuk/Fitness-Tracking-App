@@ -10,25 +10,21 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 
 
-# class DynamicFieldsModelSerializer(serializers.ModelSerializer):
-#
-#     def __init__(self, *args, **kwargs):
-#         fields = kwargs.pop('fields', None)
-#         super(DynamicFieldsModelSerializer, self).__init__(*args, **kwargs)
-#
-#         if fields is not None:
-#             allowed = set(fields)
-#             existing = set(self.fields)
-#
-#             for field_name in existing - allowed:
-#                 self.fields.pop(field_name)
+class HealthDiarySerializer(serializers.ModelSerializer):
+    """ serializer for health diaries list """
+
+    self = serializers.HyperlinkedIdentityField(
+        view_name='health:health-diary-detail', lookup_field='slug')
+
+    class Meta:
+        model = HealthDiary
+        fields = ('self', )
 
 
-class HealthDiaryOutputSerializer(serializers.ModelSerializer):
+class HealthDiaryDetailSerializer(serializers.ModelSerializer):
     """ serializer for retreiving HealthDiary objects"""
 
     activities = serializers.SerializerMethodField()
-    calories_delta = serializers.SerializerMethodField()
 
     class Meta:
         model = HealthDiary
@@ -48,34 +44,14 @@ class HealthDiaryOutputSerializer(serializers.ModelSerializer):
             obj.burned_calories += activity.calories
         return StravaActivitySerializer(activities, many=True).data
 
-    def get_calories_delta(self, obj):
-        """ get calories delta for calories intake and calories burned """
-        return obj.calories - obj.burned_calories
 
+class AddStatisticsSerializer(serializers.Serializer):
+    """ serializer for incoming diary data """
 
-class HealthDiaryInputSerializer(serializers.Serializer):
-    """ preparing data for saving in db """
-
-    weight = serializers.FloatField(
-        min_value=20, max_value=300, required=False, allow_null=True)
-    sleep_length = serializers.TimeField(required=False, allow_null=True)
-    rest_hearth_rate = serializers.IntegerField(
-        min_value=0, max_value=230, required=False, allow_null=True)
-    daily_thoughts = serializers.CharField(
-        max_length=2000, required=False, allow_blank=True, allow_null=True)
-
-    def is_valid(self, raise_exception=False):
-        """ pop weight from initial_data if None """
-        # try:
-        #     if self.initial_data['weight'] == None:
-        #         self.initial_data.pop('weight')
-        # except KeyError:
-        #     pass
-        res = super().is_valid(raise_exception)
-        if not self.validated_data:
-            raise ValidationError(
-                {'non_field_error': 'Non valid data, check inputs'})
-        return res
+    weight = serializers.FloatField(required=False)
+    sleep_length = serializers.TimeField(required=False)
+    rest_heart_rate = serializers.IntegerField(required=False)
+    daily_thoughts = serializers.CharField(required=False, allow_blank=True)
 
 
 # class HealthDiarySerializer(serializers.ModelSerializer):
