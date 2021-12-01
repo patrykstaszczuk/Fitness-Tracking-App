@@ -48,16 +48,20 @@ class CreateMeal():
             raise ValidationError(
                 f'Category with id {dto.category} does not exists!')
 
-        if dto.recipes:
-            recipes_dto = AddRecipesToMealDto(
-                user=meal.user, recipes=dto.recipes)
-            AddRecipesToMeal().add(meal, recipes_dto)
+        try:
+            if dto.recipes:
+                recipes_dto = AddRecipesToMealDto(
+                    user=meal.user, recipes=dto.recipes)
+                AddRecipesToMeal().add(meal, recipes_dto)
 
-        if dto.ingredients:
-            ingredients_dto = AddIngredientsToMealDto(
-                user=meal.user, ingredients=dto.ingredients)
-            AddIngredientsToMeal().add(meal, ingredients_dto)
-
+            if dto.ingredients:
+                ingredients_dto = AddIngredientsToMealDto(
+                    user=meal.user, ingredients=dto.ingredients)
+                AddIngredientsToMeal().add(meal, ingredients_dto)
+        except ValidationError as e:
+            meal.delete()
+            raise ValidationError(e)
+    
         meal.save()
         return meal
 
