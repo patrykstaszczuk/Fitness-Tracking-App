@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from meals_tracker.models import Meal, RecipePortion, IngredientAmount
 from django.db import IntegrityError
 from recipe.models import Recipe, Ingredient_Unit
@@ -47,13 +47,16 @@ class CreateMeal():
         except IntegrityError:
             raise ValidationError(
                 f'Category with id {dto.category} does not exists!')
-        recipes_dto = AddRecipesToMealDto(
-            user=meal.user, recipes=dto.recipes)
-        AddRecipesToMeal().add(meal, recipes_dto)
 
-        ingredients_dto = AddIngredientsToMealDto(
-            user=meal.user, ingredients=dto.ingredients)
-        AddIngredientsToMeal().add(meal, ingredients_dto)
+        if dto.recipes:
+            recipes_dto = AddRecipesToMealDto(
+                user=meal.user, recipes=dto.recipes)
+            AddRecipesToMeal().add(meal, recipes_dto)
+
+        if dto.ingredients:
+            ingredients_dto = AddIngredientsToMealDto(
+                user=meal.user, ingredients=dto.ingredients)
+            AddIngredientsToMeal().add(meal, ingredients_dto)
 
         meal.save()
         return meal
@@ -91,14 +94,9 @@ class AddRecipesToMeal:
         RecalculateMealCalories().add_recipes(dto, meal)
 
 
-@dataclass
-class DeleteRecipeFromMealDto:
-    recipe: int
-
-
-class DeleteRecipeFromMeal:
-    def delete(self, meal: Meal, dto: DeleteRecipeFromMealDto) -> None:
-        meal.recipes.remove(dto.recipe)
+class RemoveRecipeFromMeal:
+    def remove(self, recipe_portion: RecipePortion) -> None:
+        recipe_portion.delete()
 
 
 @dataclass
@@ -138,14 +136,9 @@ class AddIngredientsToMeal:
         RecalculateMealCalories().add_ingredients(dto, meal)
 
 
-@dataclass
-class DeleteIngredientFromMealDto:
-    ingredient: int
-
-
-class DeleteIngredientFromMeal:
-    def delete(self, meal: Meal, dto: DeleteIngredientFromMealDto) -> None:
-        meal.ingredients.remove(dto.ingredient)
+class RemoveIngredientFromMeal:
+    def remove(self, ingredient_amount: IngredientAmount) -> None:
+        ingredient_amount.delete()
 
 
 @dataclass
@@ -162,16 +155,20 @@ class RecalculateMealCaloriesDto:
 
 class RecalculateMealCalories():
     def add_recipes(self, dto: RecalculateMealCaloriesDto, meal: Meal) -> None:
-        if dto.recipes:
-            recipes_ids = [item['recipe'] for item in dto.recipes]
-            recipes_to_be_added = Recipe.objects.filter(id__in=recipes_ids)
-            for recipe, item in zip(recipes_to_be_added, dto.recipes):
-                meal.calories += recipe_calculate_calories_based_on_portion(
-                    item['portion'], recipe)
+        if not dto.recipes:
+            raise ValueError(
+                f'You cannot use add_recipes method with recipes set to None in RecalculateMealCaloriesDto')
+        recipes_ids = [item['recipe'] for item in dto.recipes]
+        recipes_to_be_added = Recipe.objects.filter(id__in=recipes_ids)
+        for recipe, item in zip(recipes_to_be_added, dto.recipes):
+            meal.calories += recipe_calculate_calories_based_on_portion(
+                item['portion'], recipe)
+        meal.save()
 
     def add_ingredients(self, dto: RecalculateMealCaloriesDto, meal: Meal) -> None:
         if not dto.ingredients:
-            return
+            raise ValueError(
+                f'You cannot use add_ingredients method with ingredients set to None in RecalculateMealCaloriesDto')
         ingredients_ids = [item['ingredient']
                            for item in dto.ingredients]
         unit_ids = [item['unit'] for item in dto.ingredients]
@@ -180,6 +177,7 @@ class RecalculateMealCalories():
         for item, dto_item in zip(ingredients_with_amount, dto.ingredients):
             meal.calories += ingredient_calculate_calories(
                 item.ingredient, item.unit, dto_item['amount'])
+        meal.save()
 
 
 @dataclass
@@ -200,7 +198,6 @@ class UpdateMeal():
 
 @dataclass
 class UpdateMealRecipeDto:
-    recipe: int
     portion: int
 
     def __post_init__(self):
@@ -209,51 +206,46 @@ class UpdateMealRecipeDto:
 
 
 class UpdateMealRecipe:
-    def update(self, meal: Meal, dto: UpdateMealRecipeDto) -> None:
-        try:
-            recipe_to_be_updated = meal.recipe_portion.get(
-                recipe_id=dto.recipe)
-        except RecipePortion.DoesNotExist:
-            raise ValidationError(
-                f'No recipe with id {dto.recipe} added to meal id {meal.id}')
-        setattr(recipe_to_be_updated, 'portion', dto.portion)
+    def update(self, recipe_portion: RecipePortion, dto: UpdateMealRecipeDto) -> None:
+        if not recipe_portion:
+            raise ObjectDoesNotExist()
+
+        old_calories = recipe_calculate_calories_based_on_portion(
+            recipe_portion.portion, recipe_portion.recipe)
+        recipe_portion.meal.calories -= old_calories
+
+        setattr(recipe_portion, 'portion', dto.portion)
+        recipe_portion.save()
+
+        dto = RecalculateMealCaloriesDto(
+            recipes=[{'recipe': recipe_portion.recipe.id,
+                      'portion': recipe_portion.portion}]
+        )
+        RecalculateMealCalories().add_recipes(dto, recipe_portion.meal)
 
 
 @dataclass
 class UpdateMealIngredientDto:
-    ingredient: int
     unit: int
     amount: int
 
 
 class UpdateMealIngredient:
-    def update(self, meal: Meal, dto: UpdateMealIngredientDto) -> None:
+    def update(self, meal_ingredient: Meal, dto: UpdateMealIngredientDto) -> None:
+        meal_ingredient.meal.calories -= self._calculate_calories_to_be_substracted(
+            meal_ingredient)
 
-        ingredient_amount = self._get_ingredient_amount_object(dto.ingredient)
-
-        meal.calories -= self._calculate_calories_to_be_substracted(
-            ingredient_amount)
-
-        if ingredient_amount.unit_id != dto.unit:
+        if meal_ingredient.unit_id != dto.unit:
             if not unit_list().filter(id=dto.unit).exists():
                 raise ValidationError(
                     f'Unit with id {dto.unit} does not exists')
-            ingredient_amount.unit_id = dto.unit
-        ingredient_amount.amount = dto.amount
+            meal_ingredient.unit_id = dto.unit
+        meal_ingredient.amount = dto.amount
         dto = RecalculateMealCaloriesDto(
-            ingredients=[{'ingredient': dto.ingredient,
+            ingredients=[{'ingredient': meal_ingredient.ingredient,
                           'unit': dto.unit, 'amount': dto.amount}]
         )
-        RecalculateMealCalories().add_ingredients(dto, meal)
-
-    @staticmethod
-    def _get_ingredient_amount_object(id: int) -> IngredientAmount:
-        try:
-            return IngredientAmount.objects.get(
-                ingredient_id=id)
-        except IngredientAmount.DoesNotExist:
-            raise ValidationError(
-                f'Ingredient with id {id} does not exists')
+        RecalculateMealCalories().add_ingredients(dto, meal_ingredient.meal)
 
     @staticmethod
     def _calculate_calories_to_be_substracted(ing: IngredientAmount) -> int:

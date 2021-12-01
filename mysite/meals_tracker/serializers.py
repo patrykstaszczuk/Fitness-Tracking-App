@@ -1,38 +1,58 @@
 from rest_framework import serializers
-from meals_tracker.models import Meal, MealCategory
+from meals_tracker.models import Meal, MealCategory, RecipePortion, IngredientAmount
 from rest_framework.reverse import reverse
 from mysite import serializers as generic_serializers
 from meals_tracker.fields import CustomRecipePortionField, CustomIngredientAmountField
+from recipe import selectors
+from recipe.serializers import UnitOutputSerializer
 
 
-class MealOutputSerializer(serializers.ModelSerializer):
-    """ serializing outcomming data for Meal model """
+class MealCategorySerializer(serializers.ModelSerializer):
+    """ serializing MealCategory  objects """
 
-    recipes = CustomRecipePortionField(many=True, read_only=True)
-    ingredients = CustomIngredientAmountField(many=True, read_only=True)
+    class Meta:
+        model = MealCategory
+        fields = '__all__'
+
+
+class MealDetailSerializer(serializers.ModelSerializer):
+    """ serializing meal object """
+
+    self = serializers.HyperlinkedIdentityField(
+        view_name='meals_tracker:meal-detail'
+    )
+    recipes = serializers.HyperlinkedIdentityField(
+        view_name='meals_tracker:meal-recipes')
+    ingredients = serializers.HyperlinkedIdentityField(
+        view_name='meals_tracker:meal-ingredients')
+    category = serializers.SerializerMethodField()
 
     class Meta:
         model = Meal
         fields = '__all__'
 
-    def to_representation(self, instance):
-        """ append url for recipes and ingredients """
-        ret = super().to_representation(instance)
-        for recipe in ret['recipes']:
-            url = reverse('recipe:recipe-detail', request=self.context['request'],
-                          kwargs={'slug': recipe['slug']})
-            recipe['url'] = url
-        for ingredient in ret['ingredients']:
-            url = reverse('recipe:ingredient-detail', request=self.context['request'],
-                          kwargs={'slug': ingredient['slug']})
-            ingredient['url'] = url
-        return ret
+    def get_category(self, instance):
+        serializer = MealCategorySerializer(instance.category)
+        return serializer.data
 
 
-class MealCreateInputSerializer(serializers.Serializer):
+class MealsListSerializer(serializers.ModelSerializer):
+    """ serializer for list of meals """
+
+    self = serializers.HyperlinkedIdentityField(
+        view_name='meals_tracker:meal-detail'
+    )
+
+    class Meta:
+        model = Meal
+        fields = ('id', 'self', 'calories', 'category')
+
+
+class MealCreateSerializer(serializers.Serializer):
     """ serialing input data for Meal creation """
 
     category = serializers.IntegerField(required=True)
+    date = serializers.DateField(required=True)
     recipes = generic_serializers.inline_serializer(many=True, required=False, fields={
         'recipe': serializers.IntegerField(required=True),
         'portion': serializers.IntegerField(required=True, min_value=1)
@@ -44,7 +64,112 @@ class MealCreateInputSerializer(serializers.Serializer):
     })
 
 
-class MealUpdateInputSerializer(MealCreateInputSerializer):
+class MealRecipesSerializer(serializers.ModelSerializer):
+    """ serializer for RecipePortion model objects """
+
+    class RecipePortionDetailHyperlink(serializers.HyperlinkedIdentityField):
+
+        def get_url(self, obj, view_name, request, format):
+            url_kwargs = {
+                'pk': obj.meal_id,
+                'recipe_pk': obj.recipe_id
+            }
+            return reverse(view_name, kwargs=url_kwargs, request=request, format=format)
+
+    class RecipeDetailHyperLink(serializers.HyperlinkedIdentityField):
+
+        def get_url(self, obj, view_name, request, format):
+            url_kwargs = {
+                'slug': obj.recipe.slug,
+            }
+            return reverse(view_name, kwargs=url_kwargs, request=request, format=format)
+
+    self = RecipePortionDetailHyperlink(
+        view_name='meals_tracker:meal-recipes-detail')
+    recipe = RecipeDetailHyperLink(view_name='recipe:recipe-detail')
+    calories = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RecipePortion
+        fields = ('id', 'self', 'portion', 'calories', 'recipe')
+
+    def get_calories(self, instance):
+        return selectors.recipe_calculate_calories_based_on_portion(
+            instance.portion,
+            instance.recipe)
+
+
+class MealIngredientsSerializer(serializers.ModelSerializer):
+    """ serializer for IngredientAmount model objects """
+    class IngredientAmountDetailHyperLink(serializers.HyperlinkedIdentityField):
+
+        def get_url(self, obj, view_name, request, format):
+            url_kwargs = {
+                'pk': obj.meal_id,
+                'ingredient_pk': obj.ingredient.id,
+            }
+            return reverse(view_name, kwargs=url_kwargs, request=request, format=format)
+
+    class IngredientDetailHyperLink(serializers.HyperlinkedIdentityField):
+
+        def get_url(self, obj, view_name, request, format):
+            url_kwargs = {
+                'slug': obj.ingredient.slug,
+            }
+            return reverse(view_name, kwargs=url_kwargs, request=request, format=format)
+
+    self = IngredientAmountDetailHyperLink(
+        view_name='meals_tracker:meal-ingredients-detail')
+    ingredient = IngredientDetailHyperLink(
+        view_name='recipe:ingredient-detail')
+    unit = serializers.SerializerMethodField()
+    calories = serializers.SerializerMethodField()
+
+    class Meta:
+        model = IngredientAmount
+        fields = ('id', 'self', 'ingredient', 'unit', 'amount', 'calories')
+
+    def get_unit(self, instance):
+        serializer = UnitOutputSerializer(instance.unit)
+        return serializer.data
+
+    def get_calories(self, instance):
+        return selectors.ingredient_calculate_calories(
+            instance.ingredient, instance.unit, instance.amount)
+
+
+class AddRecipeToMealSerializer(serializers.Serializer):
+    """ serializer for adding recipes to meal """
+
+    recipes = generic_serializers.inline_serializer(many=True, required=True, fields={
+        'recipe': serializers.IntegerField(required=True),
+        'portion': serializers.IntegerField(required=True)
+    })
+
+
+class AddIngredientToMealSerializer(serializers.Serializer):
+    """ serializer for adding ingredients to meal """
+    ingredients = generic_serializers.inline_serializer(many=True, required=False, fields={
+        'ingredient': serializers.IntegerField(required=True),
+        'unit': serializers.IntegerField(required=True),
+        'amount': serializers.IntegerField(required=True)
+    })
+
+
+class MealRecipeUpdateSerializer(serializers.Serializer):
+    """ serializer for updating meal recipe """
+    portion = serializers.IntegerField()
+
+
+class MealIngredientUpdateSerializer(serializers.Serializer):
+    """ serialzier for updating meal ingredient """
+
+    unit = serializers.IntegerField()
+    amount = serializers.IntegerField()
+####
+
+
+class MealUpdateInputSerializer(MealCreateSerializer):
     """ serializing input data during update with no required fields """
     category = serializers.IntegerField(required=False)
 
@@ -71,11 +196,3 @@ class DatesSerializer(serializers.Serializer):
         """ pop request from kwargs """
         self.request = kwargs.pop('request')
         super().__init__(*args, **kwargs)
-
-
-class MealCategoryOutputSerializer(serializers.ModelSerializer):
-    """ serializing MealCategory  objects """
-
-    class Meta:
-        model = MealCategory
-        fields = '__all__'

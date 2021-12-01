@@ -102,7 +102,7 @@ def recipe_check_if_user_can_retrieve(requested_user: get_user_model,
 
 def recipe_calculate_calories_based_on_portion(portion: int, recipe: Recipe) -> int:
     """ return recipe calories based on portion """
-    return portion * (recipe.calories/recipe.portions)
+    return round(portion * (recipe.calories/recipe.portions))
 
 
 def tag_list(user: get_user_model) -> Iterable[Tag]:

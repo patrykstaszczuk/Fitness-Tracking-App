@@ -110,11 +110,6 @@ class AddIngredientsToRecipeDto:
                     f'{item["ingredient"]} is not mapped with unit {item["unit"]}')
 
 
-@dataclass
-class RemoveIngredientsFromRecipeDto:
-    ingredient_ids: list[int]
-
-
 class AddIngredientsToRecipe:
     def add(self, recipe: Recipe, dto: AddIngredientsToRecipeDto) -> None:
         for item in dto.ingredients:
@@ -128,6 +123,11 @@ class AddIngredientsToRecipe:
         service = RecalculateRecipeCalories()
         service.add(service_dto, recipe)
         recipe.save()
+
+
+@dataclass
+class RemoveIngredientsFromRecipeDto:
+    ingredient_ids: list[int]
 
 
 class RemoveIngredientsFromRecipe:

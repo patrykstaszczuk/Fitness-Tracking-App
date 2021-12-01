@@ -19,10 +19,8 @@ from meals_tracker.services import (
     UpdateMealIngredientDto,
     UpdateMealIngredient,
     DeleteMeal,
-    DeleteRecipeFromMeal,
-    DeleteRecipeFromMealDto,
-    DeleteIngredientFromMeal,
-    DeleteIngredientFromMealDto,
+    RemoveRecipeFromMeal,
+    RemoveIngredientFromMeal,
 )
 import datetime
 
@@ -135,24 +133,6 @@ class MealsTrackerServicesTests(TestCase):
                 recipes=[{'recipe': recipe.id, 'portion': -1}]
             )
             CreateMeal().create(dto)
-
-    # def test_creating_meal_invalid_recipe_meal_should_not_be_created(self) -> None:
-    #     recipe = self._create_recipe(self.user)
-    #     recipe2 = self._create_recipe(self.user, name='recipe2')
-    #
-    #     dto = CreateMealDto(
-    #         user=self.user,
-    #         date=self.today,
-    #         category=self._create_category().id,
-    #         recipes=[
-    #             {'recipe': recipe.id, 'portion': 4},
-    #             {'recipe': recipe2.id, 'portion': 4},
-    #             {'recipe': 3, 'portion': 4}
-    #         ]
-    #     )
-    #     with self.assertRaises(ValidationError):
-    #         CreateMeal().create(dto)
-    #         self.assertEqual(Meal.objects.all().count(), 0)
 
     def test_create_meal_from_non_available_recipe_failed(self) -> None:
         user2 = get_user_model().objects.create_user(
@@ -280,53 +260,44 @@ class MealsTrackerServicesTests(TestCase):
 
     def test_update_meal_recipe_success(self) -> None:
         meal = self._create_meal(self.user)
-        expected_calories = meal.ingredients.all()[0].calories
-        recipe_to_be_updated = meal.recipes.all()[0]
+        expected_calories_without_recipe = meal.ingredients.all()[0].calories
+        meal_recipe_to_be_updated = meal.recipe_portion.get(meal=meal)
         dto = UpdateMealRecipeDto(
-            recipe=recipe_to_be_updated.id,
             portion=4
         )
         service = UpdateMealRecipe()
-        expected_calories += recipe_to_be_updated.calories/dto.portion
-        service.update(meal, dto)
+        expected_calories = expected_calories_without_recipe + \
+            meal_recipe_to_be_updated.recipe.calories
+        service.update(meal_recipe_to_be_updated, dto)
         self.assertEqual(meal.calories, expected_calories)
-
-    def test_update_meal_recipe_invalid_recipe_id(self) -> None:
-        meal = self._create_meal(self.user)
-
-        dto = UpdateMealRecipeDto(
-            recipe=1,
-            portion=4
-        )
-        with self.assertRaises(ValidationError):
-            UpdateMealRecipe().update(meal, dto)
 
     def test_update_meal_ingredient_success(self) -> None:
         meal = self._create_meal(self.user)
-        ingredient_to_be_updated = meal.ingredients.all()[0]
-        unit = ingredient_to_be_updated.units.all()[0]
-        expected_calories = meal.calories - ingredient_to_be_updated.calories
+        meal_ingredient_to_be_updated = meal.ingredientamount_set.get(
+            meal=meal)
+        unit = meal_ingredient_to_be_updated.ingredient.units.all()[0]
+        expected_calories = meal.calories - \
+            meal_ingredient_to_be_updated.ingredient.calories
         dto = UpdateMealIngredientDto(
-            ingredient=ingredient_to_be_updated.id,
             unit=unit.id,
             amount=200,
         )
         service = UpdateMealIngredient()
-        service.update(meal, dto)
-        expected_calories += ingredient_to_be_updated.calories*2
+        service.update(meal_ingredient_to_be_updated, dto)
+        expected_calories += meal_ingredient_to_be_updated.ingredient.calories*2
         self.assertEqual(meal.calories, expected_calories)
 
     def test_update_meal_ingredient_with_incorrect_unit_id_failed(self) -> None:
         meal = self._create_meal(self.user)
-        ingredient_to_be_updated = meal.ingredients.all()[0]
+        meal_ingredient_to_be_updated = meal.ingredientamount_set.get(
+            meal=meal)
         dto = UpdateMealIngredientDto(
-            ingredient=ingredient_to_be_updated.id,
             unit=1,
             amount=200,
         )
         service = UpdateMealIngredient()
         with self.assertRaises(ValidationError):
-            service.update(meal, dto)
+            service.update(meal_ingredient_to_be_updated, dto)
 
     def test_deleting_meal_success(self) -> None:
         meal = self._create_meal(self.user)
@@ -337,19 +308,13 @@ class MealsTrackerServicesTests(TestCase):
     def test_deleting_recipe_from_meal_success(self) -> None:
         meal = self._create_meal(self.user)
         recipe_to_be_deleted_from_meal = meal.recipes.all()[0]
-        dto = DeleteRecipeFromMealDto(
-            recipe=recipe_to_be_deleted_from_meal.id
-        )
-        DeleteRecipeFromMeal().delete(meal, dto)
+        RemoveRecipeFromMeal().remove(recipe_to_be_deleted_from_meal)
         with self.assertRaises(Recipe.DoesNotExist):
             meal.recipes.get(id=recipe_to_be_deleted_from_meal.id)
 
     def test_deleting_ingredient_from_meal_success(self) -> None:
         meal = self._create_meal(self.user)
         ingredient_to_be_deleted_from_meal = meal.ingredients.all()[0]
-        dto = DeleteIngredientFromMealDto(
-            ingredient=ingredient_to_be_deleted_from_meal.id
-        )
-        DeleteIngredientFromMeal().delete(meal, dto)
+        RemoveIngredientFromMeal().remove(ingredient_to_be_deleted_from_meal)
         with self.assertRaises(Ingredient.DoesNotExist):
             meal.ingredients.get(id=ingredient_to_be_deleted_from_meal.id)

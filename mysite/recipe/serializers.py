@@ -20,6 +20,7 @@ class RecipeListOutputSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
         fields = (
+            'id',
             'user',
             'name',
             'slug',
@@ -216,7 +217,7 @@ class IngredientListOutputSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Ingredient
-        fields = ('name', 'slug', 'user', '_links')
+        fields = ('id', 'name', 'slug', 'user', '_links')
 
     def get_links(self, instance) -> list:
         links = []
