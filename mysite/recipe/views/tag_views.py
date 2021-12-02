@@ -61,7 +61,8 @@ class TagDetailApi(BaseTagClass):
     def get(self, request, *args, **kwargs):
         """ handling get request """
         user_tag = self._get_object()
-        serializer = serializers.TagOutputSerializer(user_tag)
+        serializer = serializers.TagOutputSerializer(
+            user_tag, context=self.get_serializer_context())
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
     def put(self, request, *args, **kwargs):
