@@ -4,20 +4,6 @@ from users.models import Group, StravaActivity
 from django.core.validators import ValidationError
 
 
-class DynamicFieldsModelSerializer(serializers.Serializer):
-
-    def __init__(self, *args, **kwargs):
-        fields = kwargs.pop('fields', None)
-        super(DynamicFieldsModelSerializer, self).__init__(*args, **kwargs)
-
-        if fields is not None:
-            allowed = set(fields)
-            existing = set(self.fields)
-
-            for field_name in existing - allowed:
-                self.fields.pop(field_name)
-
-
 class UserOutputSerializer(serializers.ModelSerializer):
     """ serializer for reading User model """
 
@@ -27,7 +13,7 @@ class UserOutputSerializer(serializers.ModelSerializer):
                   'height', 'weight')
 
 
-class UserInputSerializer(serializers.Serializer):
+class CreateUserSerializer(serializers.Serializer):
     """ serializer for User model and input data """
 
     choices = (
@@ -45,29 +31,26 @@ class UserInputSerializer(serializers.Serializer):
     password2 = serializers.CharField(required=True)
 
 
-class UserUpdateInputSerializer(UserInputSerializer):
-    """ serializer for updating user instance with no required fields """
-    email = serializers.EmailField(required=True)
-    name = serializers.CharField(required=True)
+class CreateTokenSerializer(serializers.Serializer):
+    """ serializer for token object retrieving """
+
+    email = serializers.CharField(required=True)
+    password = serializers.CharField(required=True)
+
+
+class UpdateUserSerializer(CreateUserSerializer):
+    """ serializer for updating user instance """
+    email = serializers.EmailField(required=False)
+    name = serializers.CharField(required=False)
     password = None
     password2 = None
 
 
-class UserTokenInputSerializer(serializers.Serializer):
-    """ serialier for user authentication object """
-
-    email = serializers.CharField(required=True)
-    password = serializers.CharField(required=True,
-                                     style={'input_type': 'password'},
-                                     trim_whitespace=False
-                                     )
-
-
-class UserPasswordInputSerializer(serializers.Serializer):
+class UpdateUserPasswordSerializer(serializers.Serializer):
     """ serializer for password change """
 
     old_password = serializers.CharField(required=True)
-    new_password = serializers.CharField(required=True, min_length=5)
+    new_password = serializers.CharField(required=True)
     confirm_password = serializers.CharField(required=True)
 
 
@@ -77,7 +60,6 @@ class UserGroupOutputSerializer(serializers.ModelSerializer):
     class Meta:
         model = Group
         fields = ('id', 'name', 'founder', 'members')
-        read_only_fields = ('id', 'name', 'founder',)
 
     def to_representation(self, instance):
         """ add status to groups """
@@ -99,7 +81,7 @@ class UserGroupOutputSerializer(serializers.ModelSerializer):
 
 class IdSerializer(serializers.Serializer):
     """ serialzier for user id """
-    ids = serializers.ListField(child=serializers.IntegerField())
+    id = serializers.IntegerField()
 
 
 class StravaActivitySerializer(serializers.ModelSerializer):

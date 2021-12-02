@@ -1,6 +1,7 @@
 from rest_framework import status
 from rest_framework.authtoken.views import APIView
 from rest_framework.response import Response
+from rest_framework.request import Request
 
 from rest_framework.reverse import reverse
 from rest_framework.authtoken.models import Token
@@ -12,12 +13,30 @@ from mysite.exceptions import ApiErrorsMixin
 from mysite.renderers import CustomRenderer
 from mysite.views import BaseAuthPermClass
 
+from users.services import (
+    CreateUserDto,
+    CreateUser,
+    CreateToken,
+    CreateTokenDto,
+    UpdateUserProfile,
+    UpdateUserProfileDto,
+    UpdateUserPassword,
+    UpdateUserPasswordDto,
+    SendGroupInvitation,
+    SendGroupInvitationDto,
+    AcceptGroupInvitation,
+    AcceptGroupInvitationDto,
+    DenyGroupInvitation,
+    DenyGroupInvitationDto,
+    LeaveGroup,
+    LeaveGroupDto,
+)
+
 
 class BaseViewClass(BaseAuthPermClass, ApiErrorsMixin, APIView):
     """ base class for all users app views """
 
     def get_serializer_context(self):
-        """ Extra context provided to the serializer class. """
         return {
             'request': self.request,
             'format': self.format_kwarg,
@@ -25,93 +44,120 @@ class BaseViewClass(BaseAuthPermClass, ApiErrorsMixin, APIView):
         }
 
     def set_location_in_header(self, request) -> dict:
-        """ set location with proper url in header """
         return {'Location': reverse(
             'users:user-profile', request=request)}
 
 
-class UserCreateApi(ApiErrorsMixin, APIView):
+class CreateUserApi(ApiErrorsMixin, APIView):
     """ API for creating user """
     renderer_classes = [CustomRenderer, ]
 
     def set_location_in_header(self, request) -> dict:
-        """ set location with proper url in header """
         return {'Location': reverse(
-            'users:user-token', request=request)}
+            'users:create-token', request=request)}
 
     def post(self, request, *args, **kwargs):
-        """ create user """
+        dto = self._prepare_dto(request)
+        service = CreateUser()
+        user = service.create(dto)
+        headers = self.set_location_in_header(request)
+        return Response(headers=headers, status=status.HTTP_201_CREATED)
 
-        serializer = serializers.UserInputSerializer(data=request.data)
-        if serializer.is_valid():
-            user_service = services.UserService(data=serializer.data)
-            user_service.validate()
-            user_service.create()
-            headers = self.set_location_in_header(request=request)
-            return Response(status=status.HTTP_201_CREATED, headers=headers)
-        return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    def _prepare_dto(self, request: Request) -> CreateUserDto:
+        serializer = serializers.CreateUserSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.data
+        return CreateUserDto(
+            email=data.get('email'),
+            name=data.get('name'),
+            password=data.get('password'),
+            password2=data.get('password2'),
+            age=data.get('age'),
+            height=data.get('height'),
+            weight=data.get('weight'),
+            gender=data.get('gender')
+        )
 
 
 class ObtainTokenView(ApiErrorsMixin, APIView):
     """ API for obtaining token """
 
     def post(self, request, *args, **kwargs):
-        """ generate token for user """
-        serializer = serializers.UserTokenInputSerializer(data=request.data)
-        if serializer.is_valid():
-            user = selectors.user_authenticate(serializer.data)
-            token, created = Token.objects.get_or_create(user=user)
-            return Response(data={'token': token.key}, status=status.HTTP_200_OK)
-        return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        dto = self._prepare_dto(request)
+        service = CreateToken()
+        token = service.create(dto)
+        token = token.key
+        return Response(data={'token': token}, status=status.HTTP_201_CREATED)
+
+    def _prepare_dto(self, request: Request) -> CreateTokenDto:
+        serializer = serializers.CreateTokenSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.data
+        return CreateTokenDto(
+            email=data.get('email'),
+            password=data.get('password')
+        )
 
 
 class UserProfileApi(BaseViewClass):
     """ API for retrieving user profile """
 
     def get(self, request, *args, **kwargs):
-        """ return user profile """
         serializer = serializers.UserOutputSerializer(
             instance=request.user)
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
 
-class UserUpdateApi(BaseViewClass):
+class UpdateUserApi(BaseViewClass):
     """ API for updating user profile """
 
-    def patch(self, request, *args, **kwargs):
-        """ update user profile """
+    def put(self, request, *args, **kwargs):
+        dto = self._prepare_dto(request)
+        service = UpdateUserProfile()
+        service.update(request.user, dto)
+        headers = self.set_location_in_header(request)
+        return Response(headers=headers, status=status.HTTP_200_OK)
 
-        serializer = serializers.UserUpdateInputSerializer(data=request.data)
-        if serializer.is_valid():
-            user_service = services.UserService(
-                user=request.user, data=serializer.data)
-            user_service.validate_update_data()
-            user = user_service.update()
+    def _prepare_dto(self, request: Request) -> UpdateUserProfileDto:
+        serializer = serializers.UpdateUserSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.data
+        return UpdateUserProfileDto(
+            email=data.get('email'),
+            name=data.get('name'),
+            age=data.get('age'),
+            height=data.get('height'),
+            weight=data.get('weight'),
+            gender=data.get('gender')
+        )
 
-            headers = self.set_location_in_header(request)
-            return Response(status=status.HTTP_200_OK, headers=headers)
-        return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
-class UserChangePasswordApi(BaseViewClass):
+class ChangeUserPasswordApi(BaseViewClass):
     """ API for updating user password """
 
-    def patch(self, request, *args, **kwargs):
-        """ update user password """
-        serializer = serializers.UserPasswordInputSerializer(data=request.data)
-        if serializer.is_valid():
-            user_service = services.UserService(
-                user=request.user, data=serializer.data)
-            user_service.change_password()
-            return Response(status=status.HTTP_200_OK)
-        return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    def put(self, request, *args, **kwargs):
+        dto = self._prepare_dto(request)
+        service = UpdateUserPassword()
+        service.update(request.user, dto)
+        headers = self.set_location_in_header(request)
+        return Response(headers=headers, status=status.HTTP_200_OK)
+
+    def _prepare_dto(self, request: Request) -> UpdateUserPasswordDto:
+        serializer = serializers.UpdateUserPasswordSerializer(
+            data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.data
+        return UpdateUserPasswordDto(
+            old_password=data.get('old_password'),
+            password=data.get('new_password'),
+            password2=data.get('confirm_password')
+        )
 
 
 class UserListGroupApi(BaseViewClass):
     """ API for retrieving user groups """
 
     def get(self, request, *args, **kwargs):
-        """ retrieve user groups """
         user_groups = selectors.user_get_groups(user=request.user)
         context = self.get_serializer_context()
         serializer = serializers.UserGroupOutputSerializer(
@@ -123,59 +169,65 @@ class UserSendGroupInvitationApi(BaseViewClass):
     """ AIP for sending group invitation """
 
     def post(self, request, *args, **kwargs):
-        """ send invitation """
-        # in order to maintain consistency I use one field serializer insted of #
-        # directly passing data to services #
+        dto = self._prepare_dto(request)
+        service = SendGroupInvitation()
+        service.send(request.user, dto)
+        return Response(status=status.HTTP_200_OK)
+
+    def _prepare_dto(self, request: Request) -> SendGroupInvitationDto:
         serializer = serializers.IdSerializer(data=request.data)
-        if serializer.is_valid():
-            group_service = services.GroupService(
-                user=request.user, data=serializer.data)
-            group_service.send_group_invitation()
-            return Response(status=status.HTTP_200_OK)
-        return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.is_valid(raise_exception=True)
+        return SendGroupInvitationDto(
+            user_id=serializer.data.get('id')
+        )
 
 
 class UserAcceptInvitationApi(BaseViewClass):
     """ API for managing group invitations """
 
     def post(self, request, *args, **kwargs):
-        """ accept or deny group invitation """
+        dto = self._prepare_dto(request)
+        service = AcceptGroupInvitation()
+        service.send(request.user, dto)
+        return Response(status=status.HTTP_200_OK)
 
+    def _prepare_dto(self, request: Request) -> AcceptGroupInvitationDto:
         serializer = serializers.IdSerializer(data=request.data)
-        if serializer.is_valid():
-            group_service = services.GroupService(
-                user=request.user, data=serializer.data)
-            group_service.validate_pending_membership()
-            group_service.accept_group_invitation()
-            return Response(status=status.HTTP_200_OK)
-        return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.is_valid(raise_exception=True)
+        return AcceptGroupInvitationDto(
+            group_id=serializer.data.get('id')
+        )
 
 
 class UserDenyInvitationApi(BaseViewClass):
     """ API for managing group invitations """
 
     def post(self, request, *args, **kwargs):
-        """ accept or deny group invitation """
+        dto = self._prepare_dto(request)
+        service = DenyGroupInvitation()
+        service.send(request.user, dto)
+        return Response(status=status.HTTP_200_OK)
+
+    def _prepare_dto(self, request: Request) -> DenyGroupInvitationDto:
         serializer = serializers.IdSerializer(data=request.data)
-        if serializer.is_valid():
-            group_service = services.GroupService(
-                user=request.user, data=serializer.data)
-            group_service.validate_pending_membership()
-            group_service.deny_group_invitation()
-            return Response(status=status.HTTP_200_OK)
-        return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.is_valid(raise_exception=True)
+        return DenyGroupInvitationDto(
+            group_id=serializer.data.get('id')
+        )
 
 
 class UserLeaveGroupApi(BaseViewClass):
     """ API for leaving group """
 
     def post(self, request, *args, **kwargs):
-        """ leave given group """
+        dto = self._prepare_dto(request)
+        service = LeaveGroup()
+        service.send(request.user, dto)
+        return Response(status=status.HTTP_200_OK)
+
+    def _prepare_dto(self, request: Request) -> LeaveGroupDto:
         serializer = serializers.IdSerializer(data=request.data)
-        if serializer.is_valid():
-            group_service = services.GroupService(
-                user=request.user, data=serializer.data)
-            group_service.validate_membership()
-            group_service.leave_group()
-            return Response(status=status.HTTP_200_OK)
-        return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.is_valid(raise_exception=True)
+        return LeaveGroupDto(
+            group_id=serializer.data.get('id')
+        )

@@ -4,11 +4,11 @@ from users import views
 app_name = 'users'
 
 urlpatterns = [
-    path('new-user/', views.UserCreateApi.as_view(), name='user-create'),
-    path('token/', views.ObtainTokenView.as_view(), name='user-token'),
+    path('new-user/', views.CreateUserApi.as_view(), name='user-create'),
+    path('token/', views.ObtainTokenView.as_view(), name='create-token'),
     path('profile/', views.UserProfileApi.as_view(), name='user-profile'),
-    path('update/', views.UserUpdateApi.as_view(), name='user-update'),
-    path('new-password/', views.UserChangePasswordApi.as_view(),
+    path('profile/update/', views.UpdateUserApi.as_view(), name='user-update'),
+    path('profile/new_password', views.ChangeUserPasswordApi.as_view(),
          name='user-change-password'),
     path('groups/', views.UserListGroupApi.as_view(), name='user-group'),
     path('groups/send-invitation', views.UserSendGroupInvitationApi.as_view(),
