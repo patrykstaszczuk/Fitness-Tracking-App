@@ -1,14 +1,9 @@
-
 from django.test import TestCase
-from rest_framework.response import Response
-from django.http import HttpResponse
 from django.contrib.auth import get_user_model
+from unittest.mock import patch, Mock, MagicMock
 from users import models, services, selectors
-from health import models as health_models
-from health import selectors as health_selectors
 import datetime
 import time
-from unittest.mock import patch, Mock, MagicMock
 
 
 def sample_user():
@@ -24,103 +19,6 @@ def sample_user():
 
 
 class ModelTests(TestCase):
-
-    def test_create_user_with_email_successful(self):
-        """ test creating a new user with an email is successful """
-
-        email = "test@gmail.com"
-        password = "testpass123"
-        age = 25
-        gender = 'MALE'
-        weight = 30
-        height = 188
-        user = get_user_model().objects.create_user(
-            email=email,
-            password=password,
-            age=age,
-            gender=gender,
-            weight=weight,
-            height=height
-        )
-
-        self.assertEqual(user.email, email)
-        self.assertTrue(user.check_password(password))
-
-    def test_new_user_email_normalized(self):
-        """ test the email for a new user is normalized """
-        email = 'test@GMAIL.COM'
-        password = 'testpass'
-        age = 25
-        gender = 'MALE'
-        weight = 25
-        height = 188
-        user = get_user_model().objects.create_user(email=email,
-                                                    password=password,
-                                                    age=age, gender=gender,
-                                                    weight=weight,
-                                                    height=height)
-        self.assertEqual(user.email, email.lower())
-
-    def test_new_user_invalid_email(self):
-        """ test creating user with no email raises error """
-
-        with self.assertRaises(ValueError):
-            get_user_model().objects.create_user(email=None,
-                                                 password="dada",
-                                                 age=25, gender='Male',
-                                                 weight=88, height=188)
-
-    def test_create_new_superuser(self):
-        user = get_user_model().objects.create_superuser(
-            email='test@gmail.com',
-            password='teste',
-            age=25,
-            weight=88,
-            height=188,
-            gender='Male'
-        )
-
-        self.assertTrue(user.is_superuser, True)
-
-    def test_string_representation_of_group(self):
-        """ test the print group name method """
-        user = get_user_model().objects.create_user(
-            email='test@gmail.com',
-            name='Patryk',
-            password='test',
-            age=25,
-            weight=88,
-            height=188,
-            gender='Male'
-        )
-        group = models.Group.objects.get(founder=user)
-        group_str = group.founder.name + 's group'
-        self.assertEqual(str(group), group_str)
-
-    def test_retrieving_avg_health_stats_for_user(self):
-        """ test retrieving weekly average stats for user """
-
-        user = get_user_model().objects.create_user(
-            email='test@gmail.com',
-            password='testpass',
-            age=25,
-            gender='Male',
-            weight=25,
-            height=188
-        )
-        avg_weight = 0
-
-        for i in range(1, 8):
-            health_models.HealthDiary.objects.create(
-                user=user,
-                weight=i+70,
-                date=datetime.date.today() - datetime.timedelta(days=i+4)
-            )
-        avg_weight = (71+72+73)/3
-
-        avg_stats = health_selectors.get_weekly_avg_stats(user=user)
-        self.assertEqual(avg_stats['weight'], avg_weight)
-
     def test_strava_tokens_str_representation(self):
         """ test string representation StravaApi model """
 
@@ -145,7 +43,8 @@ class ModelTests(TestCase):
         """
         user = sample_user()
         mock.side_effect = KeyError()
-        self.assertEqual(services.authorize_to_strava(user=user, strava_code='1234'), False)
+        self.assertEqual(services.authorize_to_strava(
+            user=user, strava_code='1234'), False)
 
     @patch('users.selectors.process_request')
     def test_authorize_to_strava_failed_wrong_response(self, mock):
@@ -153,7 +52,8 @@ class ModelTests(TestCase):
         """
         user = sample_user()
         mock.return_value = {'error': 'error_message'}
-        self.assertEqual(services.authorize_to_strava(user=user, strava_code='1234'), False)
+        self.assertEqual(services.authorize_to_strava(
+            user=user, strava_code='1234'), False)
 
     @patch('users.selectors.process_request')
     def test_authorize_to_strava_func(self, mock):
@@ -162,10 +62,12 @@ class ModelTests(TestCase):
                 'access_token': 123}
         mock.return_value = data
         user = sample_user()
-        self.assertEqual(services.authorize_to_strava(user=user, strava_code='1234'), True)
+        self.assertEqual(services.authorize_to_strava(
+            user=user, strava_code='1234'), True)
         user.strava.refresh_from_db()
         self.assertEqual(user.strava.expires_at, 123)
-        self.assertEqual(selectors.has_needed_information_for_request(user.strava), True)
+        self.assertEqual(
+            selectors.has_needed_information_for_request(user.strava), True)
 
     @patch('users.selectors.process_request')
     def test_authorize_to_strava_failed_no_needed_info(self, mock):
@@ -175,7 +77,8 @@ class ModelTests(TestCase):
         data = {'ble ble': 123, 'wrong info': 123}
         mock.return_value = data
         user = sample_user()
-        self.assertEqual(services.authorize_to_strava(user=user, strava_code='1234'), False)
+        self.assertEqual(services.authorize_to_strava(
+            user=user, strava_code='1234'), False)
 
     def test_auth_token_valid_function_failed(self):
         """ test if authentication token is valid """
@@ -188,13 +91,15 @@ class ModelTests(TestCase):
         user.strava.access_token = '123',
         user.strava.refresh_token = '123',
         user.strava.expires_at = 123
-        self.assertTrue(selectors.has_needed_information_for_request(user.strava))
+        self.assertTrue(
+            selectors.has_needed_information_for_request(user.strava))
 
     def test_strava_info_invalid(self):
         """ test has_needed_informations function when there is not strava
         information available"""
         user = sample_user()
-        self.assertFalse(selectors.has_needed_information_for_request(user.strava))
+        self.assertFalse(
+            selectors.has_needed_information_for_request(user.strava))
 
     @patch('users.selectors.process_request')
     def test_refreshing_token_when_expired(self, mock):
@@ -228,12 +133,12 @@ class ModelTests(TestCase):
 
         data = [
                 {
-                'id': 1,
-                'name': 'test'
+                    'id': 1,
+                    'name': 'test'
                 },
                 {
-                'id': 2,
-                'name': 'test2'
+                    'id': 2,
+                    'name': 'test2'
                 },
             ]
 
@@ -249,19 +154,19 @@ class ModelTests(TestCase):
     @patch('users.selectors.process_request')
     @patch('users.selectors.has_needed_information_for_request')
     def test_get_list_of_activities_when_token_invalid(self, mock_valid,
-                                                        mock_request,
-                                                        mock_token):
+                                                       mock_request,
+                                                       mock_token):
         """ test getting list of activities when token is expired """
 
         user = sample_user()
         data = [
                 {
-                'id': 1,
-                'name': 'test'
+                    'id': 1,
+                    'name': 'test'
                 },
                 {
-                'id': 2,
-                'name': 'test2'
+                    'id': 2,
+                    'name': 'test2'
                 },
             ]
         mock_request.return_value = data
@@ -286,7 +191,7 @@ class ModelTests(TestCase):
         user = sample_user()
 
         self.assertEqual(selectors.get_activities_from_strava(user),
-                                                         activity)
+                         activity)
 
     @patch('users.selectors.process_request')
     def test_process_and_save_strava_activities(self, mock):
@@ -348,7 +253,8 @@ class ModelTests(TestCase):
             ]
         mock.side_effect = [raw_activities_with_no_calories[0],
                             raw_activities_with_no_calories[1]]
-        services.process_and_save_strava_activities(user, raw_activities_with_no_calories)
+        services.process_and_save_strava_activities(
+            user, raw_activities_with_no_calories)
         activities = models.StravaActivity.objects.filter(user=user)
         self.assertEqual(len(activities), 2)
 

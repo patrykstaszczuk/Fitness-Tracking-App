@@ -34,16 +34,15 @@ class UserInputSerializer(serializers.Serializer):
         ('Male', 'Male'),
         ('Female', 'Female')
         )
-    email = serializers.EmailField(required=True, min_length=3)
+    email = serializers.EmailField(required=True)
     name = serializers.CharField(required=True)
-    age = serializers.IntegerField(required=False, min_value=0, max_value=50)
-    height = serializers.IntegerField(
-        required=False, min_value=40, max_value=300)
+    age = serializers.IntegerField(required=False)
+    height = serializers.IntegerField(required=False)
     weight = serializers.IntegerField(
-        required=False, min_value=5, max_value=600)
+        required=False)
     gender = serializers.ChoiceField(choices, required=False)
-    password = serializers.CharField(required=True, min_length=5)
-    password2 = serializers.CharField(required=True, min_length=5)
+    password = serializers.CharField(required=True)
+    password2 = serializers.CharField(required=True)
 
 
 class UserUpdateInputSerializer(UserInputSerializer):

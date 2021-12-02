@@ -61,7 +61,7 @@ class CreateMeal():
         except ValidationError as e:
             meal.delete()
             raise ValidationError(e)
-    
+
         meal.save()
         return meal
 

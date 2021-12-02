@@ -23,7 +23,7 @@ class MyManager(BaseUserManager):
         user.set_password(password)
         user.save(using=self.db)
 
-        Group.objects.create(founder=user, name=f'{user.name} group')
+        Group.objects.create(founder=user)
         StravaApi.objects.create(user=user)
 
         return user
@@ -122,7 +122,7 @@ class GroupManager(models.Manager):
     def create(self, *args, **kwargs):
         """ set the name of group and add founder to members """
         instance = super().create(*args, **kwargs)
-        instance.name = instance.founder.name + 's group'
+        instance.name = instance.founder.name + "'s group"
         instance.members.add(instance.founder)
         instance.save()
         return instance
@@ -138,6 +138,9 @@ class Group(models.Model):
     pending_membership = models.ManyToManyField(
         'MyUser', related_name='pending_membership')
     objects = GroupManager()
+
+    def set_name(self) -> None:
+        self.name = str(self.founder.name) + 'group'
 
     def __str__(self):
         return self.founder.name + 's group'
