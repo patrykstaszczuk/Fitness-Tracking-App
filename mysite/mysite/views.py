@@ -75,17 +75,14 @@ class RequiredFieldsResponseMessage(ApiErrorsMixin, generics.GenericAPIView):
         super().__init__(*args, **kwargs)
 
 
-class BaseAuthPermClass:
+class BaseAuthPermClass(APIView):
     authentication_classes = (TokenAuthentication, )
     permission_classes = (IsAuthenticated, )
     renderer_classes = [CustomRenderer, ]
 
 
-class StravaCodeApiView(APIView):
+class StravaCodeApiView(BaseAuthPermClass):
     """ View for retrieving strava code """
-    renderer_classes = [CustomRenderer, ]
-    authentication_classes = (authentication.TokenAuthentication, )
-    permission_classes = (permissions.IsAuthenticated, )
 
     def get(self, request, *args, **kwargs):
         """ get the code from url and return response """
@@ -107,3 +104,21 @@ class StravaCodeApiView(APIView):
                     response_message['status'] = 'Ok'
                     response_status = status.HTTP_200_OK
         return Response(data=response_message, status=response_status)
+
+
+class StravaCheckStatusApi(BaseAuthPermClass):
+
+    def get(self, request, *args, **kwrags):
+        has_needed_information = users_selectors.has_needed_information_for_request(
+            request.user.strava)
+        is_auth_to_strava = users_selectors.is_auth_to_strava(request.user)
+        is_token_valid = users_selectors.is_token_valid(request.user.strava)
+        can_request_be_send = users_selectors.can_request_be_send(
+            request.user.strava)
+
+        return Response(data={
+            'has_needed_information': has_needed_information,
+            'is_auth_to_strava': is_auth_to_strava,
+            'is_token_valid': is_token_valid,
+            'can_request_be_send': can_request_be_send,
+        }, status=status.HTTP_200_OK)

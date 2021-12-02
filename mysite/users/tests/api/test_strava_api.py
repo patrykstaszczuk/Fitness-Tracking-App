@@ -19,8 +19,8 @@ class StravaApiTests(TestCase):
         )
         self.client.force_authenticate(self.auth_user)
 
-    @patch('users.services.authorize_to_strava')
-    @patch('users.selectors.has_needed_information_for_request')
+    @patch('users.services.strava_services.authorize_to_strava')
+    @patch('users.selectors.strava_selectors.has_needed_information_for_request')
     def test_strava_already_associated_with_user(self, mock, mock_validation):
         """ test trying to associate user to strava account,
         when its already done """

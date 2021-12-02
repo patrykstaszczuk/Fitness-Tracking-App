@@ -30,5 +30,7 @@ urlpatterns = [
     path('meals-tracker/', include('meals_tracker.urls')),
     path('food/', include('recipe.urls')),
     path('strava-auth/', views.StravaCodeApiView.as_view(), name='strava-auth'),
+    path('strava-connection-status/',
+         views.StravaCheckStatusApi.as_view(), name='strava-status'),
     path('__debug__/', include(debug_toolbar.urls)),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

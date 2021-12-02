@@ -6,6 +6,7 @@ import os
 from mysite import settings
 from typing import Iterable
 import requests
+from users.services import update_activities
 
 
 def get_activity_properties(activity: dict) -> dict:
@@ -26,7 +27,8 @@ def get_activity_properties(activity: dict) -> dict:
 
 
 def get_activities(user: get_user_model, date: datetime) -> Iterable[StravaActivity]:
-    """ return strava activities for given date """
+    """ return strava activities from database """
+    update_activities(user, date)
     return StravaActivity.objects.filter(user=user, date__date=datetime.date(date.year, date.month, date.day))
 
 
@@ -35,7 +37,7 @@ def get_strava_last_request_epoc_time(user: get_user_model) -> int:
     return user.strava.last_request_epoc_time
 
 
-def get_activities_from_strava(user: get_user_model, date: datetime = datetime.date.today()) -> dict:
+def get_activities_from_strava(user: get_user_model, date: datetime = datetime.date.today()) -> list[dict]:
 
     one_day_in_seconds = 86400
     after_epoch_timestamp = int(time.mktime(
@@ -60,14 +62,14 @@ def can_request_be_send(strava_obj: StravaApi) -> bool:
     return is_token_valid(strava_obj) or has_needed_information_for_request(strava_obj) and get_new_strava_access_token(strava_obj)
 
 
-def is_token_valid(strava_obj: StravaApi) -> bool:
+def is_token_valid(strava_api_obj: StravaApi) -> bool:
     """ check if token is still valid based on expirations time """
-    return strava_obj.expires_at > time.time()
+    return strava_api_obj.expires_at > time.time()
 
 
-def has_needed_information_for_request(strava_obj: StravaApi) -> bool:
+def has_needed_information_for_request(strava_api_object: StravaApi) -> bool:
     """ check if StravaApi instance has inforamtions needed for request """
-    return all([strava_obj.access_token, strava_obj.refresh_token,       strava_obj.expires_at])
+    return all([strava_api_object.access_token, strava_api_object.refresh_token, strava_api_object.expires_at])
 
 
 def get_new_strava_access_token(strava_obj: StravaApi) -> bool:
@@ -122,13 +124,13 @@ def process_request(strava_obj: StravaApi, url: str, payload: dict, type: str) -
 
 def send_get_request_to_strava(url: str, payload: dict) -> requests:
     """ send request to strava based on parameters """
-    print("Request has been sent")
+    print("GET Request has been sent")
     return requests.get(url, headers=payload)
 
 
 def send_post_request_to_strava(url: str, payload: dict) -> requests:
     """ send request to strava based on parameters """
-    print("Request has been sent")
+    print("POST Request has been sent")
     return requests.post(url, payload)
 
 

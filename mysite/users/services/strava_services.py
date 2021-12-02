@@ -43,7 +43,7 @@ def update_activities(user: get_user_model, date: datetime) -> None:
             user=user, date=date)
         process_and_save_strava_activities(user, raw_strava_activities)
     else:
-        print('To many request try again soon')
+        print('To many request try again soon. One request per hour is permitted')
 
 
 def process_and_save_strava_activities(user: get_user_model, raw_strava_activities: list) -> None:

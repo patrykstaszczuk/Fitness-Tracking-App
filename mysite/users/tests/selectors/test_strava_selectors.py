@@ -101,7 +101,7 @@ class ModelTests(TestCase):
         self.assertFalse(
             selectors.has_needed_information_for_request(user.strava))
 
-    @patch('users.selectors.process_request')
+    @patch('users.selectors.strava_selectors.process_request')
     def test_refreshing_token_when_expired(self, mock):
         """ test refreshing token when expired_at time is in past """
         data = {
@@ -118,7 +118,7 @@ class ModelTests(TestCase):
         self.assertEqual(strava_info.refresh_token, data['refresh_token'])
         self.assertEqual(strava_info.expires_at, data['expires_at'])
 
-    @patch('users.selectors.process_request')
+    @patch('users.selectors.strava_selectors.process_request')
     def test_refreshing_token_failed(self, mock):
         """ test refrehsing token when not needed information available in
         db """
@@ -126,8 +126,8 @@ class ModelTests(TestCase):
         user = sample_user()
         self.assertFalse(selectors.get_new_strava_access_token(user.strava))
 
-    @patch('users.selectors.process_request')
-    @patch('users.selectors.is_token_valid')
+    @patch('users.selectors.strava_selectors.process_request')
+    @patch('users.selectors.strava_selectors.is_token_valid')
     def test_get_list_of_activities_when_token_valid(self, mock_token, mock_send):
         """ test getting list of activities for today """
 
@@ -150,9 +150,9 @@ class ModelTests(TestCase):
         self.assertIn(data[0], res)
         self.assertIn(data[1], res)
 
-    @patch('users.selectors.get_new_strava_access_token')
-    @patch('users.selectors.process_request')
-    @patch('users.selectors.has_needed_information_for_request')
+    @patch('users.selectors.strava_selectors.get_new_strava_access_token')
+    @patch('users.selectors.strava_selectors.process_request')
+    @patch('users.selectors.strava_selectors.has_needed_information_for_request')
     def test_get_list_of_activities_when_token_invalid(self, mock_valid,
                                                        mock_request,
                                                        mock_token):
@@ -176,8 +176,8 @@ class ModelTests(TestCase):
         res = selectors.get_activities_from_strava(user)
         self.assertEqual(data, res)
 
-    @patch('users.selectors.is_token_valid')
-    @patch('users.selectors.process_request')
+    @patch('users.selectors.strava_selectors.is_token_valid')
+    @patch('users.selectors.strava_selectors.process_request')
     def test_get_strava_activity(self, mock, mock_token):
         """ test getting information about specific activity """
 
