@@ -15,7 +15,7 @@ class RecipeInputSerializer(serializers.Serializer):
 class RecipeListOutputSerializer(serializers.ModelSerializer):
     """ serializing list of recipe objects """
 
-    _links = serializers.SerializerMethodField(method_name='get_links')
+    links = serializers.SerializerMethodField()
 
     class Meta:
         model = Recipe
@@ -25,100 +25,78 @@ class RecipeListOutputSerializer(serializers.ModelSerializer):
             'name',
             'slug',
             'calories',
-            '_links'
+            'links'
         )
 
     def get_links(self, instance) -> dict:
-        """ prepare links to proepr endpoints """
+        """ prepare links to proper endpoints """
         links = []
         if instance.user != self.context['request'].user:
             self_url = reverse('recipe:group-recipe-detail', kwargs={
                 'pk': instance.user.id,
                 'slug': instance.slug,
-            })
+            }, request=self.context['request'])
+            tags = reverse(
+                'recipe:group-recipe-tags',  kwargs={
+                    'pk': instance.user.id,
+                    'slug': instance.slug
+                },
+                request=self.context['request'])
         else:
             self_url = reverse('recipe:recipe-detail',
-                               kwargs={'slug': instance.slug})
-
+                               kwargs={'slug': instance.slug},
+                               request=self.context['request'])
+            tags = reverse(
+                'recipe:recipe-tags',
+                kwargs={'slug': instance.slug},
+                request=self.context['request'])
         links.append({
-            'rel': 'self',
-            'href': self_url,
-
-        })
-        links.append({
-            'rel': 'tags',
-            'href': reverse('recipe:recipe-tags',  kwargs={'slug': instance.slug}),
-
+            'self': self_url,
+            'tags': tags
         })
         return links
+
+    def to_representation(self, instance) -> dict:
+        ret = super().to_representation(instance)
+
+        ret.update({'self': ret['links'][0].get('self')})
+        ret.update({'tags': ret['links'][0].get('tags')})
+        ret.pop('links')
+
+        return ret
 
 
 class RecipeDetailOutputSerializer(serializers.ModelSerializer):
     """ serializing recipe object """
 
-    _links = serializers.SerializerMethodField(method_name='get_links')
+    self = serializers.HyperlinkedIdentityField(
+        view_name='recipe:recipe-detail', lookup_field='slug')
+    tags = serializers.HyperlinkedIdentityField(
+        view_name='recipe:recipe-tags', lookup_field='slug')
+    ingredients = serializers.HyperlinkedIdentityField(
+        view_name='recipe:recipe-ingredients', lookup_field='slug')
 
     class Meta:
         model = Recipe
-        exclude = ('tags', 'ingredients')
-
-    def get_links(self, instance) -> list:
-        """ prepare links to proepr endpoints """
-        links = []
-        self_rel = {
-            'rel': 'self',
-            'href': reverse('recipe:recipe-detail', kwargs={'slug': instance.slug}),
-        }
-
-        links.append(self_rel)
-
-        tags = {
-            'rel': 'tags',
-            'href': reverse('recipe:recipe-tags',  kwargs={'slug': instance.slug}),
-        }
-        links.append(tags)
-
-        ingredients = {
-            'rel': 'ingredients',
-            'href': reverse('recipe:recipe-ingredients',  kwargs={'slug': instance.slug}),
-        }
-        links.append(ingredients)
-        return links
+        fields = '__all__'
 
 
 class GroupRecipeDetailOutpuSerializer(RecipeDetailOutputSerializer):
 
-    def get_links(self, instance) -> list:
-        links = []
-        self_rel = {
-            'rel': 'self',
-            'href': reverse('recipe:group-recipe-detail',
-                            kwargs={
-                                'pk': instance.user.id,
-                                'slug': instance.slug
-                                }),
-        }
+    class GroupRecipeDetailHyperlink(serializers.HyperlinkedIdentityField):
 
-        links.append(self_rel)
+        def get_url(self, obj, view_name, request, format):
+            url_kwargs = {
+                'pk': obj.user.id,
+                'slug': obj.slug
+            }
+            return reverse(view_name, kwargs=url_kwargs, request=request, format=format)
+    self = GroupRecipeDetailHyperlink(view_name='recipe:group-recipe-detail')
 
-        tags = {
-            'rel': 'tags',
-            'href': reverse('recipe:group-recipe-tags',
-                            kwargs={
-                                'pk': instance.user.id,
-                                'slug': instance.slug}),
-        }
-        links.append(tags)
-
-        ingredients = {
-            'rel': 'ingredients',
-            'href': reverse('recipe:group-recipe-ingredients',
-                            kwargs={
-                                'pk': instance.user.id,
-                                'slug': instance.slug}),
-        }
-        links.append(ingredients)
-        return links
+    tags = GroupRecipeDetailHyperlink(
+        view_name='recipe:group-recipe-tags')
+    ingredients = GroupRecipeDetailHyperlink(
+        view_name='recipe:group-recipe-ingredients')
 
 
 class TagsIdsSerializer(serializers.Serializer):
@@ -155,53 +133,48 @@ class RecipeIngredientsRemoveSerializer(serializers.Serializer):
 class RecipeIngredientOutputSerializer(serializers.ModelSerializer):
     """ serializer for Recipe Ingredient intermediate model """
 
+    class RecipeIngredientUpdateHyperLink(serializers.HyperlinkedIdentityField):
+
+        def get_url(self, obj, view_name, request, format):
+            url_kwargs = {
+                'pk': obj.id,
+                'slug': obj.recipe.slug
+            }
+            return reverse(view_name, kwargs=url_kwargs, request=request, format=format)
+
+    class IngredientHyperLink(serializers.HyperlinkedIdentityField):
+
+        def get_url(self, obj, view_name, request, format):
+            url_kwargs = {
+                'slug': obj.ingredient.slug
+            }
+            return reverse(view_name, kwargs=url_kwargs, request=request, format=format)
+
+    self = RecipeIngredientUpdateHyperLink(
+        view_name='recipe:recipe-ingredients-update')
+    ingredient = IngredientHyperLink(view_name='recipe:ingredient-detail')
     id = serializers.PrimaryKeyRelatedField(
         source='ingredient', read_only=True)
-    ingredient = serializers.StringRelatedField()
+    name = serializers.SerializerMethodField()
     unit = serializers.StringRelatedField()
-    _links = serializers.SerializerMethodField(method_name='get_links')
 
     class Meta:
         model = Recipe_Ingredient
-        fields = ('id', 'ingredient', 'unit', 'amount', '_links')
+        fields = ('id', 'name', 'unit', 'amount', 'self', 'ingredient')
 
-    def get_links(self, instance):
-        links = []
-        self_link = {
-            'rel': 'self',
-            'href': reverse('recipe:recipe-ingredients-update',
-                            kwargs={
-                                'slug': instance.recipe.slug,
-                                'pk': instance.ingredient.id})
-        }
-        ingredient_link = {
-            'rel': 'ingredient',
-            'href': reverse('recipe:ingredient-detail',
-                            kwargs={'slug': instance.ingredient.slug})
-        }
-        links.append(self_link)
-        links.append(ingredient_link)
-        return links
+    def get_name(self, instance):
+        return instance.ingredient.name
 
 
 class TagOutputSerializer(serializers.ModelSerializer):
     """ serializing Tag output data """
 
-    _links = serializers.SerializerMethodField(method_name='get_links')
+    self = serializers.HyperlinkedIdentityField(
+        view_name='recipe:tag-detail', lookup_field='slug')
 
     class Meta:
         model = Tag
-        fields = ('id', 'slug', 'name', '_links')
-
-    def get_links(self, instance):
-        links = []
-        self_link = {
-            'rel': 'self',
-            'href': reverse('recipe:tag-detail', kwargs={'slug': instance.slug})
-        }
-
-        links.append(self_link)
-        return links
+        fields = ('id', 'slug', 'name', 'self')
 
 
 class TagInputSerializer(serializers.Serializer):
@@ -213,54 +186,29 @@ class TagInputSerializer(serializers.Serializer):
 class IngredientListOutputSerializer(serializers.ModelSerializer):
     """ serializing ingredients instances """
 
-    _links = serializers.SerializerMethodField(method_name='get_links')
+    self = serializers.HyperlinkedIdentityField(
+        view_name='recipe:ingredient-detail', lookup_field='slug')
+    tags = serializers.HyperlinkedIdentityField(
+        view_name='recipe:ingredient-tags', lookup_field='slug')
 
     class Meta:
         model = Ingredient
-        fields = ('id', 'name', 'slug', 'user', '_links')
-
-    def get_links(self, instance) -> list:
-        links = []
-        self_rel = {
-            'rel': 'self',
-            'href': reverse('recipe:ingredient-detail', kwargs={'slug': instance.slug})
-        }
-        tags = {
-            'rel': 'tags',
-            'href': reverse('recipe:ingredient-tags', kwargs={'slug': instance.slug})
-        }
-        links.append(self_rel)
-        links.append(tags)
-        return links
+        fields = ('id', 'name', 'slug', 'user', 'self', 'tags')
 
 
 class IngredientDetailOutputSerializer(serializers.ModelSerializer):
     """ serializing ingredient object """
 
-    _links = serializers.SerializerMethodField(method_name='get_links')
+    self = serializers.HyperlinkedIdentityField(
+        view_name='recipe:ingredient-detail', lookup_field='slug')
+    tags = serializers.HyperlinkedIdentityField(
+        view_name='recipe:ingredient-tags', lookup_field='slug')
+    units = serializers.HyperlinkedIdentityField(
+        view_name='recipe:ingredient-units', lookup_field='slug')
 
     class Meta:
         model = Ingredient
-        exclude = ('units', 'tags')
-
-    def get_links(self, instance) -> list:
-        links = []
-        self_rel = {
-            'rel': 'self',
-            'href': reverse('recipe:ingredient-detail', kwargs={'slug': instance.slug})
-        }
-        tags = {
-            'rel': 'tag',
-            'href': reverse('recipe:ingredient-tags', kwargs={'slug': instance.slug})
-        }
-        units = {
-            'rel': 'unit',
-            'href': reverse('recipe:ingredient-units', kwargs={'slug': instance.slug})
-        }
-        links.append(self_rel)
-        links.append(tags)
-        links.append(units)
-        return links
+        fields = '__all__'
 
 
 class IngredientInputSerializer(serializers.Serializer):

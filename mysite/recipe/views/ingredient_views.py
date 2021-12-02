@@ -42,7 +42,7 @@ class IngredientsApi(BaseIngredientClass):
         """ retreving list of ingredients """
         ingredients = selectors.ingredient_list()
         serializer = serializers.IngredientListOutputSerializer(
-            ingredients, many=True)
+            ingredients, many=True, context=self.get_serializer_context())
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
@@ -85,7 +85,7 @@ class IngredientDetailApi(BaseIngredientClass):
         """ handling get request """
         ingredient = self._get_object()
         serializer = serializers.IngredientDetailOutputSerializer(
-            ingredient)
+            ingredient, context=self.get_serializer_context())
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
     def put(self, request, *args, **kwargs):

@@ -41,7 +41,8 @@ class TagsApi(BaseTagClass):
     def get(self, request, *args, **kwargs):
         """ handling get request """
         user_tags = selectors.tag_list(user=request.user)
-        serializer = serializers.TagOutputSerializer(user_tags, many=True)
+        serializer = serializers.TagOutputSerializer(
+            user_tags, many=True, context=self.get_serializer_context())
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):

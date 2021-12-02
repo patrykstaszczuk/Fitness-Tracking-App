@@ -88,7 +88,7 @@ class RecipeDetailApi(BaseRecipeClass):
     def get(self, request, *args, **kwargs) -> Response:
         recipe = self._get_object()
         serializer = serializers.RecipeDetailOutputSerializer(
-            recipe)
+            recipe, context=self.get_serializer_context())
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
     def put(self, request, *args, **kwargs) -> Response:
@@ -171,7 +171,7 @@ class RecipeIngredientsApi(BaseRecipeClass):
         recipe = self._get_object()
         data = selectors.recipe_get_ingredients(recipe)
         serializer = serializers.RecipeIngredientOutputSerializer(
-            data, many=True)
+            data, many=True, context=self.get_serializer_context())
         if serializer.data:
             return Response(data=serializer.data, status=status.HTTP_200_OK)
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -259,7 +259,8 @@ class GroupRecipeDetailApi(GroupRecipeBaseClass):
 
     def get(self, request, *args, **kwargs):
         recipe = self._get_object()
-        serializer = serializers.GroupRecipeDetailOutpuSerializer(recipe)
+        serializer = serializers.GroupRecipeDetailOutpuSerializer(
+            recipe, context=self.get_serializer_context())
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
 

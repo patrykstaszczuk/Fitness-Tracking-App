@@ -16,6 +16,7 @@ urlpatterns = [
          views.RecipeIngredientsApi.as_view(), name='recipe-ingredients'),
     path('recipes/<slug>/ingredients/<pk>',
          views.RecipeIngredientDetailApi.as_view(), name='recipe-ingredients-update'),
+
     path('recipes/group/<pk>/<slug>', views.GroupRecipeDetailApi.as_view(),
          name='group-recipe-detail'),
     path('recipes/group/<pk>/<slug>/tags',
