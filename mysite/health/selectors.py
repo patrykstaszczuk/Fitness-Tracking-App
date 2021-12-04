@@ -1,12 +1,12 @@
 from typing import Iterable
-from .models import HealthDiary
+import datetime
+
 from django.db import models
 from django.db.models import Avg
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ObjectDoesNotExist, ValidationError
-from health import services
-import datetime
-import time
+from django.core.exceptions import ValidationError
+
+from health.models import HealthDiary
 
 
 def health_diary_get(user: get_user_model, date: datetime) -> HealthDiary:

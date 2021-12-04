@@ -1,8 +1,9 @@
 from django.test import TestCase
-from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.utils.text import slugify
 from django.core.exceptions import ValidationError
+from unittest.mock import patch
+
 from recipe.models import Recipe, Tag, Unit, Ingredient, Recipe_Ingredient
 from recipe.services import (
     CreateRecipeDto,

@@ -1,8 +1,8 @@
-from .base_views import BaseViewClass
 from rest_framework.response import Response
 from rest_framework.request import Request
 from rest_framework.reverse import reverse
 from rest_framework import status
+
 from recipe import serializers, selectors
 from recipe.models import Recipe, Recipe_Ingredient
 from users import selectors as users_selectors
@@ -23,6 +23,7 @@ from recipe.services import (
     UpdateRecipeIngredient,
 
 )
+from .base_views import BaseViewClass
 
 
 class BaseRecipeClass(BaseViewClass):
@@ -40,7 +41,7 @@ class BaseRecipeClass(BaseViewClass):
             description=data.get('description')
         )
 
-    def _set_location_in_header(self, request, slug):
+    def set_location_in_header(self, request, slug):
         return {'Location': reverse(
                 'recipe:recipe-detail', request=request,
                 kwargs={'slug': slug})}
@@ -66,7 +67,7 @@ class RecipesApi(BaseRecipeClass):
         dto = self._prepare_dto(request)
         service = CreateRecipe()
         recipe = service.create(dto)
-        headers = self._set_location_in_header(request, recipe.slug)
+        headers = self.set_location_in_header(request, recipe.slug)
         return Response(status=status.HTTP_201_CREATED, headers=headers)
 
     def _prepare_dto(self, request) -> CreateRecipeDto:
@@ -96,7 +97,7 @@ class RecipeDetailApi(BaseRecipeClass):
         dto = self._prepare_dto(recipe, request)
         service = UpdateRecipe()
         recipe = service.update(recipe, dto)
-        headers = self._set_location_in_header(request, recipe.slug)
+        headers = self.set_location_in_header(request, recipe.slug)
 
         return Response(headers=headers, status=status.HTTP_200_OK)
 
@@ -136,7 +137,7 @@ class RecipeTagsApi(BaseRecipeClass):
         dto = self._prepare_dto(request)
         service = AddTagsToRecipe()
         service.add(recipe, dto)
-        headers = self._set_location_in_header(request, recipe.slug)
+        headers = self.set_location_in_header(request, recipe.slug)
         return Response(headers=headers, status=status.HTTP_200_OK)
 
     def delete(self, request, *args, **kwargs):
@@ -145,7 +146,7 @@ class RecipeTagsApi(BaseRecipeClass):
         dto = self._prepare_dto(request)
         service = RemoveTagsFromRecipe()
         service.remove(recipe, dto)
-        headers = self._set_location_in_header(request, recipe.slug)
+        headers = self.set_location_in_header(request, recipe.slug)
         return Response(headers=headers, status=status.HTTP_200_OK)
 
     def _prepare_dto(self, request: Request) -> AddingTagsToRecipeInputDto:
@@ -182,7 +183,7 @@ class RecipeIngredientsApi(BaseRecipeClass):
         dto = self._prepare_dto(request)
         service = AddIngredientsToRecipe()
         service.add(recipe, dto)
-        headers = self._set_location_in_header(request, recipe.slug)
+        headers = self.set_location_in_header(request, recipe.slug)
         return Response(headers=headers, status=status.HTTP_200_OK)
 
     def delete(self, request, *args, **kwargs):
@@ -191,7 +192,7 @@ class RecipeIngredientsApi(BaseRecipeClass):
         dto = self._prepare_dto(request)
         service = RemoveIngredientsFromRecipe()
         service.remove(recipe, dto)
-        headers = self._set_location_in_header(request, recipe.slug)
+        headers = self.set_location_in_header(request, recipe.slug)
         return Response(headers=headers, status=status.HTTP_200_OK)
 
     def _prepare_dto(self, request: Request) -> AddIngredientsToRecipeDto:
@@ -227,7 +228,7 @@ class RecipeIngredientDetailApi(BaseRecipeClass):
         dto = self._prepare_dto(recipe_ingredient, request)
         service = UpdateRecipeIngredient()
         service.update(recipe_ingredient, dto)
-        headers = self._set_location_in_header(request, recipe.slug)
+        headers = self.set_location_in_header(request, recipe.slug)
         return Response(headers=headers, status=status.HTTP_200_OK)
 
     def _prepare_dto(self, recipe_ingredient: Recipe_Ingredient, request: Request) -> UpdateRecipeIngredientDto:

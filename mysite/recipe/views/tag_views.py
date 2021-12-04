@@ -1,8 +1,8 @@
-from .base_views import BaseViewClass
 from rest_framework.response import Response
 from rest_framework.request import Request
 from rest_framework.reverse import reverse
 from rest_framework import status
+
 from recipe import serializers, selectors
 from recipe.models import Tag
 from recipe.services import (
@@ -11,10 +11,11 @@ from recipe.services import (
     DeleteTag,
     UpdateTag,
 )
+from .base_views import BaseViewClass
 
 
 class BaseTagClass(BaseViewClass):
-    def _set_location_in_header(self, request: Request, slug: str) -> dict:
+    def set_location_in_header(self, request: Request, slug: str) -> dict:
         return {'Location': reverse(
                 'recipe:tag-detail', request=request,
                 kwargs={'slug': slug})}
@@ -51,7 +52,7 @@ class TagsApi(BaseTagClass):
         dto = self._prepare_dto(request)
         service = CreateTag()
         tag = service.create(dto)
-        headers = self._set_location_in_header(request, tag.slug)
+        headers = self.set_location_in_header(request, tag.slug)
         return Response(status=status.HTTP_201_CREATED, headers=headers)
 
 
@@ -71,7 +72,7 @@ class TagDetailApi(BaseTagClass):
         dto = self._prepare_dto(request)
         service = UpdateTag()
         tag = service.update(tag, dto)
-        headers = self._set_location_in_header(request, tag.slug)
+        headers = self.set_location_in_header(request, tag.slug)
         return Response(headers=headers, status=status.HTTP_200_OK)
 
     def delete(self, request, *args, **kwargs):

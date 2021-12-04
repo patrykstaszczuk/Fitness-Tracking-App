@@ -1,8 +1,9 @@
+import uuid
+import os
+
 from django.db import models
 from django.urls import reverse
 from django.core.validators import MinValueValidator as MinValue
-import uuid
-import os
 from django.conf import settings
 
 

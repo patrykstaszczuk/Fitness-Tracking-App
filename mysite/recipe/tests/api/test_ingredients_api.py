@@ -1,10 +1,11 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.urls import reverse
-from rest_framework.test import force_authenticate
-from rest_framework.test import APIClient
-from recipe.models import Unit
 from rest_framework import status
+from rest_framework.test import APIClient
+
+from recipe.models import Unit
+
 
 INGREDIENT_CREATE = reverse('recipe:ingredient-create')
 TAG_CREATE = reverse('recipe:tag-create')

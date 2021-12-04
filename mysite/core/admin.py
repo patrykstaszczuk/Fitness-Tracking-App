@@ -6,29 +6,19 @@ from users.models import Group as CustomGroup
 from recipe.models import Ingredient, Tag, Recipe, Recipe_Ingredient, Unit, \
                           Ingredient_Unit
 from meals_tracker.models import Meal, MealCategory
-# from users.forms import CustomUserChangeForm, CustomUserCreationForm
 
 
 class UserAdmin(BaseUserAdmin):
     ordering = ('email',)
-    # The forms to add and change user instances
-    # form = CustomUserChangeForm
-    # add_form = CustomUserCreationForm
 
-    # The fields to be used in displaying the User model.
-    # These override the definitions on the base UserAdmin
-    # that reference specific fields on auth.User.
     list_display = ('email', 'password', 'age', 'gender',
                     'is_active', 'is_staff', 'is_superuser')
     list_filter = ('is_superuser',)
     fieldsets = (
-        # (Tittle, Fields)
         (None, {'fields': ('email', 'password')}),
         ('Personal info', {'fields': ('name', 'age', 'gender')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser')}),
     )
-    # add_fieldsets is not a standard ModelAdmin attribute. UserAdmin
-    # overrides get_fieldsets to use this attribute when creating a user.
     add_fieldsets = (
         (None, {
             'fields': ('email', 'name', 'password1', 'password2',

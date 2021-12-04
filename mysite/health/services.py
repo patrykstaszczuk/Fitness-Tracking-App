@@ -1,11 +1,13 @@
-from .models import HealthDiary
-from meals_tracker.selectors import meal_list
-from health import selectors
-from dataclasses import dataclass
-from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError, ObjectDoesNotExist
 import datetime
 import time
+
+from dataclasses import dataclass
+from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
+
+from health.models import HealthDiary
+from health import selectors
+from meals_tracker.selectors import meal_list
 
 
 @dataclass

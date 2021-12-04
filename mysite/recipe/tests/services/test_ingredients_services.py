@@ -2,6 +2,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.utils.text import slugify
+
 from recipe.models import Ingredient, Tag, Unit
 from recipe.services import (
     CreateIngredientDto,

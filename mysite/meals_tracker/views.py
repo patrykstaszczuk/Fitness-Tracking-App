@@ -1,12 +1,12 @@
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.request import Request
-from meals_tracker import serializers, selectors, services
-from mysite.views import RequiredFieldsResponseMessage, BaseAuthPermClass
 from rest_framework.views import APIView
 from rest_framework.reverse import reverse
-from mysite.exceptions import ApiErrorsMixin
 
+from meals_tracker import serializers, selectors
+from mysite.views import BaseAuthPermClass
+from mysite.exceptions import ApiErrorsMixin
 from meals_tracker.services import (
     CreateMeal,
     CreateMealDto,
@@ -40,7 +40,7 @@ class MealsBaseViewClass(BaseAuthPermClass, ApiErrorsMixin, APIView):
         user = self.request.user
         return selectors.meal_get(user, id)
 
-    def _set_location_in_header(self, id: int, request: Request) -> dict:
+    def set_location_in_header(self, id: int, request: Request) -> dict:
         return {'Location': reverse(
                 'meals_tracker:meal-detail', request=request,
                 kwargs={'pk': id})}
@@ -60,7 +60,7 @@ class MealsApi(MealsBaseViewClass):
         dto = self._prepare_dto(request)
         service = CreateMeal()
         meal = service.create(dto)
-        headers = self._set_location_in_header(meal.id, request)
+        headers = self.set_location_in_header(meal.id, request)
         return Response(status=status.HTTP_201_CREATED, headers=headers)
 
     def _prepare_dto(self, request: Request) -> CreateMealDto:
@@ -107,7 +107,7 @@ class MealsRecipesApi(MealsBaseViewClass):
         dto = self._prepare_dto(request)
         service = AddRecipesToMeal()
         service.add(meal, dto)
-        headers = self._set_location_in_header(meal.id, request)
+        headers = self.set_location_in_header(meal.id, request)
         return Response(status=status.HTTP_200_OK, headers=headers)
 
     def _prepare_dto(self, request: Request) -> AddRecipesToMealDto:
@@ -132,7 +132,7 @@ class MealsRecipesDetailApi(MealsBaseViewClass):
         dto = self._prepare_dto(request)
         service = UpdateMealRecipe()
         service.update(recipe_to_be_updated, dto)
-        headers = self._set_location_in_header(meal.id, request)
+        headers = self.set_location_in_header(meal.id, request)
         return Response(status=status.HTTP_200_OK, headers=headers)
 
     def delete(self, request, *args, **kwargs):
@@ -142,7 +142,7 @@ class MealsRecipesDetailApi(MealsBaseViewClass):
             meal, recipe_id)
         service = RemoveRecipeFromMeal()
         service.remove(recipe_to_be_deleted)
-        headers = self._set_location_in_header(meal.id, request)
+        headers = self.set_location_in_header(meal.id, request)
         return Response(status=status.HTTP_200_OK, headers=headers)
 
     def _prepare_dto(self, request: Request) -> UpdateMealRecipeDto:
@@ -170,7 +170,7 @@ class MealsIngredientsApi(MealsBaseViewClass):
         dto = self._prepare_dto(request)
         service = AddIngredientsToMeal()
         service.add(meal, dto)
-        headers = self._set_location_in_header(meal.id, request)
+        headers = self.set_location_in_header(meal.id, request)
         return Response(status=status.HTTP_200_OK, headers=headers)
 
     def _prepare_dto(self, request: Request) -> AddIngredientsToMealDto:
@@ -195,7 +195,7 @@ class MealsIngredientsDetailApi(MealsBaseViewClass):
         dto = self._prepare_dto(request)
         service = UpdateMealIngredient()
         service.update(meal_ingredient_to_be_updated, dto)
-        headers = self._set_location_in_header(meal.id, request)
+        headers = self.set_location_in_header(meal.id, request)
         return Response(status=status.HTTP_200_OK, headers=headers)
 
     def delete(self, request, *args, **kwargs):
@@ -205,7 +205,7 @@ class MealsIngredientsDetailApi(MealsBaseViewClass):
             meal, id)
         service = RemoveIngredientFromMeal()
         service.remove(ingredient_to_be_deleted)
-        headers = self._set_location_in_header(meal.id, request)
+        headers = self.set_location_in_header(meal.id, request)
         return Response(status=status.HTTP_200_OK, headers=headers)
 
     def _prepare_dto(self, request: Request) -> UpdateMealIngredientDto:

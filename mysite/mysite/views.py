@@ -1,16 +1,16 @@
-from typing import Type
+import time
+
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
-from rest_framework import generics, fields
-from rest_framework.response import Response
-from rest_framework import authentication, permissions, status
+from rest_framework import generics
+from rest_framework import status
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
+
 from mysite.renderers import CustomRenderer
 from mysite.exceptions import ApiErrorsMixin
-from rest_framework.views import APIView
-import time
 from users import selectors as users_selectors
 from users import services as users_services
 

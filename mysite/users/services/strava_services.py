@@ -1,9 +1,11 @@
+import time
+import datetime
+
 from django.contrib.auth import get_user_model
+
 from users import selectors
 from users.models import StravaActivity, StravaApi
 from mysite import settings
-import time
-import datetime
 
 
 def authorize_to_strava(user: get_user_model, strava_code: str) -> bool:

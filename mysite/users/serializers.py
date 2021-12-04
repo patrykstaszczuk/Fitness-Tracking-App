@@ -1,7 +1,8 @@
-from django.contrib.auth import get_user_model, authenticate
+from django.contrib.auth import get_user_model
+
 from rest_framework import serializers
+
 from users.models import Group, StravaActivity
-from django.core.validators import ValidationError
 
 
 class UserOutputSerializer(serializers.ModelSerializer):

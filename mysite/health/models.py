@@ -1,11 +1,9 @@
-from django.db import models
-from django.contrib.auth import get_user_model
 import datetime
 import time
+
+from django.db import models
 from django.utils.text import slugify
 from django.conf import settings
-from meals_tracker.models import Meal
-# Create your models here.
 
 
 class HealthDiary(models.Model):

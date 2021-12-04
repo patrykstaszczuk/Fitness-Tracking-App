@@ -1,8 +1,8 @@
 from rest_framework import serializers
-from meals_tracker.models import Meal, MealCategory, RecipePortion, IngredientAmount
 from rest_framework.reverse import reverse
+
 from mysite import serializers as generic_serializers
-from meals_tracker.fields import CustomRecipePortionField, CustomIngredientAmountField
+from meals_tracker.models import Meal, MealCategory, RecipePortion, IngredientAmount
 from recipe import selectors
 from recipe.serializers import UnitOutputSerializer
 

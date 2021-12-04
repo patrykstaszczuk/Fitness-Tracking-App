@@ -2,17 +2,13 @@ from rest_framework import status
 from rest_framework.authtoken.views import APIView
 from rest_framework.response import Response
 from rest_framework.request import Request
-
 from rest_framework.reverse import reverse
-from rest_framework.authtoken.models import Token
-
-from users import services, selectors
-from users import serializers
 
 from mysite.exceptions import ApiErrorsMixin
 from mysite.renderers import CustomRenderer
 from mysite.views import BaseAuthPermClass
 
+from users import serializers, selectors
 from users.services import (
     CreateUserDto,
     CreateUser,
@@ -34,7 +30,7 @@ from users.services import (
 
 
 class BaseViewClass(BaseAuthPermClass, ApiErrorsMixin, APIView):
-    """ base class for all users app views """
+    """ base class for users views """
 
     def get_serializer_context(self):
         return {
@@ -59,9 +55,9 @@ class CreateUserApi(ApiErrorsMixin, APIView):
     def post(self, request, *args, **kwargs):
         dto = self._prepare_dto(request)
         service = CreateUser()
-        user = service.create(dto)
-        headers = self.set_location_in_header(request)
-        return Response(headers=headers, status=status.HTTP_201_CREATED)
+        service.create(dto)
+        headers = self.set_location_in_header(self.request)
+        return Response(header=headers, status=status.HTTP_201_CREATED)
 
     def _prepare_dto(self, request: Request) -> CreateUserDto:
         serializer = serializers.CreateUserSerializer(data=request.data)
@@ -87,7 +83,7 @@ class ObtainTokenView(ApiErrorsMixin, APIView):
         service = CreateToken()
         token = service.create(dto)
         token = token.key
-        return Response(data={'token': token}, status=status.HTTP_201_CREATED)
+        return Response(data={'token': token}, status=status.HTTP_200_OK)
 
     def _prepare_dto(self, request: Request) -> CreateTokenDto:
         serializer = serializers.CreateTokenSerializer(data=request.data)
@@ -115,8 +111,8 @@ class UpdateUserApi(BaseViewClass):
         dto = self._prepare_dto(request)
         service = UpdateUserProfile()
         service.update(request.user, dto)
-        headers = self.set_location_in_header(request)
-        return Response(headers=headers, status=status.HTTP_200_OK)
+        headers = self.set_location_in_header(self.request)
+        return Response(header=headers, status=status.HTTP_200_OK)
 
     def _prepare_dto(self, request: Request) -> UpdateUserProfileDto:
         serializer = serializers.UpdateUserSerializer(data=request.data)
@@ -139,8 +135,7 @@ class ChangeUserPasswordApi(BaseViewClass):
         dto = self._prepare_dto(request)
         service = UpdateUserPassword()
         service.update(request.user, dto)
-        headers = self.set_location_in_header(request)
-        return Response(headers=headers, status=status.HTTP_200_OK)
+        return Response(status=status.HTTP_200_OK)
 
     def _prepare_dto(self, request: Request) -> UpdateUserPasswordDto:
         serializer = serializers.UpdateUserPasswordSerializer(

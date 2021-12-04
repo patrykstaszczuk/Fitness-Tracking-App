@@ -1,13 +1,15 @@
+import os
+from typing import Iterable
+
 from django.contrib.auth import get_user_model
 from django.http.request import QueryDict
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.db.models.query import QuerySet
+import requests
+
 from recipe.models import Recipe, Ingredient, Unit, Ingredient_Unit, Tag, Recipe_Ingredient
 from users.models import Group
 from users import selectors as users_selectors
-from typing import Iterable, Union, List
-import requests
-import os
 
 
 def recipe_get(user: get_user_model, slug: str) -> Recipe:

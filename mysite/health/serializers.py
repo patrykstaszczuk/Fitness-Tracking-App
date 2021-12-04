@@ -1,9 +1,11 @@
-from rest_framework import serializers
-from health.models import HealthDiary
 import datetime
+
+from rest_framework import serializers
+from django.core.exceptions import ValidationError
+
+from health.models import HealthDiary
 from users.serializers import StravaActivitySerializer
 from users import selectors as users_selectors
-from django.core.exceptions import ValidationError
 
 
 class HealthDiarySerializer(serializers.ModelSerializer):

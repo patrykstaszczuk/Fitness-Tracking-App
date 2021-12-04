@@ -1,10 +1,11 @@
+from abc import ABC
+from dataclasses import dataclass
 
 from django.contrib.auth import get_user_model
-from rest_framework.authtoken.models import Token
 from django.core.exceptions import ValidationError
-from dataclasses import dataclass
+from rest_framework.authtoken.models import Token
+
 from users import selectors
-from abc import ABC
 
 
 class UserInputValidation(ABC):

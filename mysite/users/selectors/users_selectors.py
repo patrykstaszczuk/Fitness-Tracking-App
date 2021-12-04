@@ -1,7 +1,9 @@
-from django.contrib.auth import get_user_model, authenticate
-from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from itertools import chain
 from typing import Iterable
+
+from django.contrib.auth import get_user_model, authenticate
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
+
 from users.models import Group
 
 

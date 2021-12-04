@@ -1,7 +1,6 @@
-from django.urls import path, include
-from health import views
+from django.urls import path
 
-from rest_framework.routers import DefaultRouter
+from health import views
 
 app_name = 'health'
 

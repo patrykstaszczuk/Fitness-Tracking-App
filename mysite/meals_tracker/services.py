@@ -1,8 +1,11 @@
+import datetime
 from dataclasses import dataclass
+
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
-from meals_tracker.models import Meal, RecipePortion, IngredientAmount
 from django.db import IntegrityError
+
+from meals_tracker.models import Meal, RecipePortion, IngredientAmount
 from recipe.models import Recipe, Ingredient_Unit
 from recipe.selectors import (
     recipe_calculate_calories_based_on_portion,
@@ -10,10 +13,7 @@ from recipe.selectors import (
     ingredient_list,
     ingredient_calculate_calories,
     unit_list,
-    ingredient_calculate_calories
     )
-import datetime
-from abc import ABC
 
 
 @dataclass

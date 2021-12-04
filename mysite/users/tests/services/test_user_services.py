@@ -1,10 +1,10 @@
 from django.test import TestCase
+from django.core.exceptions import ValidationError
+from django.contrib.auth import get_user_model
 from unittest.mock import patch
 from rest_framework.authtoken.models import Token
-from django.contrib.auth import get_user_model
+
 from users.models import Group
-from django.utils.text import slugify
-from django.core.exceptions import ValidationError
 from users.services import (
     CreateUserDto,
     CreateUser,

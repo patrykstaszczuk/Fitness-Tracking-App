@@ -1,8 +1,6 @@
 from rest_framework import exceptions as rest_exceptions
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 
-from django.contrib.auth import get_user_model
-
 
 def get_first_matching_attr(obj, *attrs, default=None):
     for attr in attrs:

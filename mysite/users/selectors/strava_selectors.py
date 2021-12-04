@@ -1,11 +1,13 @@
-from users.models import StravaActivity, StravaApi
-from django.contrib.auth import get_user_model
 import datetime
 import time
 import os
-from mysite import settings
 from typing import Iterable
+
 import requests
+from django.contrib.auth import get_user_model
+
+from mysite import settings
+from users.models import StravaActivity, StravaApi
 from users.services import update_activities
 
 

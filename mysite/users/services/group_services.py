@@ -1,6 +1,8 @@
+from dataclasses import dataclass
+
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from dataclasses import dataclass
+
 from users import selectors
 
 

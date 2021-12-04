@@ -1,8 +1,8 @@
-from .base_views import BaseViewClass
 from rest_framework.response import Response
 from rest_framework.request import Request
 from rest_framework.reverse import reverse
 from rest_framework import status
+
 from recipe import serializers, selectors
 from recipe.models import Ingredient
 from recipe.services import (
@@ -18,6 +18,7 @@ from recipe.services import (
     MappingUnitDto,
     MapUnitToIngredient,
 )
+from .base_views import BaseViewClass
 
 
 class BaseIngredientClass(BaseViewClass):
@@ -29,7 +30,7 @@ class BaseIngredientClass(BaseViewClass):
             return selectors.ingredient_get_only_for_user(self.request.user, slug)
         return selectors.ingredient_get(slug)
 
-    def _set_location_in_header(self, request: Request, slug: str) -> dict:
+    def set_location_in_header(self, request: Request, slug: str) -> dict:
         return {'Location': reverse(
                 'recipe:ingredient-detail', request=request,
                 kwargs={'slug': slug})}
@@ -51,7 +52,7 @@ class IngredientsApi(BaseIngredientClass):
         dto = self._prepare_dto(request)
         service = CreateIngredient()
         ingredient = service.create(dto)
-        headers = self._set_location_in_header(request, ingredient.slug)
+        headers = self.set_location_in_header(request, ingredient.slug)
         return Response(status=status.HTTP_201_CREATED, headers=headers)
 
     def _prepare_dto(self, request: Request) -> CreateIngredientDto:
@@ -94,7 +95,7 @@ class IngredientDetailApi(BaseIngredientClass):
         dto = self._prepare_dto(request)
         service = UpdateIngredient()
         ingredient = service.update(ingredient, dto)
-        headers = self._set_location_in_header(request, ingredient.slug)
+        headers = self.set_location_in_header(request, ingredient.slug)
         return Response(headers=headers, status=status.HTTP_200_OK)
 
     def delete(self, request, *args, **kwargs):
@@ -145,7 +146,7 @@ class IngredientTagsApi(BaseIngredientClass):
         dto = self._prepare_dto(request)
         service = AddTagsToIngredient()
         service.add(ingredient, dto)
-        headers = self._set_location_in_header(request, ingredient.slug)
+        headers = self.set_location_in_header(request, ingredient.slug)
         return Response(headers=headers, status=status.HTTP_200_OK)
 
     def delete(self, request, *args, **kwargs):
@@ -154,7 +155,7 @@ class IngredientTagsApi(BaseIngredientClass):
         dto = self._prepare_dto(request)
         service = RemoveTagsFromIngredient()
         service.remove(ingredient, dto)
-        headers = self._set_location_in_header(request, ingredient.slug)
+        headers = self.set_location_in_header(request, ingredient.slug)
         return Response(headers=headers, status=status.HTTP_200_OK)
 
     def _prepare_dto(self, request: Request) -> AddingTagsToIngredientDto:
@@ -189,7 +190,7 @@ class IngredientUnitsApi(BaseIngredientClass):
         dto = self._prepare_dto(request)
         service = MapUnitToIngredient()
         service.map(ingredient, dto)
-        headers = self._set_location_in_header(request, ingredient.slug)
+        headers = self.set_location_in_header(request, ingredient.slug)
         return Response(headers=headers, status=status.HTTP_200_OK)
 
     def _prepare_dto(self, reqeust: Request) -> MappingUnitDto:

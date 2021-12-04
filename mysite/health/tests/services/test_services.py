@@ -1,16 +1,17 @@
+import datetime
+
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.utils.text import slugify
 from django.core.exceptions import ValidationError
 from unittest.mock import patch
+
 from health.services import (
     AddStatisticsDto,
     AddStatistics,
     RecalculateDiaryCaloriesIntake,
 )
 from health.models import HealthDiary
-
-import datetime
 
 
 class HealthServicesTests(TestCase):

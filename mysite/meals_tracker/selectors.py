@@ -1,8 +1,10 @@
-from meals_tracker.models import Meal, MealCategory, RecipePortion, IngredientAmount
 import datetime
+from typing import Iterable
+
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.contrib.auth import get_user_model
-from typing import Iterable
+
+from meals_tracker.models import Meal, MealCategory, RecipePortion, IngredientAmount
 
 
 def meal_list(user: get_user_model, date: datetime = None):

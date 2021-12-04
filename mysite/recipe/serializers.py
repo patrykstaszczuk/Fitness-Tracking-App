@@ -1,6 +1,5 @@
 from rest_framework import serializers
-from recipe.models import Ingredient, Tag, Recipe, Recipe_Ingredient, Unit, \
-    Ingredient_Unit
+from recipe.models import Ingredient, Tag, Recipe, Recipe_Ingredient, Unit
 from rest_framework.reverse import reverse
 
 

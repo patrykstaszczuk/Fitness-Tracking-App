@@ -1,14 +1,14 @@
+import random
+import string
+import datetime
+
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.urls import reverse
-from rest_framework.test import force_authenticate
 from rest_framework.test import APIClient
 from rest_framework import status
-from rest_framework.exceptions import NotFound
-import datetime
-from meals_tracker.models import MealCategory
-import random
-import string
+
+
 from recipe.services import (
     CreateIngredientDto,
     CreateIngredient,
@@ -18,6 +18,7 @@ from recipe.services import (
     AddIngredientsToRecipe,
 )
 from recipe.models import Recipe, Ingredient, Unit
+from meals_tracker.models import MealCategory
 
 MEALS_API = reverse('meals_tracker:meal-create')
 MEALS_HISTORY_URL = reverse('meals_tracker:meal-available-dates')

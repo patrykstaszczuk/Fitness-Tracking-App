@@ -17,8 +17,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE_DIR = Path(BASE_DIR) / 'templates'
 # STATIC_DIR = Path(BASE_DIR) / 'static'
 # MEDIA_DIR = Path(BASE_DIR) / 'media'
-LOGIN_URL = "/konto/logowanie/"
-LOGOUT_REDIRECT_URL = '/'
 
 STRAVA_AUTH_URL = "https://www.strava.com/oauth/token"
 
@@ -33,24 +31,7 @@ SECRET_KEY = os.environ['SECRET_KEY']
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-# LOGGING = {
-#     'version': 1,
-#     'handlers': {
-#         'console': {
-#             'class': 'logging.StreamHandler',
-#         },
-#     },
-#     'loggers': {
-#         'django.db.backends': {
-#             'level': 'DEBUG',
-#         },
-#     },
-#     'root': {
-#         'handlers': ['console'],
-#     }
-# }
 
-#ALLOWED_HOSTS = ['.pythonanywhere.com',]
 ALLOWED_HOSTS = ['*', 'localhost', '127.0.0.0']
 
 AUTHENTICATION_BACKENDS = (

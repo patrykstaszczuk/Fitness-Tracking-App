@@ -1,28 +1,18 @@
 from rest_framework import status, authentication, permissions
-from rest_framework.decorators import authentication_classes, permission_classes
-
 from rest_framework.response import Response
 from rest_framework.request import Request
-from health import serializers
-from health import selectors, services
-import datetime
-
-
-from mysite.views import BaseAuthPermClass
-from mysite.exceptions import ApiErrorsMixin
-
-
 from rest_framework.views import APIView
 from rest_framework.reverse import reverse
 
 
-from users import selectors as users_selectors
-from users import services as users_services
-
+from mysite.views import BaseAuthPermClass
+from mysite.exceptions import ApiErrorsMixin
+from health import serializers, selectors
 from health.services import (
     AddStatisticsDto,
     AddStatistics,
 )
+from users import selectors as users_selectors
 
 
 class Dashboard(APIView):
@@ -39,8 +29,6 @@ class Dashboard(APIView):
             'weight': reverse('health:health-statistic', kwargs={'name': 'weight'}, request=request),
             'sleep_length': reverse('health:health-statistic', kwargs={'name': 'sleep_length'}, request=request),
             'rest_heart_rate': reverse('health:health-statistic', kwargs={'name': 'rest_heart_rate'}, request=request),
-            # 'raports/': reverse('health:health-list', request=request),
-            # 'weekly-summary/': reverse('health:weekly-summary', request=request),
 
         }
         return Response(data=data, status=status.HTTP_200_OK)

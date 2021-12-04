@@ -1,9 +1,10 @@
+import datetime
+
 from django.test import TestCase
 from django.contrib.auth import get_user_model
-from unittest.mock import patch, Mock, MagicMock
+from unittest.mock import patch
+
 from users import models, services, selectors
-import datetime
-import time
 
 
 def sample_user():

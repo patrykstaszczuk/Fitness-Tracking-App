@@ -1,9 +1,10 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.urls import reverse
-from recipe.models import Recipe, Recipe_Ingredient
 from rest_framework.test import APIClient
 from rest_framework import status
+
+from recipe.models import Recipe, Recipe_Ingredient
 from recipe import selectors
 
 RECIPE_CREATE = reverse('recipe:recipe-create')
