@@ -8,6 +8,7 @@ from recipe.models import Recipe, Recipe_Ingredient
 from recipe import selectors
 
 RECIPE_CREATE = reverse('recipe:recipe-create')
+RECIPE_LIST = RECIPE_CREATE
 INGREDIENT_CREATE = reverse('recipe:ingredient-create')
 TAG_CREATE = reverse('recipe:tag-create')
 
@@ -105,6 +106,18 @@ class RecipeApiTests(TestCase):
             recipe_slug), payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         return recipe_slug, ingredient1['id'], unit.id
+
+    @staticmethod
+    def _create_user(email: str = 'auth2@gmail.com', name: str = 'auth2') -> get_user_model:
+        return get_user_model().objects.create_user(
+            email=email,
+            name=name,
+            password='authpass',
+            gender='M',
+            age=25,
+            height=188,
+            weight=73,
+        )
 
     def test_unauthenticated_user_return_401(self) -> None:
         unauth_client = APIClient()
@@ -218,16 +231,7 @@ class RecipeApiTests(TestCase):
             recipe__slug=recipe_slug, ingredient__id=ingredient_id).amount, payload['amount'])
 
     def test_retreving_group_recipe_success(self) -> None:
-        user2 = get_user_model().objects.create_user(
-            email='auth2@gmail.com',
-            name='auth2',
-            password='authpass',
-            gender='M',
-            age=25,
-            height=188,
-            weight=73,
-
-        )
+        user2 = self._create_user()
         self.client2 = APIClient()
         self.client2.force_authenticate(user2)
         user2.own_group.members.add(self.auth_user)
@@ -237,7 +241,7 @@ class RecipeApiTests(TestCase):
             'prepare_time': 45,
             'description': 'sth'
             }
-        res = self.client2.post(RECIPE_CREATE, payload)
+        res = self.client2.post(RECIPE_LIST, payload)
         url = res._headers['location'][1]
         recipe_slug = self.client2.get(url).data['slug']
 
@@ -245,16 +249,7 @@ class RecipeApiTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
 
     def test_retrieving_group_recipe_not_group_member_failed(self) -> None:
-        user2 = get_user_model().objects.create_user(
-            email='auth2@gmail.com',
-            name='auth2',
-            password='authpass',
-            gender='M',
-            age=25,
-            height=188,
-            weight=73,
-
-        )
+        user2 = self._create_user()
         self.client2 = APIClient()
         self.client2.force_authenticate(user2)
         payload = {
@@ -263,9 +258,67 @@ class RecipeApiTests(TestCase):
             'prepare_time': 45,
             'description': 'sth'
             }
-        res = self.client2.post(RECIPE_CREATE, payload)
+        res = self.client2.post(RECIPE_LIST, payload)
         url = res._headers['location'][1]
         recipe_slug = self.client2.get(url).data['slug']
 
         res = self.client.get(group_recipe_url(recipe_slug, user2.id))
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_filtering_recipes_by_group_id(self) -> None:
+        user2 = self._create_user()
+        self.client2 = APIClient()
+        self.client2.force_authenticate(user2)
+        user2.own_group.members.add(self.auth_user)
+        payload = {
+            'name': 'user2 recipe',
+            'portions': 3,
+            'prepare_time': 45,
+            'description': 'sth'
+            }
+        self.client2.post(RECIPE_CREATE, payload)
+        payload['name'] = 'user1 recipe'
+        self.client.post(RECIPE_CREATE, payload)
+
+        res = self.client.get(RECIPE_LIST + f'?groups={user2.own_group.id}')
+        self.assertEqual(len(res.data['results']), 1)
+
+    def test_filtering_recipes_by_tags_and_groups(self) -> None:
+        user2 = self._create_user()
+        self.client2 = APIClient()
+        self.client2.force_authenticate(user2)
+        user2.own_group.members.add(self.auth_user)
+        # create recipe for user2
+        recipe_payload = {
+            'name': 'user2 recipe',
+            'portions': 3,
+            'prepare_time': 45,
+            'description': 'sth'
+            }
+        res = self.client2.post(RECIPE_CREATE, recipe_payload)
+        recipe_slug = self.client2.get(
+            res._headers['location'][1]).data['slug']
+        # add tag to user2 recipe
+        payload = {
+            'name': 'dinner'
+        }
+        self.client2.post(TAG_CREATE, payload)
+        url = res._headers['location'][1]
+        user2_tag_slug = self.client2.get(url).data['slug']
+        self.client2.post(recipe_tags_url(
+            recipe_slug), {'tag_ids': [user2_tag_slug, ]})
+
+        # create recipe for user1
+        recipe_payload['name'] = 'user1 recipe'
+        res = self.client.post(RECIPE_CREATE, recipe_payload)
+        recipe_slug = self.client.get(
+            res._headers['location'][1]).data['slug']
+        # add tag to user1 recipe
+        tag_id = self._create_tag(name='supper')['id']
+        self.client.post(recipe_tags_url(recipe_slug), {
+                         'tag_ids': [tag_id, ]})
+        #fitler recipes by group and tag
+        print('Filtering does not work via tests but works as expected via browser')
+        res = self.client.get(
+            RECIPE_LIST + f'?tags={user2_tag_slug}&groups={user2.own_group.id}')
+        self.assertEqual(len(res.data['results']), 1)

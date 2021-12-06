@@ -57,7 +57,7 @@ def recipe_list(user: get_user_model, filters: QueryDict = None) -> list[Recipe]
 def _filter_queryset(user: get_user_model, filters: QueryDict, default_queryset: QuerySet, user_groups: list[Group]) -> list[Recipe]:
     """ apply filters on queryset and return it """
     queryset = default_queryset
-    allowed_filters = ['tags', 'groups']
+    allowed_filters = ['groups', 'tags']
     for field in allowed_filters:
         if field in filters:
             list_of_values = filters[field].split(',')
@@ -65,8 +65,7 @@ def _filter_queryset(user: get_user_model, filters: QueryDict, default_queryset:
                 queryset = _filter_queryset_by_groups(
                     list_of_values, queryset, user_groups)
             if field == 'tags':
-                queryset = _filter_queryset_by_tags(
-                    user, list_of_values, queryset)
+                queryset = queryset.filter(tags__slug__in=list_of_values)
     return queryset
 
 
@@ -81,8 +80,7 @@ def _filter_queryset_by_groups(list_of_values: list, queryset: QuerySet, user_gr
 
 def _filter_queryset_by_tags(user: get_user_model, tag_slugs: list[str], queryset: QuerySet):
     """ filter queryset by tags """
-    tags_instances = tag_get_multi_by_slugs(user, tag_slugs)
-    return queryset.filter(tags__in=list(tags_instances))
+    return queryset.filter(tags__slug__in=tag_slugs)
 
 
 def recipe_check_if_user_can_retrieve(requested_user: get_user_model,
@@ -128,15 +126,6 @@ def tag_get(user: get_user_model, slug: str) -> Tag:
 def tag_ready_meal_get_or_create(user: get_user_model) -> Tag:
     """ return 'ready meal' tag or create and return """
     return Tag.objects.get_or_create(user=user, slug='ready-meal', defaults={'name': 'Ready Meal'})[0]
-
-
-def tag_get_multi_by_slugs(user: get_user_model, slugs: list[str]) -> list[Tag]:
-    """ return tags by provided slugs or raise error """
-    tag_instances = Tag.objects.filter(user=user, slug__in=slugs)
-    if len(tag_instances) != len(slugs):
-        raise ObjectDoesNotExist(
-            'At least one of proviede slug cannot be mapped to tag')
-    return tag_instances
 
 
 def ingredient_list() -> Iterable[Ingredient]:

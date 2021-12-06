@@ -64,10 +64,6 @@ class RecipesApi(BaseRecipeClass):
     def get(self, request, *args, **kwargs):
         recipes = selectors.recipe_list(
             user=request.user, filters=request.query_params)
-        context = self.get_serializer_context()
-        # serializer = serializers.RecipeListOutputSerializer(
-        #     recipes, many=True, context=context)
-
         return get_paginated_response(
             pagination_class=self.Pagination,
             serializer_class=serializers.RecipeListOutputSerializer,
@@ -75,7 +71,6 @@ class RecipesApi(BaseRecipeClass):
             request=request,
             view=self
         )
-        #return Response(data=serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
         dto = self._prepare_dto(request)
