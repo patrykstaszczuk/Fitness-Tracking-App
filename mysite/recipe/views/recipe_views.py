@@ -24,6 +24,10 @@ from recipe.services import (
 
 )
 from .base_views import BaseViewClass
+from mysite.drf_pagination import (
+    LimitOffsetPagination,
+    get_paginated_response
+)
 
 
 class BaseRecipeClass(BaseViewClass):
@@ -54,14 +58,24 @@ class BaseRecipeClass(BaseViewClass):
 
 
 class RecipesApi(BaseRecipeClass):
+    class Pagination(LimitOffsetPagination):
+        default_limit = 5
 
     def get(self, request, *args, **kwargs):
         recipes = selectors.recipe_list(
             user=request.user, filters=request.query_params)
         context = self.get_serializer_context()
-        serializer = serializers.RecipeListOutputSerializer(
-            recipes, many=True, context=context)
-        return Response(data=serializer.data, status=status.HTTP_200_OK)
+        # serializer = serializers.RecipeListOutputSerializer(
+        #     recipes, many=True, context=context)
+
+        return get_paginated_response(
+            pagination_class=self.Pagination,
+            serializer_class=serializers.RecipeListOutputSerializer,
+            queryset=recipes,
+            request=request,
+            view=self
+        )
+        #return Response(data=serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
         dto = self._prepare_dto(request)
@@ -126,7 +140,8 @@ class RecipeTagsApi(BaseRecipeClass):
     def get(self, request, *args, **kwargs):
         recipe = self._get_object()
         data = selectors.recipe_get_tags(request.user, recipe)
-        serializer = serializers.TagOutputSerializer(data, many=True)
+        serializer = serializers.TagOutputSerializer(
+            data, many=True, context=self.get_serializer_context())
         if serializer.data:
             return Response(data=serializer.data, status=status.HTTP_200_OK)
         return Response(status=status.HTTP_204_NO_CONTENT)

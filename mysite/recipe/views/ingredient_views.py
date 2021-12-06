@@ -19,6 +19,10 @@ from recipe.services import (
     MapUnitToIngredient,
 )
 from .base_views import BaseViewClass
+from mysite.drf_pagination import (
+    LimitOffsetPagination,
+    get_paginated_response,
+)
 
 
 class BaseIngredientClass(BaseViewClass):
@@ -38,13 +42,19 @@ class BaseIngredientClass(BaseViewClass):
 
 class IngredientsApi(BaseIngredientClass):
     """ API for retreving ingredients and creating new ones """
+    class Pagination(LimitOffsetPagination):
+        default_limit = 10
 
     def get(self, request, *args, **kwargs):
         """ retreving list of ingredients """
         ingredients = selectors.ingredient_list()
-        serializer = serializers.IngredientListOutputSerializer(
-            ingredients, many=True, context=self.get_serializer_context())
-        return Response(data=serializer.data, status=status.HTTP_200_OK)
+        return get_paginated_response(
+            pagination_class=self.Pagination,
+            serializer_class=serializers.IngredientListOutputSerializer,
+            queryset=ingredients,
+            request=request,
+            view=self
+        )
 
     def post(self, request, *args, **kwargs):
         """ creating ingredient """
